@@ -153,4 +153,56 @@ object ProUiInjector {
       if (BuildConfig.DEBUG) Log.d(TAG, "applyProImport failed: ${t.message}")
     }
   }
+
+  /**
+   * 输入设置页注入：
+   * - main 布局提供 ViewStub：@id/pro_inject_stub_input
+   * - pro 侧提供布局：res/layout/pro_input_settings_extra.xml（包含开关等）
+   */
+  fun injectIntoInputSettings(activity: Activity, root: View) {
+    if (!Edition.isPro) return
+    val res = activity.resources
+    val pkg = activity.packageName
+    try {
+      val layoutId = res.getIdentifier("pro_input_settings_extra", "layout", pkg)
+      if (layoutId == 0) return
+      val stubId = res.getIdentifier("pro_inject_stub_input", "id", pkg)
+      val stub = if (stubId != 0) root.findViewById<ViewStub?>(stubId) else null
+      val inflater = LayoutInflater.from(activity)
+      if (stub != null) {
+        stub.layoutResource = layoutId
+        stub.inflate()
+      } else if (root is ViewGroup) {
+        inflater.inflate(layoutId, root, true)
+      }
+    } catch (t: Throwable) {
+      if (BuildConfig.DEBUG) Log.d(TAG, "skip pro ui inject(input): ${t.message}")
+    }
+  }
+
+  /**
+   * 键盘视图注入：
+   * - main 布局提供 ViewStub：@id/pro_inject_stub_ime
+   * - pro 侧提供布局：res/layout/pro_ime_injector.xml（包含自注册 Hook View）
+   */
+  fun injectIntoImeKeyboard(context: android.content.Context, root: View) {
+    if (!Edition.isPro) return
+    val res = context.resources
+    val pkg = context.packageName
+    try {
+      val layoutId = res.getIdentifier("pro_ime_injector", "layout", pkg)
+      if (layoutId == 0) return
+      val stubId = res.getIdentifier("pro_inject_stub_ime", "id", pkg)
+      val stub = if (stubId != 0) root.findViewById<ViewStub?>(stubId) else null
+      val inflater = LayoutInflater.from(context)
+      if (stub != null) {
+        stub.layoutResource = layoutId
+        stub.inflate()
+      } else if (root is ViewGroup) {
+        inflater.inflate(layoutId, root, true)
+      }
+    } catch (t: Throwable) {
+      if (BuildConfig.DEBUG) Log.d(TAG, "skip pro ime inject: ${t.message}")
+    }
+  }
 }

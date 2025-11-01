@@ -97,6 +97,12 @@
           android:layout_marginTop="8dp"
           android:text="@string/label_headset_mic_priority" />
 
+        <!-- Pro 注入插槽：输入设置 -->
+        <ViewStub
+          android:id="@+id/pro_inject_stub_input"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content" />
+
         <!-- 键盘高度 -->
         <TextView
             android:layout_width="match_parent"

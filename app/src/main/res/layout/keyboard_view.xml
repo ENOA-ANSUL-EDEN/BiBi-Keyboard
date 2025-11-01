@@ -323,4 +323,10 @@
             android:includeFontPadding="false" />
     </LinearLayout>
 
+    <!-- Pro 注入插槽：IME 额外功能（如光标滑动）-->
+    <ViewStub
+        android:id="@+id/pro_inject_stub_ime"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
 </FrameLayout>

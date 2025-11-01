@@ -227,6 +227,9 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
             view.post { syncSystemBarsToKeyboardBackground(view) }
         } catch (_: Throwable) { }
 
+        // Pro：注入 IME 侧额外功能
+        try { com.brycewg.asrkb.ProUiInjector.injectIntoImeKeyboard(this, view) } catch (_: Throwable) { }
+
         return view
     }
 
@@ -265,6 +268,9 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
         hideAiEditPanel()
         hideNumpadPanel()
         hideNumpadPanel()
+
+        // Pro：再次注入以覆盖可能被标点标签刷新影响的 UI
+        try { rootView?.let { com.brycewg.asrkb.ProUiInjector.injectIntoImeKeyboard(this, it) } } catch (_: Throwable) { }
 
         // 同步系统栏颜色
         try {
