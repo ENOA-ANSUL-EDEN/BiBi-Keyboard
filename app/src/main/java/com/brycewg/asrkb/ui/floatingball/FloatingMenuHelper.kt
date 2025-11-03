@@ -3,6 +3,7 @@ package com.brycewg.asrkb.ui.floatingball
 import android.content.Context
 import android.graphics.PixelFormat
 import android.util.Log
+import android.view.ContextThemeWrapper
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
@@ -11,18 +12,28 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import com.brycewg.asrkb.R
+import com.brycewg.asrkb.UiColors
+import com.google.android.material.color.DynamicColors
 
 /**
  * 悬浮菜单辅助类
  * 提供通用的菜单创建、显示、隐藏逻辑
  * FloatingAsrService 和 FloatingImeSwitcherService 共享此工具
+ *
+ * 自动应用动态主题上下文（Material3 + Monet），确保与系统主题一致
  */
 class FloatingMenuHelper(
-    private val context: Context,
+    rawContext: Context,
     private val windowManager: WindowManager
 ) {
     companion object {
         private const val TAG = "FloatingMenuHelper"
+    }
+
+    // 包裹动态主题的上下文，用于创建所有视图
+    private val context: Context = run {
+        val themedCtx = ContextThemeWrapper(rawContext, R.style.Theme_ASRKeyboard)
+        DynamicColors.wrapContextIfAvailable(themedCtx)
     }
 
     /**
@@ -341,7 +352,7 @@ class FloatingMenuHelper(
 
             val titleView = TextView(context).apply {
                 text = title
-                setTextColor(0xFF111111.toInt())
+                setTextColor(UiColors.panelFg(context))
                 textSize = 16f
                 setPadding(0, 0, 0, dp(4))
             }
@@ -356,7 +367,7 @@ class FloatingMenuHelper(
             entries.forEach { (label, isSelected, onClick) ->
                 val tv = TextView(context).apply {
                     text = if (isSelected) "✓  $label" else label
-                    setTextColor(0xFF222222.toInt())
+                    setTextColor(UiColors.panelFgVariant(context))
                     textSize = 14f
                     setPadding(dp(6), dp(8), dp(6), dp(8))
                     isClickable = true
@@ -463,7 +474,7 @@ class FloatingMenuHelper(
 
             val titleView = TextView(context).apply {
                 text = title
-                setTextColor(0xFF111111.toInt())
+                setTextColor(UiColors.panelFg(context))
                 textSize = 16f
                 setPadding(0, 0, 0, dp(4))
             }
@@ -502,7 +513,7 @@ class FloatingMenuHelper(
             texts.forEach { text ->
                 val tv = TextView(context).apply {
                     this.text = text
-                    setTextColor(0xFF222222.toInt())
+                    setTextColor(UiColors.panelFgVariant(context))
                     textSize = 14f
                     setPadding(dp(10), dp(8), dp(10), dp(8))
                     isClickable = true
@@ -619,14 +630,14 @@ class FloatingMenuHelper(
         val iv = ImageView(context).apply {
             setImageResource(iconRes)
             try {
-                setColorFilter(0xFF111111.toInt())
+                setColorFilter(UiColors.panelFg(context))
             } catch (e: Throwable) {
                 Log.w(TAG, "Failed to set icon color filter", e)
             }
         }
         val tv = TextView(context).apply {
             text = label
-            setTextColor(0xFF111111.toInt())
+            setTextColor(UiColors.panelFg(context))
             textSize = 12f
             setPadding(dp(6), 0, 0, 0)
         }

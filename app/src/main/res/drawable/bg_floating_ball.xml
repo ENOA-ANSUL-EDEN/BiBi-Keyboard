@@ -1,9 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
-    <!-- 纯白底，与 logo 白底保持一致 -->
-    <solid android:color="@android:color/white" />
+    <!-- 使用主题容器色，支持浅色/深色模式与 Monet 动态取色 -->
+    <solid android:color="?attr/colorSurface" />
     <corners android:radius="14dp" />
-    <padding android:left="0dp" android:top="0dp" android:right="0dp" android:bottom="0dp" />
-    <stroke android:width="0dp" android:color="@android:color/transparent" />
     <size android:width="28dp" android:height="28dp" />
 </shape>

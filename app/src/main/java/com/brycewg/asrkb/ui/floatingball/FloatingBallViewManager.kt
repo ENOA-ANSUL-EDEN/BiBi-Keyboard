@@ -15,6 +15,7 @@ import android.view.animation.DecelerateInterpolator
 import android.widget.ImageView
 import androidx.core.graphics.toColorInt
 import com.brycewg.asrkb.R
+import com.brycewg.asrkb.UiColors
 import com.brycewg.asrkb.store.Prefs
 import com.brycewg.asrkb.ui.widgets.ProcessingSpinnerView
 import com.google.android.material.color.DynamicColors
@@ -746,7 +747,7 @@ class FloatingBallViewManager(
         } catch (e: Throwable) {
             Log.w(TAG, "Failed to cancel icon animation", e)
         }
-        icon.setColorFilter("#FF1744".toColorInt())
+        icon.setColorFilter(UiColors.error(icon))
 
         val shake = ValueAnimator.ofFloat(0f, -16f, 16f, -12f, 12f, -6f, 6f, 0f).apply {
             duration = 500

@@ -51,7 +51,7 @@
             android:layout_gravity="center"
             android:src="@drawable/microphone"
             android:scaleType="fitCenter"
-            android:tint="@color/floating_asr_icon_tint"
+            android:tint="?attr/colorSecondary"
             android:contentDescription="@string/cd_floating_asr" />
     </FrameLayout>
 

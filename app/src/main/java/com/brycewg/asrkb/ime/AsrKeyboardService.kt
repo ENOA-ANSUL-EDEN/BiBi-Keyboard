@@ -36,6 +36,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import com.google.android.material.color.MaterialColors
 import com.brycewg.asrkb.LocaleHelper
+import com.brycewg.asrkb.UiColors
+import com.brycewg.asrkb.UiColorTokens
 import com.brycewg.asrkb.clipboard.SyncClipboardManager
 import com.brycewg.asrkb.store.debug.DebugLogManager
 
@@ -1645,9 +1647,10 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
     private fun resolveKeyboardSurfaceColor(from: View? = null): Int {
         val ctx = from?.context ?: this
         return try {
-            MaterialColors.getColor(ctx, com.google.android.material.R.attr.colorSurface, Color.BLACK)
+            UiColors.get(ctx, UiColorTokens.kbdContainerBg)
         } catch (_: Throwable) {
-            Color.BLACK
+            // 使用 Material3 标准浅色 Surface 作为最终回退
+            0xFFFFFBFE.toInt()
         }
     }
 
