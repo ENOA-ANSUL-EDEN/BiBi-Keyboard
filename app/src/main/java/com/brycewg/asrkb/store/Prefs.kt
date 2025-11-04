@@ -729,14 +729,17 @@ class Prefs(context: Context) {
     data class VendorAgg(
         var sessions: Long = 0,
         var chars: Long = 0,
-        var audioMs: Long = 0
+        var audioMs: Long = 0,
+        // 非流式请求的供应商处理耗时聚合（毫秒）
+        var procMs: Long = 0
     )
 
     @Serializable
     data class DayAgg(
         var sessions: Long = 0,
         var chars: Long = 0,
-        var audioMs: Long = 0
+        var audioMs: Long = 0,
+        var procMs: Long = 0
     )
 
     @Serializable
@@ -744,6 +747,7 @@ class Prefs(context: Context) {
         var totalSessions: Long = 0,
         var totalChars: Long = 0,
         var totalAudioMs: Long = 0,
+        var totalProcMs: Long = 0,
         var perVendor: MutableMap<String, VendorAgg> = mutableMapOf(),
         var daily: MutableMap<String, DayAgg> = mutableMapOf(),
         var firstUseDate: String = ""
@@ -792,7 +796,7 @@ class Prefs(context: Context) {
      * @param audioMs 本次会话的录音时长（毫秒）
      * @param chars 提交的字符数
      */
-    fun recordUsageCommit(source: String, vendor: AsrVendor, audioMs: Long, chars: Int) {
+    fun recordUsageCommit(source: String, vendor: AsrVendor, audioMs: Long, chars: Int, procMs: Long = 0L) {
         if (chars <= 0 && audioMs <= 0) return
         val today = LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE)
         val stats = getUsageStats()
@@ -800,18 +804,21 @@ class Prefs(context: Context) {
         stats.totalSessions += 1
         stats.totalChars += chars.coerceAtLeast(0)
         stats.totalAudioMs += audioMs.coerceAtLeast(0L)
+        stats.totalProcMs += procMs.coerceAtLeast(0L)
 
         val key = vendor.id
         val va = stats.perVendor[key] ?: VendorAgg()
         va.sessions += 1
         va.chars += chars.coerceAtLeast(0)
         va.audioMs += audioMs.coerceAtLeast(0L)
+        va.procMs += procMs.coerceAtLeast(0L)
         stats.perVendor[key] = va
 
         val da = stats.daily[today] ?: DayAgg()
         da.sessions += 1
         da.chars += chars.coerceAtLeast(0)
         da.audioMs += audioMs.coerceAtLeast(0L)
+        da.procMs += procMs.coerceAtLeast(0L)
         stats.daily[today] = da
 
         // 裁剪 daily 至最近 400 天（防止无限增长）

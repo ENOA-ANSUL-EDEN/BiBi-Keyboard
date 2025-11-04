@@ -304,7 +304,9 @@
     <string name="label_ai_processed">AI 处理</string>
     <string name="label_chars_count">字数:%1$d</string>
     <string name="label_audio_duration_s">用时:%1$.1f 秒</string>
-    <string name="meta_cost_seconds">用时%1$.1fs</string>
+    <!-- 历史列表：总用时与处理耗时（非流式） -->
+    <string name="meta_total_seconds">总用时%1$.1fs</string>
+    <string name="meta_proc_seconds">处理耗时%1$.1fs</string>
     <string name="ai_processed_yes">已后处理</string>
     <string name="ai_processed_no">未后处理</string>
     <string name="label_timestamp">时间</string>
@@ -548,6 +550,7 @@
     <string name="about_avg_line">平均音频时长：%1$s  ·  平均字数：%2$d  ·  平均速度：%3$s 字/分钟</string>
     <string name="about_daily_weekly_avg">每日平均（近7天）：%1$d 字、%2$s；每周平均（近4周）：%3$d 字、%4$s</string>
     <string name="about_by_vendor">按供应商</string>
+    <string name="about_proc_prefix">处理耗时</string>
     <string name="about_last_7_days">最近 7 天（字数）</string>
     <string name="about_empty_stats_placeholder">暂无统计数据</string>
     <string name="unit_chars">字</string>

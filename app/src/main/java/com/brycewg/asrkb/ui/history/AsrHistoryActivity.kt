@@ -588,8 +588,12 @@ class AsrHistoryActivity : AppCompatActivity() {
         val source = mapSourceFullName(r.source)
         val ai = if (r.aiProcessed) itemView.context.getString(R.string.ai_processed_yes) else itemView.context.getString(R.string.ai_processed_no)
         val charsPart = "${r.charCount}${itemView.context.getString(R.string.unit_chars)}"
-        val durPart = itemView.context.getString(R.string.meta_cost_seconds, r.audioMs / 1000.0)
-        tvMeta.text = listOf(vendor, source, ai, charsPart, durPart).joinToString("·")
+        val totalPart = itemView.context.getString(R.string.meta_total_seconds, r.audioMs / 1000.0)
+        val parts = mutableListOf(vendor, source, ai, charsPart, totalPart)
+        if (r.procMs > 0) {
+          parts.add(itemView.context.getString(R.string.meta_proc_seconds, r.procMs / 1000.0))
+        }
+        tvMeta.text = parts.joinToString("·")
 
         // 选中高亮（不使用勾选图标），使用更深的 Monet 取色
         val card = itemView as MaterialCardView

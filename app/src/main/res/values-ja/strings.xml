@@ -404,7 +404,9 @@
     <string name="label_ai_processed">AI処理済み</string>
     <string name="label_chars_count">テキスト：%1$d</string>
     <string name="label_audio_duration_s">時間：%1$.1f秒</string>
-    <string name="meta_cost_seconds">%1$.1f秒かかりました</string>
+    <!-- 履歴リスト：総時間と処理時間（非ストリーミング） -->
+    <string name="meta_total_seconds">合計%1$.1f秒</string>
+    <string name="meta_proc_seconds">処理時間%1$.1f秒</string>
     <string name="ai_processed_yes">後処理済み</string>
     <string name="ai_processed_no">未処理</string>
     <string name="label_timestamp">時間</string>
@@ -550,6 +552,7 @@
     <string name="about_avg_line">平均音声：%1$s・平均文字：%2$d・平均速度：%3$s文字/分</string>
     <string name="about_daily_weekly_avg">日平均（過去7日間）：%1$d文字、%2$s；週平均（過去4週間）：%3$d文字、%4$s</string>
     <string name="about_by_vendor">プロバイダー別</string>
+    <string name="about_proc_prefix">処理時間</string>
     <string name="about_last_7_days">過去7日間（文字）</string>
     <string name="about_empty_stats_placeholder">まだデータがありません</string>
     <string name="unit_chars">文字</string>

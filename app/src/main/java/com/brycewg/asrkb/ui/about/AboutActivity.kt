@@ -205,8 +205,18 @@ class AboutActivity : AppCompatActivity() {
     } else {
       vendorPairs.forEach { (id, agg) ->
         val name = vendorDisplayName(AsrVendor.fromId(id))
-        val line = "$name：${formatInt(agg.chars)} ${getString(R.string.unit_chars)} / ${formatDurationMs(agg.audioMs)}"
-        addInfoLine(vendorContainer, line)
+        val base = StringBuilder()
+          .append(name)
+          .append("：")
+          .append(formatInt(agg.chars)).append(" ").append(getString(R.string.unit_chars))
+          .append(" / ")
+          .append(formatDurationMs(agg.audioMs))
+        if (agg.procMs > 0) {
+          base.append(" / ")
+            .append(getString(R.string.about_proc_prefix)).append(" ")
+            .append(formatDurationMs(agg.procMs))
+        }
+        addInfoLine(vendorContainer, base.toString())
         addProgress(vendorContainer, agg.chars.toDouble() / maxChars.toDouble())
       }
     }

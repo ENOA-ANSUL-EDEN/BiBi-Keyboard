@@ -56,6 +56,8 @@ class AsrSessionManager(
     // 统计：录音时长
     private var sessionStartUptimeMs: Long = 0L
     private var lastAudioMsForStats: Long = 0L
+    // 统计：非流式请求处理耗时（毫秒）
+    private var lastRequestDurationMs: Long? = null
     // 音频焦点请求句柄
     private var audioFocusRequest: AudioFocusRequest? = null
 
@@ -66,6 +68,8 @@ class AsrSessionManager(
             Log.w(TAG, "Failed to read uptime for session start", t)
             sessionStartUptimeMs = 0L
         }
+        // 新会话开始：重置请求耗时，避免上一轮的值串台
+        lastRequestDurationMs = null
         // 开始录音前根据设置决定是否请求短时独占音频焦点（音频避让）
         if (prefs.duckMediaOnRecordEnabled) {
             requestTransientAudioFocus()
@@ -139,6 +143,9 @@ class AsrSessionManager(
         lastAudioMsForStats = 0L
         return v
     }
+
+    /** 最近一次请求耗时（毫秒），仅非流式模式有效 */
+    fun getLastRequestDuration(): Long? = lastRequestDurationMs
 
     /** 清理会话 */
     fun cleanup() {
@@ -390,33 +397,33 @@ class AsrSessionManager(
                 if (prefs.volcStreamingEnabled) {
                     VolcStreamAsrEngine(context, serviceScope, prefs, this)
                 } else {
-                    VolcFileAsrEngine(context, serviceScope, prefs, this, onRequestDuration = { })
+                    VolcFileAsrEngine(context, serviceScope, prefs, this, onRequestDuration = ::onRequestDuration)
                 }
             } else null
             AsrVendor.SiliconFlow -> if (prefs.hasSfKeys()) {
-                SiliconFlowFileAsrEngine(context, serviceScope, prefs, this, onRequestDuration = { })
+                SiliconFlowFileAsrEngine(context, serviceScope, prefs, this, onRequestDuration = ::onRequestDuration)
             } else null
             AsrVendor.ElevenLabs -> if (prefs.hasElevenKeys()) {
-                ElevenLabsFileAsrEngine(context, serviceScope, prefs, this, onRequestDuration = { })
+                ElevenLabsFileAsrEngine(context, serviceScope, prefs, this, onRequestDuration = ::onRequestDuration)
             } else null
             AsrVendor.OpenAI -> if (prefs.hasOpenAiKeys()) {
-                OpenAiFileAsrEngine(context, serviceScope, prefs, this, onRequestDuration = { })
+                OpenAiFileAsrEngine(context, serviceScope, prefs, this, onRequestDuration = ::onRequestDuration)
             } else null
             AsrVendor.DashScope -> if (prefs.hasDashKeys()) {
                 if (prefs.dashStreamingEnabled) {
                     DashscopeStreamAsrEngine(context, serviceScope, prefs, this)
                 } else {
-                    DashscopeFileAsrEngine(context, serviceScope, prefs, this, onRequestDuration = { })
+                    DashscopeFileAsrEngine(context, serviceScope, prefs, this, onRequestDuration = ::onRequestDuration)
                 }
             } else null
             AsrVendor.Gemini -> if (prefs.hasGeminiKeys()) {
-                GeminiFileAsrEngine(context, serviceScope, prefs, this, onRequestDuration = { })
+                GeminiFileAsrEngine(context, serviceScope, prefs, this, onRequestDuration = ::onRequestDuration)
             } else null
             AsrVendor.Soniox -> if (prefs.hasSonioxKeys()) {
                 if (prefs.sonioxStreamingEnabled) {
                     SonioxStreamAsrEngine(context, serviceScope, prefs, this)
                 } else {
-                    SonioxFileAsrEngine(context, serviceScope, prefs, this, onRequestDuration = { })
+                    SonioxFileAsrEngine(context, serviceScope, prefs, this, onRequestDuration = ::onRequestDuration)
                 }
             } else null
             AsrVendor.SenseVoice -> {
@@ -424,10 +431,15 @@ class AsrSessionManager(
                 if (prefs.svPseudoStreamingEnabled) {
                     LocalModelPseudoStreamAsrEngine(context, serviceScope, prefs, this)
                 } else {
-                    SenseVoiceFileAsrEngine(context, serviceScope, prefs, this) {}
+                    SenseVoiceFileAsrEngine(context, serviceScope, prefs, this, onRequestDuration = ::onRequestDuration)
                 }
             }
         }
+    }
+
+    private fun onRequestDuration(ms: Long) {
+        lastRequestDurationMs = ms
+        Log.d(TAG, "Request duration: ${ms}ms")
     }
 
     private fun startProcessingTimeout() {

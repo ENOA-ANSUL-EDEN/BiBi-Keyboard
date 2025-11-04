@@ -404,7 +404,9 @@
     <string name="label_ai_processed">AI 已處理</string>
     <string name="label_chars_count">文字：%1$d</string>
     <string name="label_audio_duration_s">時長：%1$.1f 秒</string>
-    <string name="meta_cost_seconds">耗時 %1$.1f 秒</string>
+    <!-- 歷史列表：總用時與處理耗時（非串流） -->
+    <string name="meta_total_seconds">總用時 %1$.1f 秒</string>
+    <string name="meta_proc_seconds">處理耗時 %1$.1f 秒</string>
     <string name="ai_processed_yes">已後處理</string>
     <string name="ai_processed_no">未後處理</string>
     <string name="label_timestamp">時間</string>
@@ -550,6 +552,7 @@
     <string name="about_avg_line">平均音訊：%1$s  ·  平均字元：%2$d  ·  平均速度：%3$s 字元/分鐘</string>
     <string name="about_daily_weekly_avg">日均 (最近 7 天)：%1$d 字元, %2$s；週均 (最近 4 週)：%3$d 字元, %4$s</string>
     <string name="about_by_vendor">按供應商</string>
+    <string name="about_proc_prefix">處理耗時</string>
     <string name="about_last_7_days">最近 7 天 (字元)</string>
     <string name="about_empty_stats_placeholder">尚無資料</string>
     <string name="unit_chars">字元</string>

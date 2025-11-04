@@ -393,7 +393,8 @@ class FloatingAsrService : Service(),
                 viewManager.showCompletionTick()
                 try {
                     val audioMs = asrSessionManager.popLastAudioMsForStats()
-                    prefs.recordUsageCommit("floating", prefs.asrVendor, audioMs, text.length)
+                    val procMs = asrSessionManager.getLastRequestDuration() ?: 0L
+                    prefs.recordUsageCommit("floating", prefs.asrVendor, audioMs, text.length, procMs)
                     // 写入历史记录（根据设置判断是否经过 AI 处理）
                     try {
                         val store = com.brycewg.asrkb.store.AsrHistoryStore(this@FloatingAsrService)
@@ -404,6 +405,7 @@ class FloatingAsrService : Service(),
                                 text = text,
                                 vendorId = prefs.asrVendor.id,
                                 audioMs = audioMs,
+                                procMs = procMs,
                                 source = "floating",
                                 aiProcessed = ai,
                                 charCount = text.length

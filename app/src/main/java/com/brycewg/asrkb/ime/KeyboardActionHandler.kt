@@ -936,7 +936,8 @@ class KeyboardActionHandler(
             // 记录使用统计（IME）
             try {
                 val audioMs = asrManager.popLastAudioMsForStats()
-                prefs.recordUsageCommit("ime", prefs.asrVendor, audioMs, finalProcessed.length)
+                val procMs = asrManager.getLastRequestDuration() ?: 0L
+                prefs.recordUsageCommit("ime", prefs.asrVendor, audioMs, finalProcessed.length, procMs)
                 // 写入历史记录（AI 后处理）
                 try {
                     val store = com.brycewg.asrkb.store.AsrHistoryStore(context)
@@ -946,6 +947,7 @@ class KeyboardActionHandler(
                             text = finalProcessed,
                             vendorId = prefs.asrVendor.id,
                             audioMs = audioMs,
+                            procMs = procMs,
                             source = "ime",
                             aiProcessed = true,
                             charCount = finalProcessed.length
@@ -1059,7 +1061,8 @@ class KeyboardActionHandler(
             // 记录使用统计（IME）
             try {
                 val audioMs = asrManager.popLastAudioMsForStats()
-                prefs.recordUsageCommit("ime", prefs.asrVendor, audioMs, finalText.length)
+                val procMs = asrManager.getLastRequestDuration() ?: 0L
+                prefs.recordUsageCommit("ime", prefs.asrVendor, audioMs, finalText.length, procMs)
                 // 写入历史记录（无 AI 后处理）
                 try {
                     val store = com.brycewg.asrkb.store.AsrHistoryStore(context)
@@ -1069,6 +1072,7 @@ class KeyboardActionHandler(
                             text = finalText,
                             vendorId = prefs.asrVendor.id,
                             audioMs = audioMs,
+                            procMs = procMs,
                             source = "ime",
                             aiProcessed = false,
                             charCount = finalText.length

@@ -37,6 +37,8 @@ class AsrHistoryStore(context: Context) {
     val text: String,
     val vendorId: String,
     val audioMs: Long,
+    // 供应商处理耗时（非流式文件识别时有效，毫秒）。OSS 旧记录无该字段时视为 0。
+    val procMs: Long = 0,
     val source: String, // "ime" | "floating"
     val aiProcessed: Boolean,
     val charCount: Int
