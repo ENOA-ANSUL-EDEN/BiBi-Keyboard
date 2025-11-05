@@ -33,7 +33,12 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // 统一开启代码压缩和混淆
+            isMinifyEnabled = true
+            // 统一开启资源压缩
+            isShrinkResources = true
+
+            // 通用规则文件（仅包含共享规则）
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -58,6 +63,9 @@ android {
             // 版本常量：供代码中区分功能
             buildConfigField("boolean", "IS_PRO", "false")
             buildConfigField("String", "EDITION", "\"OSS\"")
+
+            // OSS 专属规则（-dontobfuscate）
+            proguardFile("proguard-oss.pro")
         }
         create("pro") {
             dimension = "edition"
@@ -67,6 +75,9 @@ android {
             buildConfigField("String", "EDITION", "\"PRO\"")
             // 覆盖应用名，避免在仓库内新增 pro 资源文件
             resValue("string", "app_name", "言犀键盘 Pro")
+
+            // Pro 专属规则（完整混淆）
+            proguardFile("src/pro/proguard-pro.pro")
         }
     }
 
