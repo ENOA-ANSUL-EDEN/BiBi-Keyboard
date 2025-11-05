@@ -1,10 +1,10 @@
 {
-  "version": "3.5.0",
-  "version_code": 95,
-  "download_url": "https://github.com/BryceWG/LexiSharp-Keyboard/releases/tag/v3.5.0",
-  "release_notes": "本次更新包含 5 个提交:\n- build: 升级版本号至 3.5.0 并优化 Lombok 配置\n- feat(about): 添加开源项目致谢与许可证展示\n- refactor(android): 升级到 Android 15 targetSDK\n- build: 添加压缩混淆规则,优化打包体积\n- pro(feat(asr): 为火山引擎流式识别添加双重识别占位支持",
+  "version": "3.5.1",
+  "version_code": 96,
+  "download_url": "https://github.com/BryceWG/LexiSharp-Keyboard/releases/tag/v3.5.1",
+  "release_notes": "本次更新包含 6 个提交:\n- refactor(asr): 移除 SenseVoice 伪流式识别模式\n- ui(asr): 添加 Zipformer 模型信息说明文本\n- refactor(asr): 优化英文字符统计\n- feat(asr): 为 Paraformer 和 Zipformer 引擎添加 ITN 支持\n- feat(asr): 新增 Zipformer 本地流式语音识别引擎支持\n- feat(asr): 新增 Paraformer 本地流式语音识别引擎",
   "important_notice": "本次更新新增了Paraformer和Zipformer本地流式识别引擎，移除了Sensevoice的伪流式识别模式。",
   "notice_level": "info",
   "min_supported_version": "2.6.5",
-  "update_time": "2025-11-05T06:28:47Z"
+  "update_time": "2025-11-05T15:04:58Z"
 }
