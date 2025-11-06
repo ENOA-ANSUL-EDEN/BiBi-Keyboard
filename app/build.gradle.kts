@@ -111,7 +111,9 @@ android {
         // 移除 Lombok 的 ServiceLoader 声明，避免 R8 对缺失实现类的告警
         resources {
             excludes += listOf(
-                "META-INF/services/lombok.*"
+                "META-INF/services/lombok.*",
+                "README.md",
+                "META-INF/README.md"
             )
         }
     }
@@ -153,6 +155,7 @@ dependencies {
     // AAR 本地依赖占位：将 sherpa-onnx Kotlin API AAR 放入 app/libs/ 后自动识别
     implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar", "*.aar"))))
 
-    // Pro 变体：后台任务（自动备份）
+    // Pro 变体
     add("proImplementation", "androidx.work:work-runtime-ktx:2.9.1")
+    add("proImplementation", "com.github.houbb:opencc4j:1.14.0")
 }

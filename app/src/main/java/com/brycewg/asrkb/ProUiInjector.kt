@@ -148,6 +148,9 @@ object ProUiInjector {
       if (sp.contains("pro_auto_backup_interval_hours")) o.put("pro_auto_backup_interval_hours", sp.getInt("pro_auto_backup_interval_hours", 24))
       // Pro: 火山引擎双重识别开关
       if (sp.contains("pro_volc_dual_stream_enabled")) o.put("pro_volc_dual_stream_enabled", sp.getBoolean("pro_volc_dual_stream_enabled", false))
+      // Pro: 繁体转换
+      if (sp.contains("pro_trad_convert_enabled")) o.put("pro_trad_convert_enabled", sp.getBoolean("pro_trad_convert_enabled", false))
+      if (sp.contains("pro_trad_convert_variant")) o.put("pro_trad_convert_variant", sp.getString("pro_trad_convert_variant", "std"))
       o.toString()
     } catch (t: Throwable) {
       if (BuildConfig.DEBUG) Log.d(TAG, "buildBackupJson merge(pro) failed: ${t.message}")
@@ -170,6 +173,8 @@ object ProUiInjector {
       if (o.has("pro_auto_backup_enabled")) edit.putBoolean("pro_auto_backup_enabled", o.optBoolean("pro_auto_backup_enabled"))
       if (o.has("pro_auto_backup_interval_hours")) edit.putInt("pro_auto_backup_interval_hours", o.optInt("pro_auto_backup_interval_hours", 24))
       if (o.has("pro_volc_dual_stream_enabled")) edit.putBoolean("pro_volc_dual_stream_enabled", o.optBoolean("pro_volc_dual_stream_enabled", false))
+      if (o.has("pro_trad_convert_enabled")) edit.putBoolean("pro_trad_convert_enabled", o.optBoolean("pro_trad_convert_enabled", false))
+      if (o.has("pro_trad_convert_variant")) edit.putString("pro_trad_convert_variant", o.optString("pro_trad_convert_variant", "std"))
       edit.apply()
 
       // 触发 Pro 侧自动备份调度刷新（仅 Pro 变体会有接收者）

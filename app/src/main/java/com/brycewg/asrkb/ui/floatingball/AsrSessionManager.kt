@@ -230,10 +230,15 @@ class AsrSessionManager(
                 listener.onSessionStateChanged(FloatingBallState.Idle)
             }
 
+            // 繁体转换（Pro）：仅在最终提交前转换
+            val finalOut = try {
+                com.brycewg.asrkb.util.ProTradFacade.maybeToTraditional(context, finalText)
+            } catch (_: Throwable) { finalText }
+
             // 插入文本
-            if (finalText.isNotEmpty()) {
-                val success = insertTextToFocus(finalText)
-                listener.onResultCommitted(finalText, success)
+            if (finalOut.isNotEmpty()) {
+                val success = insertTextToFocus(finalOut)
+                listener.onResultCommitted(finalOut, success)
             } else {
                 Log.w(TAG, "Final text is empty")
                 listener.onError(context.getString(com.brycewg.asrkb.R.string.asr_error_empty_result))
@@ -480,6 +485,9 @@ class AsrSessionManager(
             }
             if (prefs.trimFinalTrailingPunct) textOut = TextSanitizer.trimTrailingPunctAndEmoji(textOut)
         }
+
+        // 繁体转换（Pro）：兜底路径也进行转换
+        textOut = try { com.brycewg.asrkb.util.ProTradFacade.maybeToTraditional(context, textOut) } catch (_: Throwable) { textOut }
 
         val success = insertTextToFocus(textOut)
         Log.d(TAG, "Fallback inserted=$success text='$textOut'")

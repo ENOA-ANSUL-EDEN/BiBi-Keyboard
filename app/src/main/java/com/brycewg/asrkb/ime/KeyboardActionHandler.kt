@@ -919,14 +919,19 @@ class KeyboardActionHandler(
             processed
         }
 
+        // 若启用 Pro 繁体转换，则在最终提交前转换为繁体
+        val finalOut = try {
+            com.brycewg.asrkb.util.ProTradFacade.maybeToTraditional(context, finalProcessed)
+        } catch (_: Throwable) { finalProcessed }
+
         // 若已被取消，不再提交
         if (seq != opSeq) return
         // 提交最终文本
-        inputHelper.setComposingText(ic, finalProcessed)
+        inputHelper.setComposingText(ic, finalOut)
         inputHelper.finishComposingText(ic)
 
         // 若需要，最终结果后自动发送回车（仅一次）
-        if (finalProcessed.isNotEmpty() && autoEnterOnce) {
+        if (finalOut.isNotEmpty() && autoEnterOnce) {
             try { inputHelper.sendEnter(ic) } catch (t: Throwable) {
                 Log.w(TAG, "sendEnter after postprocess failed", t)
             }
@@ -934,36 +939,36 @@ class KeyboardActionHandler(
         }
 
         // 记录后处理提交（用于撤销）
-        if (finalProcessed.isNotEmpty() && finalProcessed != raw) {
+        if (finalOut.isNotEmpty() && finalOut != raw) {
             sessionContext = sessionContext.copy(
-                lastPostprocCommit = PostprocCommit(finalProcessed, raw)
+                lastPostprocCommit = PostprocCommit(finalOut, raw)
             )
         }
 
         // 更新会话上下文
-        sessionContext = sessionContext.copy(lastAsrCommitText = finalProcessed)
+        sessionContext = sessionContext.copy(lastAsrCommitText = finalOut)
 
         // 统计字数 & 记录使用统计/历史
         try {
-            prefs.addAsrChars(TextSanitizer.countEffectiveChars(finalProcessed))
+            prefs.addAsrChars(TextSanitizer.countEffectiveChars(finalOut))
             // 记录使用统计（IME）
             try {
                 val audioMs = asrManager.popLastAudioMsForStats()
                 val procMs = asrManager.getLastRequestDuration() ?: 0L
-                prefs.recordUsageCommit("ime", prefs.asrVendor, audioMs, TextSanitizer.countEffectiveChars(finalProcessed), procMs)
+                prefs.recordUsageCommit("ime", prefs.asrVendor, audioMs, TextSanitizer.countEffectiveChars(finalOut), procMs)
                 // 写入历史记录（AI 后处理）
                 try {
                     val store = com.brycewg.asrkb.store.AsrHistoryStore(context)
                     store.add(
                         com.brycewg.asrkb.store.AsrHistoryStore.AsrHistoryRecord(
                             timestamp = System.currentTimeMillis(),
-                            text = finalProcessed,
+                            text = finalOut,
                             vendorId = prefs.asrVendor.id,
                             audioMs = audioMs,
                             procMs = procMs,
                             source = "ime",
                             aiProcessed = true,
-                            charCount = TextSanitizer.countEffectiveChars(finalProcessed)
+                            charCount = TextSanitizer.countEffectiveChars(finalOut)
                         )
                     )
                 } catch (e: Exception) {
@@ -1014,8 +1019,13 @@ class KeyboardActionHandler(
 
         val finalText = presetReplacement ?: trimmedFinal
 
+        // Pro：若启用繁体转换，则在提交前进行转换
+        val finalToCommit = try {
+            com.brycewg.asrkb.util.ProTradFacade.maybeToTraditional(context, finalText)
+        } catch (_: Throwable) { finalText }
+
         // 如果识别为空，直接返回
-        if (finalText.isBlank()) {
+        if (finalToCommit.isBlank()) {
             // 空结果：先切换到 Idle 再提示，避免被 Idle 文案覆盖
             transitionToIdle(keepMessage = true)
             uiListener?.onStatusMessage(context.getString(R.string.asr_error_empty_result))
@@ -1030,21 +1040,21 @@ class KeyboardActionHandler(
         if (!partial.isNullOrEmpty()) {
             // 有中间结果：智能合并
             inputHelper.finishComposingText(ic)
-            if (finalText.startsWith(partial)) {
-                val remainder = finalText.substring(partial.length)
+            if (finalToCommit.startsWith(partial)) {
+                val remainder = finalToCommit.substring(partial.length)
                 if (remainder.isNotEmpty()) {
                     inputHelper.commitText(ic, remainder)
                 }
             } else {
                 // 标点/大小写可能变化，删除中间结果并重新提交
                 inputHelper.deleteSurroundingText(ic, partial.length, 0)
-                inputHelper.commitText(ic, finalText)
+                inputHelper.commitText(ic, finalToCommit)
             }
         } else {
             // 无中间结果：直接提交
             val committedStableLen = state.committedStableLen
-            val remainder = if (finalText.length > committedStableLen) {
-                finalText.substring(committedStableLen)
+            val remainder = if (finalToCommit.length > committedStableLen) {
+                finalToCommit.substring(committedStableLen)
             } else {
                 ""
             }
@@ -1056,12 +1066,12 @@ class KeyboardActionHandler(
 
         // 更新会话上下文
         sessionContext = sessionContext.copy(
-            lastAsrCommitText = finalText,
+            lastAsrCommitText = finalToCommit,
             lastPostprocCommit = null
         )
 
         // 若需要，最终结果后自动发送回车（仅一次）
-        if (finalText.isNotEmpty() && autoEnterOnce) {
+        if (finalToCommit.isNotEmpty() && autoEnterOnce) {
             try { inputHelper.sendEnter(ic) } catch (t: Throwable) {
                 Log.w(TAG, "sendEnter after final failed", t)
             }
@@ -1070,25 +1080,25 @@ class KeyboardActionHandler(
 
         // 统计字数 & 记录使用统计/历史
         try {
-            prefs.addAsrChars(TextSanitizer.countEffectiveChars(finalText))
+            prefs.addAsrChars(TextSanitizer.countEffectiveChars(finalToCommit))
             // 记录使用统计（IME）
             try {
                 val audioMs = asrManager.popLastAudioMsForStats()
                 val procMs = asrManager.getLastRequestDuration() ?: 0L
-                prefs.recordUsageCommit("ime", prefs.asrVendor, audioMs, TextSanitizer.countEffectiveChars(finalText), procMs)
+                prefs.recordUsageCommit("ime", prefs.asrVendor, audioMs, TextSanitizer.countEffectiveChars(finalToCommit), procMs)
                 // 写入历史记录（无 AI 后处理）
                 try {
                     val store = com.brycewg.asrkb.store.AsrHistoryStore(context)
                     store.add(
                         com.brycewg.asrkb.store.AsrHistoryStore.AsrHistoryRecord(
                             timestamp = System.currentTimeMillis(),
-                            text = finalText,
+                            text = finalToCommit,
                             vendorId = prefs.asrVendor.id,
                             audioMs = audioMs,
                             procMs = procMs,
                             source = "ime",
                             aiProcessed = false,
-                            charCount = TextSanitizer.countEffectiveChars(finalText)
+                            charCount = TextSanitizer.countEffectiveChars(finalToCommit)
                         )
                     )
                 } catch (e: Exception) {
