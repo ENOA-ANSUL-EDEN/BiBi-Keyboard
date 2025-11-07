@@ -505,6 +505,7 @@ Thanks to the following open-source projects for their technical support:
 - [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) - Provides technical support for local ASR models, making offline voice recognition possible
 - [SyncClipboard](https://github.com/Jeric-X/SyncClipboard) - Provides clipboard synchronization backend service (not running locally, requires server)
 - [Phosphor](https://github.com/phosphor-icons/homepage) - Provides almost all icons used in the software
+- [WaveLineView](https://github.com/Jay-Goo/WaveLineView) - Provides beautiful wave animation implementation for audio visualization, making recording experience more fluid and visually appealing
 
 ---
 

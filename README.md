@@ -499,6 +499,7 @@ flyhunterl - 6.66 RMB
 - [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) - 提供了本地 ASR 模型的技术方案支持，使离线语音识别成为可能
 - [SyncClipboard](https://github.com/Jeric-X/SyncClipboard) - 提供了剪贴板同步的后端服务(非软件本地运行,需要服务器)
 - [Phosphor](https://github.com/phosphor-icons/homepage) - 提供了软件内几乎所有 Icons
+- [WaveLineView](https://github.com/Jay-Goo/WaveLineView) - 提供了录音波形动画的实现方案，使音频可视化效果更加流畅美观
 
 ---
 

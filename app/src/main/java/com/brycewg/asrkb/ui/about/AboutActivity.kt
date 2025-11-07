@@ -344,6 +344,12 @@ class AboutActivity : AppCompatActivity() {
 
         // 读取 Phosphor 许可证
         append(readAssetFile("licenses/Phosphor-LICENSE"))
+        append("\n\n")
+        append("=".repeat(80))
+        append("\n\n")
+
+        // 读取 WaveLineView 许可证
+        append(readAssetFile("licenses/WaveLineView-LICENSE"))
       }
 
       // 创建滚动视图
