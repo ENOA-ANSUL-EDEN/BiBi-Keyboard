@@ -17,4 +17,19 @@
     <string name="btn_sc_project_home">Project Home</string>
     <string name="sc_open_browser_failed">Cannot open browser</string>
     <string name="hint_sc_server_base_placeholder">https://your-server.com/path</string>
+    
+    <!-- Clipboard manager panel -->
+    <string name="ext_btn_clipboard">Clipboard</string>
+    <string name="cd_clipboard_back">Back</string>
+    <string name="cd_clipboard_delete">Delete</string>
+    <string name="clip_count_format">%1$d items</string>
+    <string name="clip_delete_title">Delete (pinned kept)</string>
+    <string name="clip_delete_before_1h">Before 1 hour</string>
+    <string name="clip_delete_before_24h">Before 24 hours</string>
+    <string name="clip_delete_before_7d">Before 7 days</string>
+    <string name="clip_delete_all_non_pinned">All non‑pinned</string>
+    <string name="clip_pinned">Pinned</string>
+    <string name="clip_unpinned">Unpinned</string>
+    <string name="clip_deleted">Deleted</string>
+    <string name="clip_cannot_delete_pinned">Pinned. Swipe right to unpin</string>
 </resources>

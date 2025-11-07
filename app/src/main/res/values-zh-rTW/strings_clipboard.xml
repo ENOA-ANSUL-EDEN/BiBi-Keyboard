@@ -17,4 +17,19 @@
     <string name="btn_sc_project_home">專案首頁</string>
     <string name="sc_open_browser_failed">無法開啟瀏覽器</string>
     <string name="hint_sc_server_base_placeholder">https://your-server.com/path</string>
+
+    <!-- Clipboard manager panel -->
+    <string name="ext_btn_clipboard">剪貼簿</string>
+    <string name="cd_clipboard_back">返回</string>
+    <string name="cd_clipboard_delete">刪除</string>
+    <string name="clip_count_format">%1$d 筆記錄</string>
+    <string name="clip_delete_title">刪除記錄（不刪除固定）</string>
+    <string name="clip_delete_before_1h">1 小時之前</string>
+    <string name="clip_delete_before_24h">24 小時之前</string>
+    <string name="clip_delete_before_7d">7 天之前</string>
+    <string name="clip_delete_all_non_pinned">全部非固定記錄</string>
+    <string name="clip_pinned">已固定</string>
+    <string name="clip_unpinned">已取消固定</string>
+    <string name="clip_deleted">已刪除</string>
+    <string name="clip_cannot_delete_pinned">該記錄已固定，請右滑取消固定</string>
 </resources>

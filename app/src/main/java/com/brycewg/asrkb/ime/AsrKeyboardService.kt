@@ -44,7 +44,12 @@ import com.brycewg.asrkb.LocaleHelper
 import com.brycewg.asrkb.UiColors
 import com.brycewg.asrkb.UiColorTokens
 import com.brycewg.asrkb.clipboard.SyncClipboardManager
+import com.brycewg.asrkb.clipboard.ClipboardHistoryStore
 import com.brycewg.asrkb.store.debug.DebugLogManager
+import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.ItemTouchHelper
+import android.view.ViewGroup
 
 /**
  * ASR 键盘服务
@@ -154,6 +159,16 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
     private var repeatRightRunnable: Runnable? = null
     // 系统导航栏底部高度（用于适配 Android 15 边缘到边缘显示）
     private var systemNavBarBottomInset: Int = 0
+
+    // ========== 剪贴板面板 ==========
+    private var layoutClipboardPanel: View? = null
+    private var clipBtnBack: ImageButton? = null
+    private var clipBtnDelete: ImageButton? = null
+    private var clipTxtCount: TextView? = null
+    private var clipList: RecyclerView? = null
+    private var clipAdapter: ClipboardPanelAdapter? = null
+    private var isClipboardPanelVisible = false
+    private var clipStore: ClipboardHistoryStore? = null
 
     // ========== 生命周期 ==========
 
@@ -533,6 +548,7 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
         layoutMainKeyboard = view.findViewById(R.id.layoutMainKeyboard)
         layoutAiEditPanel = view.findViewById(R.id.layoutAiEditPanel)
         layoutNumpadPanel = view.findViewById(R.id.layoutNumpadPanel)
+        layoutClipboardPanel = view.findViewById(R.id.layoutClipboardPanel)
         btnAiEditPanelBack = view.findViewById(R.id.btnAiPanelBack)
         btnAiPanelApplyPreset = view.findViewById(R.id.btnAiPanelApplyPreset)
         btnAiPanelCursorLeft = view.findViewById(R.id.btnAiPanelCursorLeft)
@@ -575,6 +591,14 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
         btnExtCenter2 = view.findViewById(R.id.btnExtCenter2)
         txtStatus = view.findViewById(R.id.txtStatus)
         groupMicStatus = view.findViewById(R.id.groupMicStatus)
+
+        // 剪贴板面板组件
+        clipBtnBack = view.findViewById(R.id.clip_btnBack)
+        clipBtnDelete = view.findViewById(R.id.clip_btnDelete)
+        clipTxtCount = view.findViewById(R.id.clip_txtCount)
+        clipList = view.findViewById(R.id.clip_list)
+        isClipboardPanelVisible = layoutClipboardPanel?.visibility == View.VISIBLE
+        clipStore = ClipboardHistoryStore(this, prefs)
 
         // 为波形视图应用动态颜色（通过 UiColors 统一获取主色）
         try {
@@ -1008,6 +1032,153 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
         isNumpadPanelVisible = false
         // 还原麦克风悬浮按钮可见性
         try { groupMicStatus?.visibility = View.VISIBLE } catch (_: Throwable) { }
+    }
+
+    private fun showClipboardPanel() {
+        if (isClipboardPanelVisible) return
+        // 记录主键盘当前高度，以便对齐面板高度
+        val mainHeight = try { layoutMainKeyboard?.height } catch (_: Throwable) { null }
+        // 隐藏其他面板
+        layoutAiEditPanel?.visibility = View.GONE
+        isAiEditPanelVisible = false
+        layoutNumpadPanel?.visibility = View.GONE
+        isNumpadPanelVisible = false
+        layoutMainKeyboard?.visibility = View.GONE
+        try { groupMicStatus?.visibility = View.GONE } catch (_: Throwable) { }
+
+        if (clipAdapter == null) {
+            clipAdapter = ClipboardPanelAdapter { e ->
+                performKeyHaptic(clipList)
+                clipStore?.pasteInto(currentInputConnection, e.text)
+                hideClipboardPanel()
+            }
+            clipList?.layoutManager = LinearLayoutManager(this)
+            clipList?.adapter = clipAdapter
+
+            val callback = object : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT) {
+                override fun onMove(
+                    recyclerView: RecyclerView,
+                    viewHolder: RecyclerView.ViewHolder,
+                    target: RecyclerView.ViewHolder
+                ): Boolean = false
+
+                override fun getSwipeDirs(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder): Int {
+                    return try {
+                        val pos = viewHolder.bindingAdapterPosition
+                        val item = clipAdapter?.currentList?.getOrNull(pos)
+                        if (item != null && item.pinned) {
+                            // 固定记录：仅允许右滑（取消固定），禁用左滑
+                            ItemTouchHelper.RIGHT
+                        } else {
+                            // 非固定：允许左右滑（右滑固定，左滑删除）
+                            ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT
+                        }
+                    } catch (_: Throwable) {
+                        super.getSwipeDirs(recyclerView, viewHolder)
+                    }
+                }
+
+                override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
+                    val pos = viewHolder.bindingAdapterPosition
+                    val item = clipAdapter?.currentList?.getOrNull(pos)
+                    if (item != null) {
+                        if (direction == ItemTouchHelper.RIGHT) {
+                            // 右滑：固定/取消固定
+                            val pinnedNow = clipStore?.togglePin(item.id) ?: false
+                            try {
+                                val msg = if (pinnedNow) getString(R.string.clip_pinned) else getString(R.string.clip_unpinned)
+                                Toast.makeText(this@AsrKeyboardService, msg, Toast.LENGTH_SHORT).show()
+                            } catch (_: Throwable) { }
+                        } else if (direction == ItemTouchHelper.LEFT) {
+                            // 左滑：删除（仅非固定）
+                            if (item.pinned) {
+                                try {
+                                    Toast.makeText(this@AsrKeyboardService, getString(R.string.clip_cannot_delete_pinned), Toast.LENGTH_SHORT).show()
+                                } catch (_: Throwable) { }
+                                // 恢复可见状态
+                                try { clipAdapter?.notifyItemChanged(pos) } catch (_: Throwable) { }
+                            } else {
+                                val deleted = clipStore?.deleteHistoryById(item.id) ?: false
+                                try {
+                                    if (deleted) Toast.makeText(this@AsrKeyboardService, getString(R.string.clip_deleted), Toast.LENGTH_SHORT).show()
+                                } catch (_: Throwable) { }
+                            }
+                        }
+                    }
+                    refreshClipboardList()
+                }
+            }
+            ItemTouchHelper(callback).attachToRecyclerView(clipList)
+        }
+
+        // 顶部按钮
+        clipBtnBack?.setOnClickListener { v ->
+            performKeyHaptic(v)
+            hideClipboardPanel()
+        }
+        clipBtnDelete?.setOnClickListener { v ->
+            performKeyHaptic(v)
+            showClipboardDeleteMenu()
+        }
+
+        refreshClipboardList()
+        layoutClipboardPanel?.visibility = View.VISIBLE
+        // 同步高度：与主键盘一致
+        if (mainHeight != null && mainHeight > 0) {
+            try {
+                val lp = layoutClipboardPanel?.layoutParams
+                if (lp != null) {
+                    lp.height = mainHeight
+                    layoutClipboardPanel?.layoutParams = lp
+                }
+            } catch (_: Throwable) { }
+        }
+        isClipboardPanelVisible = true
+    }
+
+    private fun hideClipboardPanel() {
+        layoutClipboardPanel?.visibility = View.GONE
+        // 释放高度为包裹内容，避免后续计算异常
+        try {
+            val lp = layoutClipboardPanel?.layoutParams
+            if (lp != null) {
+                lp.height = ViewGroup.LayoutParams.WRAP_CONTENT
+                layoutClipboardPanel?.layoutParams = lp
+            }
+        } catch (_: Throwable) { }
+        layoutMainKeyboard?.visibility = View.VISIBLE
+        try { groupMicStatus?.visibility = View.VISIBLE } catch (_: Throwable) { }
+        isClipboardPanelVisible = false
+    }
+
+    private fun refreshClipboardList() {
+        val list = clipStore?.getAll().orEmpty()
+        clipAdapter?.submitList(list)
+        try { clipTxtCount?.text = getString(R.string.clip_count_format, list.size) } catch (_: Throwable) { }
+    }
+
+    private fun showClipboardDeleteMenu() {
+        val anchor = clipBtnDelete ?: return
+        val popup = androidx.appcompat.widget.PopupMenu(anchor.context, anchor)
+        popup.menu.add(0, 0, 0, getString(R.string.clip_delete_before_1h))
+        popup.menu.add(0, 1, 1, getString(R.string.clip_delete_before_24h))
+        popup.menu.add(0, 2, 2, getString(R.string.clip_delete_before_7d))
+        popup.menu.add(0, 3, 3, getString(R.string.clip_delete_all_non_pinned))
+        popup.setOnMenuItemClickListener { mi ->
+            val now = System.currentTimeMillis()
+            val oneHour = 60 * 60 * 1000L
+            val day = 24 * oneHour
+            val week = 7 * day
+            when (mi.itemId) {
+                0 -> clipStore?.deleteHistoryBefore(now - oneHour)
+                1 -> clipStore?.deleteHistoryBefore(now - day)
+                2 -> clipStore?.deleteHistoryBefore(now - week)
+                3 -> clipStore?.clearAllNonPinned()
+            }
+            refreshClipboardList()
+            true
+        }
+        popup.show()
     }
 
     private fun releaseCursorRepeatCallbacks() {
@@ -1612,6 +1783,9 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
                 // 从主界面进入数字/符号面板
                 showNumpadPanel(returnToAiPanel = false)
             }
+            KeyboardActionHandler.ExtensionButtonActionResult.NEED_SHOW_CLIPBOARD -> {
+                showClipboardPanel()
+            }
             KeyboardActionHandler.ExtensionButtonActionResult.NEED_CURSOR_LEFT,
             KeyboardActionHandler.ExtensionButtonActionResult.NEED_CURSOR_RIGHT -> {
                 // 光标移动已在长按处理中完成
@@ -1955,7 +2129,9 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
             R.id.btnAiPanelNumpad, R.id.btnAiPanelSelect,
             R.id.btnAiPanelSelectAll, R.id.btnAiPanelCopy,
             R.id.btnAiPanelUndo, R.id.btnAiPanelPaste,
-            R.id.btnAiPanelMoveStart, R.id.btnAiPanelMoveEnd
+            R.id.btnAiPanelMoveStart, R.id.btnAiPanelMoveEnd,
+            // 剪贴板面板按钮
+            R.id.clip_btnBack, R.id.clip_btnDelete
         )
         ids40.forEach { scaleSquareButton(it) }
 
@@ -2021,6 +2197,10 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
                         val h = try { sha256Hex(text) } catch (_: Throwable) { text }
                         if (h == lastShownClipboardHash) return@OnPrimaryClipChangedListener
                         lastShownClipboardHash = h
+                        // 写入历史
+                        try { clipStore?.addFromClipboard(text) } catch (_: Throwable) { }
+                        // 若当前面板打开，同步刷新
+                        if (isClipboardPanelVisible) try { refreshClipboardList() } catch (_: Throwable) { }
                         rootView?.post { actionHandler.showClipboardPreview(text) }
                     } catch (t: Throwable) {
                         android.util.Log.w("AsrKeyboardService", "clipboard change preview failed", t)

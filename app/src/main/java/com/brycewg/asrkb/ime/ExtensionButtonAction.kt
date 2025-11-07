@@ -58,6 +58,16 @@ enum class ExtensionButtonAction(
     ),
 
     /**
+     * 打开剪贴板管理面板
+     */
+    CLIPBOARD(
+        id = "clipboard",
+        titleResId = R.string.ext_btn_clipboard,
+        // 复用 copy 图标以表示剪贴板
+        iconResId = R.drawable.copy_toggle
+    ),
+
+    /**
      * 光标左移一位（长按连发）
      */
     CURSOR_LEFT(

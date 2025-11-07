@@ -1067,6 +1067,9 @@ class Prefs(context: Context) {
         private const val KEY_USAGE_STATS_JSON = "usage_stats"
         // ASR 历史（JSON 数组字符串），用于备份/恢复
         private const val KEY_ASR_HISTORY_JSON = "asr_history"
+        // 剪贴板历史：非固定与固定分开存储；仅固定参与备份
+        private const val KEY_CLIP_HISTORY_JSON = "clip_history"
+        private const val KEY_CLIP_PINNED_JSON = "clip_pinned"
         private const val KEY_FIRST_USE_DATE = "first_use_date"
         private const val KEY_SHOWN_QUICK_GUIDE_ONCE = "shown_quick_guide_once"
 
@@ -1284,6 +1287,8 @@ class Prefs(context: Context) {
         o.put(KEY_WD_URL, webdavUrl)
         o.put(KEY_WD_USERNAME, webdavUsername)
         o.put(KEY_WD_PASSWORD, webdavPassword)
+        // 仅导出固定的剪贴板记录
+        try { o.put(KEY_CLIP_PINNED_JSON, getPrefString(KEY_CLIP_PINNED_JSON, "")) } catch (t: Throwable) { Log.w(TAG, "Failed to export pinned clip", t) }
         return o.toString()
     }
 
@@ -1424,6 +1429,8 @@ class Prefs(context: Context) {
             optString(KEY_WD_URL)?.let { webdavUrl = it }
             optString(KEY_WD_USERNAME)?.let { webdavUsername = it }
             optString(KEY_WD_PASSWORD)?.let { webdavPassword = it }
+            // 剪贴板固定记录（仅覆盖固定集合；非固定不导入）
+            optString(KEY_CLIP_PINNED_JSON)?.let { setPrefString(KEY_CLIP_PINNED_JSON, it) }
             Log.i(TAG, "Successfully imported settings from JSON")
             true
         } catch (e: Exception) {

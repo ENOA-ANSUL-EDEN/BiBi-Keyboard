@@ -441,6 +441,10 @@ class KeyboardActionHandler(
                 // 显示数字符号键盘（需要 IME 支持）
                 ExtensionButtonActionResult.NEED_SHOW_NUMPAD
             }
+            com.brycewg.asrkb.ime.ExtensionButtonAction.CLIPBOARD -> {
+                // 显示剪贴板管理面板（需要 IME 支持）
+                ExtensionButtonActionResult.NEED_SHOW_CLIPBOARD
+            }
             com.brycewg.asrkb.ime.ExtensionButtonAction.UNDO -> {
                 val success = handleUndo(ic)
                 if (success) {
@@ -462,7 +466,8 @@ class KeyboardActionHandler(
         NEED_TOGGLE_SELECTION,      // 需要 IME 切换选择模式
         NEED_CURSOR_LEFT,           // 需要 IME 处理左移（支持长按）
         NEED_CURSOR_RIGHT,          // 需要 IME 处理右移（支持长按）
-        NEED_SHOW_NUMPAD            // 需要 IME 显示数字键盘
+        NEED_SHOW_NUMPAD,           // 需要 IME 显示数字键盘
+        NEED_SHOW_CLIPBOARD         // 需要 IME 显示剪贴板面板
     }
 
     /**
