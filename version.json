@@ -1,10 +1,10 @@
 {
-  "version": "3.6.1",
-  "version_code": 99,
-  "download_url": "https://github.com/BryceWG/LexiSharp-Keyboard/releases/tag/v3.6.1",
-  "release_notes": "本次更新包含 4 个提交:\n- feat(privacy): 新增隐私控制开关支持禁用识别历史和使用统计\n- feat(ui): 优化更新对话框中的发布页面跳转交互\n- feat(asr): 过滤LLM响应中的think标签内容\n- feat(ui): 更新剪贴板和撤销按钮图标",
+  "version": "3.6.2",
+  "version_code": 101,
+  "download_url": "https://github.com/BryceWG/LexiSharp-Keyboard/releases/tag/v3.6.2",
+  "release_notes": "本次更新包含 6 个提交:\n- refactor(asr): 统一语音识别后处理逻辑\n- refactor(api): 统一外部语音服务配置来源\n- feat(api): 添加外部输入法AIDL联动支持\n- fix(ui): 统一部分动态颜色定义\n- pro(update): 为 Pro 渠道添加更新检查禁用支持\n- fix(asr): 修复反射调用中的类型转换和空安全处理",
   "important_notice": "本次更新优化了键盘界面UI，增加了四个可以自选的按钮，可在输入设置最下方配置。此外还初步支持了粘贴板管理功能",
   "notice_level": "info",
   "min_supported_version": "2.6.5",
-  "update_time": "2025-11-07T12:30:01Z"
+  "update_time": "2025-11-08T10:08:14Z"
 }
