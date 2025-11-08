@@ -14,6 +14,7 @@ import com.brycewg.asrkb.asr.*
 import com.brycewg.asrkb.store.Prefs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -194,9 +195,32 @@ class ExternalSpeechService : Service() {
         }
 
         override fun onFinal(text: String) {
-            safe { cb.onFinal(id, text) }
-            safe { cb.onState(id, STATE_IDLE, "final") }
-            try { (context as? ExternalSpeechService)?.onSessionDone(id) } catch (t: Throwable) { Log.w(TAG, "remove session on final failed", t) }
+            val doAi = try { prefs.postProcessEnabled && prefs.hasLlmKeys() } catch (_: Throwable) { false }
+            if (doAi) {
+                // 执行带 AI 的完整后处理链（IO 在线程内切换）
+                CoroutineScope(Dispatchers.Main).launch {
+                    val out = try {
+                        com.brycewg.asrkb.util.AsrFinalFilters.applyWithAi(context, prefs, text).text.ifBlank { text }
+                    } catch (t: Throwable) {
+                        Log.w(TAG, "applyWithAi failed, fallback to simple", t)
+                        try { com.brycewg.asrkb.util.AsrFinalFilters.applySimple(context, prefs, text) } catch (_: Throwable) { text }
+                    }
+                    safe { cb.onFinal(id, out) }
+                    safe { cb.onState(id, STATE_IDLE, "final") }
+                    try { (context as? ExternalSpeechService)?.onSessionDone(id) } catch (t: Throwable) { Log.w(TAG, "remove session on final failed", t) }
+                }
+            } else {
+                // 仅本地过滤：去尾标点 +（Pro）繁体
+                val out = try {
+                    com.brycewg.asrkb.util.AsrFinalFilters.applySimple(context, prefs, text)
+                } catch (t: Throwable) {
+                    Log.w(TAG, "applySimple failed, fallback to raw text", t)
+                    text
+                }
+                safe { cb.onFinal(id, out) }
+                safe { cb.onState(id, STATE_IDLE, "final") }
+                try { (context as? ExternalSpeechService)?.onSessionDone(id) } catch (t: Throwable) { Log.w(TAG, "remove session on final failed", t) }
+            }
         }
 
         override fun onError(message: String) {

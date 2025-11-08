@@ -198,29 +198,21 @@ class AsrSessionManager(
                 }
             }
 
-            // AI 后处理
+            // 统一使用 AsrFinalFilters：含预修剪/LLM/后修剪/繁体转换
             if (prefs.postProcessEnabled && prefs.hasLlmKeys()) {
                 Log.d(TAG, "Starting AI post-processing (stillRecording=$stillRecording)")
                 if (!stillRecording) {
                     listener.onSessionStateChanged(FloatingBallState.Processing)
                 }
-
-                val raw = if (prefs.trimFinalTrailingPunct) TextSanitizer.trimTrailingPunctAndEmoji(text) else text
-                finalText = try {
-                    val res = postproc.processWithStatus(raw, prefs)
-                    if (!res.ok) Log.w(TAG, "Post-processing failed; using raw text: ${res.httpCode ?: ""} ${res.errorMessage ?: ""}")
-                    res.text.ifBlank { raw }
-                } catch (e: Throwable) {
-                    Log.e(TAG, "Post-processing failed", e)
-                    raw
+                val res = try { com.brycewg.asrkb.util.AsrFinalFilters.applyWithAi(context, prefs, text, postproc) } catch (t: Throwable) {
+                    Log.e(TAG, "applyWithAi failed", t)
+                    com.brycewg.asrkb.asr.LlmPostProcessor.LlmProcessResult(false, text)
                 }
-
-                if (prefs.trimFinalTrailingPunct) {
-                    finalText = TextSanitizer.trimTrailingPunctAndEmoji(finalText)
-                }
+                if (!res.ok) Log.w(TAG, "Post-processing failed; using processed text anyway")
+                finalText = res.text.ifBlank { text }
                 Log.d(TAG, "Post-processing completed: $finalText")
-            } else if (prefs.trimFinalTrailingPunct) {
-                finalText = TextSanitizer.trimTrailingPunctAndEmoji(text)
+            } else {
+                finalText = com.brycewg.asrkb.util.AsrFinalFilters.applySimple(context, prefs, text)
             }
 
             // 更新状态
@@ -230,15 +222,10 @@ class AsrSessionManager(
                 listener.onSessionStateChanged(FloatingBallState.Idle)
             }
 
-            // 繁体转换（Pro）：仅在最终提交前转换
-            val finalOut = try {
-                com.brycewg.asrkb.util.ProTradFacade.maybeToTraditional(context, finalText)
-            } catch (_: Throwable) { finalText }
-
             // 插入文本
-            if (finalOut.isNotEmpty()) {
-                val success = insertTextToFocus(finalOut)
-                listener.onResultCommitted(finalOut, success)
+            if (finalText.isNotEmpty()) {
+                val success = insertTextToFocus(finalText)
+                listener.onResultCommitted(finalText, success)
             } else {
                 Log.w(TAG, "Final text is empty")
                 listener.onError(context.getString(com.brycewg.asrkb.R.string.asr_error_empty_result))
@@ -473,21 +460,16 @@ class AsrSessionManager(
             return
         }
 
-        var textOut = candidate
-        if (prefs.trimFinalTrailingPunct) textOut = TextSanitizer.trimTrailingPunctAndEmoji(textOut)
-        if (prefs.postProcessEnabled && prefs.hasLlmKeys()) {
+        val textOut = if (prefs.postProcessEnabled && prefs.hasLlmKeys()) {
             try {
-                val res = postproc.processWithStatus(textOut, prefs)
-                if (!res.ok) Log.w(TAG, "Post-processing failed in timeout fallback; using raw text: ${res.httpCode ?: ""} ${res.errorMessage ?: ""}")
-                textOut = res.text.ifBlank { textOut }
-            } catch (e: Throwable) {
-                Log.e(TAG, "Post-processing failed in timeout fallback", e)
+                com.brycewg.asrkb.util.AsrFinalFilters.applyWithAi(context, prefs, candidate, postproc).text
+            } catch (t: Throwable) {
+                Log.e(TAG, "applyWithAi failed in timeout fallback", t)
+                com.brycewg.asrkb.util.AsrFinalFilters.applySimple(context, prefs, candidate)
             }
-            if (prefs.trimFinalTrailingPunct) textOut = TextSanitizer.trimTrailingPunctAndEmoji(textOut)
+        } else {
+            com.brycewg.asrkb.util.AsrFinalFilters.applySimple(context, prefs, candidate)
         }
-
-        // 繁体转换（Pro）：兜底路径也进行转换
-        textOut = try { com.brycewg.asrkb.util.ProTradFacade.maybeToTraditional(context, textOut) } catch (_: Throwable) { textOut }
 
         val success = insertTextToFocus(textOut)
         Log.d(TAG, "Fallback inserted=$success text='$textOut'")

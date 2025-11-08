@@ -538,9 +538,9 @@ class KeyboardActionHandler(
             // 显示处理状态
             uiListener?.onStatusMessage(context.getString(R.string.status_ai_processing))
 
-            // 执行 LLM 处理
+            // 执行 LLM 处理（统一后处理链）
             val res = try {
-                llmPostProcessor.processWithStatus(targetText, prefs)
+                com.brycewg.asrkb.util.AsrFinalFilters.applyWithAi(context, prefs, targetText, llmPostProcessor, promptOverride = null, forceAi = true)
             } catch (t: Throwable) {
                 android.util.Log.e(TAG, "applyActivePromptToSelectionOrAll failed", t)
                 null
@@ -641,7 +641,7 @@ class KeyboardActionHandler(
             uiListener?.onStatusMessage(context.getString(R.string.status_ai_processing))
 
             val res = try {
-                llmPostProcessor.processWithStatus(targetText, prefs, promptOverride = promptContent)
+                com.brycewg.asrkb.util.AsrFinalFilters.applyWithAi(context, prefs, targetText, llmPostProcessor, promptOverride = promptContent, forceAi = true)
             } catch (t: Throwable) {
                 Log.e(TAG, "applyPromptToSelectionOrAll failed", t)
                 null
@@ -1022,34 +1022,17 @@ class KeyboardActionHandler(
         inputHelper.setComposingText(ic, text)
         uiListener?.onStatusMessage(context.getString(R.string.status_ai_processing))
 
-        // AI 后处理
-        val raw = if (prefs.trimFinalTrailingPunct) TextSanitizer.trimTrailingPunctAndEmoji(text) else text
-        var postprocFailed = false
-        val processed = try {
-            val res = llmPostProcessor.processWithStatus(raw, prefs)
-            postprocFailed = !res.ok
-            if (!res.ok) {
-                uiListener?.onStatusMessage(context.getString(R.string.status_llm_failed_used_raw))
-            }
-            res.text.ifBlank { raw }
-        } catch (e: Throwable) {
-            Log.e(TAG, "LLM post-processing failed", e)
-            postprocFailed = true
+        // 统一使用 AsrFinalFilters（含预修剪/LLM/后修剪/繁体转换）
+        val preTrimRaw = try { if (prefs.trimFinalTrailingPunct) TextSanitizer.trimTrailingPunctAndEmoji(text) else text } catch (_: Throwable) { text }
+        val res = try { com.brycewg.asrkb.util.AsrFinalFilters.applyWithAi(context, prefs, text, llmPostProcessor) } catch (t: Throwable) {
+            Log.e(TAG, "applyWithAi failed", t)
+            com.brycewg.asrkb.asr.LlmPostProcessor.LlmProcessResult(false, preTrimRaw)
+        }
+        val postprocFailed = !res.ok
+        if (postprocFailed) {
             uiListener?.onStatusMessage(context.getString(R.string.status_llm_failed_used_raw))
-            raw
         }
-
-        // 如果开启去除句尾标点，对 LLM 结果也修剪一次
-        val finalProcessed = if (prefs.trimFinalTrailingPunct) {
-            TextSanitizer.trimTrailingPunctAndEmoji(processed)
-        } else {
-            processed
-        }
-
-        // 若启用 Pro 繁体转换，则在最终提交前转换为繁体
-        val finalOut = try {
-            com.brycewg.asrkb.util.ProTradFacade.maybeToTraditional(context, finalProcessed)
-        } catch (_: Throwable) { finalProcessed }
+        val finalOut = res.text.ifBlank { preTrimRaw }
 
         // 若已被取消，不再提交
         if (seq != opSeq) return
@@ -1066,9 +1049,9 @@ class KeyboardActionHandler(
         }
 
         // 记录后处理提交（用于撤销）
-        if (finalOut.isNotEmpty() && finalOut != raw) {
+        if (finalOut.isNotEmpty() && finalOut != preTrimRaw) {
             sessionContext = sessionContext.copy(
-                lastPostprocCommit = PostprocCommit(finalOut, raw)
+                lastPostprocCommit = PostprocCommit(finalOut, preTrimRaw)
             )
         }
 
@@ -1137,11 +1120,7 @@ class KeyboardActionHandler(
         state: KeyboardState.Listening,
         seq: Long
     ) {
-        val trimmedFinal = if (prefs.trimFinalTrailingPunct) {
-            TextSanitizer.trimTrailingPunctAndEmoji(text)
-        } else {
-            text
-        }
+        val trimmedFinal = com.brycewg.asrkb.util.AsrFinalFilters.trimIfEnabled(prefs, text)
 
         // 检查语音预设替换
         val presetReplacement = try {
@@ -1153,9 +1132,7 @@ class KeyboardActionHandler(
         val finalText = presetReplacement ?: trimmedFinal
 
         // Pro：若启用繁体转换，则在提交前进行转换
-        val finalToCommit = try {
-            com.brycewg.asrkb.util.ProTradFacade.maybeToTraditional(context, finalText)
-        } catch (_: Throwable) { finalText }
+        val finalToCommit = com.brycewg.asrkb.util.AsrFinalFilters.toTraditionalIfEnabled(context, finalText)
 
         // 如果识别为空，直接返回
         if (finalToCommit.isBlank()) {

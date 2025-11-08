@@ -1437,10 +1437,13 @@ class Prefs(context: Context) {
             // 多 LLM 配置（优先于旧字段，仅当存在时覆盖）
             optString(KEY_LLM_PROVIDERS)?.let { llmProvidersJson = it }
             optString(KEY_LLM_ACTIVE_ID)?.let { activeLlmId = it }
-            // 兼容：先读新预设；未提供时退回旧单一 Prompt
-            optString(KEY_LLM_PROMPT_PRESETS)?.let { promptPresetsJson = it }
+            // 兼容：先读新预设；若“未提供”或“提供但为空字符串”，则回退旧单一 Prompt
+            val importedPresets = optString(KEY_LLM_PROMPT_PRESETS)
+            if (importedPresets != null) {
+                promptPresetsJson = importedPresets
+            }
             optString(KEY_LLM_PROMPT_ACTIVE_ID)?.let { activePromptId = it }
-            if (!o.has(KEY_LLM_PROMPT_PRESETS)) {
+            if (importedPresets.isNullOrBlank()) {
                 optString(KEY_LLM_PROMPT)?.let { llmPrompt = it }
             }
 
