@@ -135,6 +135,9 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
     private var btnExtCenter2: Button? = null
     private var txtStatus: TextView? = null  // 已隐藏，状态改用txtStatusText显示
     private var groupMicStatus: View? = null
+    // 记录麦克风容器基线高度与上次应用的缩放，避免缩放后沿用旧高度造成偏移
+    private var micBaseGroupHeight: Int = -1
+    private var lastAppliedHeightScale: Float = 1.0f
     // 记录麦克风按下的原始Y坐标，用于检测上滑手势
     private var micDownRawY: Float = 0f
     // AI编辑面板：选择模式与锚点
@@ -206,6 +209,11 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
                         applyKeyboardHeightScale(v)
                         applyExtensionButtonConfig()
                         v.requestLayout()
+                        // 第二次异步重算，确保尺寸变化与父容器测量完成后 padding/overlay 位置也被同步
+                        v.post {
+                            applyKeyboardHeightScale(v)
+                            v.requestLayout()
+                        }
                     }
                 }
             }
@@ -566,7 +574,7 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
         waveformView?.setWaveformColor(UiColors.primary(view))
 
         // 修复麦克风垂直位置
-        var micBaseGroupHeight = -1
+        micBaseGroupHeight = -1
         groupMicStatus?.addOnLayoutChangeListener { v, _, _, _, _, _, _, _, _ ->
             val h = v.height
             if (h <= 0) return@addOnLayoutChangeListener
@@ -1948,6 +1956,22 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
             return (v * d + 0.5f).toInt()
         }
 
+        // 若缩放等级发生变化，重置麦克风位移基线，避免基于旧高度的下移造成底部截断
+        if (kotlin.math.abs(lastAppliedHeightScale - scale) > 1e-3f) {
+            lastAppliedHeightScale = scale
+            micBaseGroupHeight = -1
+            btnMic?.translationY = 0f
+        }
+
+        // 同步一次当前 RootWindowInsets，避免首次缩放时 bottom inset 尚未写入导致底部裁剪
+        run {
+            try {
+                val rw = androidx.core.view.ViewCompat.getRootWindowInsets(view)
+                val b = rw?.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())?.bottom ?: 0
+                if (b > 0) systemNavBarBottomInset = b
+            } catch (_: Throwable) { }
+        }
+
         // 应用底部间距（无论是否缩放都需要）
         val fl = view as? android.widget.FrameLayout
         if (fl != null) {
@@ -2072,8 +2096,10 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
 
         btnMic?.customSize = dp(72f * scale)
 
-        // 调整麦克风容器的 translationY 以保持与上下中央按钮等距
-        groupMicStatus?.translationY = dp(3f * scale).toFloat()
+        // 调整麦克风容器的 translationY：使用常量位移，避免大比例时向下偏移过多导致底部裁剪
+        groupMicStatus?.translationY = dp(3f).toFloat()
+        // 确保麦克风容器在最上层，避免被其它 overlay 遮挡
+        groupMicStatus?.bringToFront()
 
         // txtStatus 已移除，状态文本现在显示在 btnExtCenter1 中
     }
