@@ -32,6 +32,16 @@ object AsrFinalFilters {
       Log.w(TAG, "trimTrailingPunct failed", t)
     }
 
+    // 语音预设替换：在本地修剪后优先匹配，命中则跳过后续所有处理（含正则/繁体）
+    try {
+      val rep = prefs.findSpeechPresetReplacement(out)
+      if (!rep.isNullOrEmpty()) {
+        return rep
+      }
+    } catch (t: Throwable) {
+      Log.w(TAG, "speech preset replacement failed", t)
+    }
+
     // Pro 门面：正则表达式后处理（若开启）
     out = try { ProRegexFacade.applyIfEnabled(context, out) } catch (t: Throwable) {
       Log.w(TAG, "regex post-processing failed", t)
@@ -87,6 +97,16 @@ object AsrFinalFilters {
     } catch (t: Throwable) {
       Log.w(TAG, "pre-trim failed", t)
       input
+    }
+
+    // 语音预设替换：若命中则跳过 LLM 与全部其他处理（含正则/繁体），直接返回
+    try {
+      val rep = prefs.findSpeechPresetReplacement(base)
+      if (!rep.isNullOrEmpty()) {
+        return LlmPostProcessor.LlmProcessResult(ok = true, text = rep, errorMessage = null, httpCode = null)
+      }
+    } catch (t: Throwable) {
+      Log.w(TAG, "speech preset replacement failed (ai branch)", t)
     }
 
     var processed = base

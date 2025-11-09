@@ -1080,7 +1080,9 @@ class KeyboardActionHandler(
         val preTrimRaw = try { if (prefs.trimFinalTrailingPunct) TextSanitizer.trimTrailingPunctAndEmoji(text) else text } catch (_: Throwable) { text }
         val res = try { com.brycewg.asrkb.util.AsrFinalFilters.applyWithAi(context, prefs, text, llmPostProcessor) } catch (t: Throwable) {
             Log.e(TAG, "applyWithAi failed", t)
-            com.brycewg.asrkb.asr.LlmPostProcessor.LlmProcessResult(false, preTrimRaw)
+            // 统一回退到 applySimple，确保语音预设仍然生效
+            val fallback = try { com.brycewg.asrkb.util.AsrFinalFilters.applySimple(context, prefs, text) } catch (_: Throwable) { preTrimRaw }
+            com.brycewg.asrkb.asr.LlmPostProcessor.LlmProcessResult(false, fallback)
         }
         val postprocFailed = !res.ok
         if (postprocFailed) {
@@ -1174,19 +1176,7 @@ class KeyboardActionHandler(
         state: KeyboardState.Listening,
         seq: Long
     ) {
-        val trimmedFinal = com.brycewg.asrkb.util.AsrFinalFilters.trimIfEnabled(prefs, text)
-
-        // 检查语音预设替换
-        val presetReplacement = try {
-            prefs.findSpeechPresetReplacement(trimmedFinal)
-        } catch (_: Throwable) {
-            null
-        }
-
-        val finalText = presetReplacement ?: trimmedFinal
-
-        // Pro：若启用繁体转换，则在提交前进行转换
-        val finalToCommit = com.brycewg.asrkb.util.AsrFinalFilters.toTraditionalIfEnabled(context, finalText)
+        val finalToCommit = com.brycewg.asrkb.util.AsrFinalFilters.applySimple(context, prefs, text)
 
         // 如果识别为空，直接返回
         if (finalToCommit.isBlank()) {
