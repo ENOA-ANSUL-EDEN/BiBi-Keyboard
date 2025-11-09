@@ -47,6 +47,7 @@ class AiPostSettingsActivity : AppCompatActivity() {
     private lateinit var btnAddPromptPreset: Button
     private lateinit var btnDeletePromptPreset: Button
     private lateinit var switchAiEditPreferLastAsr: MaterialSwitch
+    private lateinit var etSkipAiUnderChars: EditText
 
     // Flag to prevent recursive updates during programmatic text changes
     private var isUpdatingProgrammatically = false
@@ -104,6 +105,17 @@ class AiPostSettingsActivity : AppCompatActivity() {
         switchAiEditPreferLastAsr.isChecked = prefs.aiEditDefaultToLastAsr
         switchAiEditPreferLastAsr.setOnCheckedChangeListener { _, isChecked ->
             prefs.aiEditDefaultToLastAsr = isChecked
+        }
+
+        // 少于特定字数跳过 AI 后处理
+        etSkipAiUnderChars = findViewById(R.id.etSkipAiUnderChars)
+        etSkipAiUnderChars.setText(prefs.postprocSkipUnderChars.toString())
+        etSkipAiUnderChars.addTextChangeListener { text ->
+            // 空字符串不更新；否则解析并保存
+            if (text.isBlank()) return@addTextChangeListener
+            val num = text.toIntOrNull() ?: return@addTextChangeListener
+            val coerced = num.coerceIn(0, 1000)
+            prefs.postprocSkipUnderChars = coerced
         }
     }
 

@@ -98,6 +98,11 @@ class Prefs(context: Context) {
         get() = sp.getBoolean(KEY_AI_EDIT_DEFAULT_TO_LAST_ASR, false)
         set(value) = sp.edit { putBoolean(KEY_AI_EDIT_DEFAULT_TO_LAST_ASR, value) }
 
+    // AI 后处理：少于该字数时自动跳过（0 表示不启用）
+    var postprocSkipUnderChars: Int
+        get() = sp.getInt(KEY_POSTPROC_SKIP_UNDER_CHARS, 0).coerceIn(0, 1000)
+        set(value) = sp.edit { putInt(KEY_POSTPROC_SKIP_UNDER_CHARS, value.coerceIn(0, 1000)) }
+
     // 耳机麦克风优先（自动切换到蓝牙/有线耳机麦克风），默认关闭
     var headsetMicPriorityEnabled: Boolean
         get() = sp.getBoolean(KEY_HEADSET_MIC_PRIORITY_ENABLED, false)
@@ -1124,6 +1129,7 @@ class Prefs(context: Context) {
         private const val KEY_ZF_PRELOAD_ENABLED = "zf_preload_enabled"
         private const val KEY_ZF_USE_ITN = "zf_use_itn"
         private const val KEY_AI_EDIT_DEFAULT_TO_LAST_ASR = "ai_edit_default_to_last_asr"
+        private const val KEY_POSTPROC_SKIP_UNDER_CHARS = "postproc_skip_under_chars"
         private const val KEY_HEADSET_MIC_PRIORITY_ENABLED = "headset_mic_priority_enabled"
         // 允许外部输入法联动（AIDL）
         const val KEY_EXTERNAL_AIDL_ENABLED = "external_aidl_enabled"
@@ -1361,6 +1367,8 @@ class Prefs(context: Context) {
         // 隐私开关
         try { o.put(KEY_DISABLE_ASR_HISTORY, disableAsrHistory) } catch (_: Throwable) {}
         try { o.put(KEY_DISABLE_USAGE_STATS, disableUsageStats) } catch (_: Throwable) {}
+        // AI 后处理：少于字数跳过
+        try { o.put(KEY_POSTPROC_SKIP_UNDER_CHARS, postprocSkipUnderChars) } catch (_: Throwable) {}
         return o.toString()
     }
 
@@ -1417,6 +1425,7 @@ class Prefs(context: Context) {
             optString(KEY_LLM_MODEL)?.let { llmModel = it.ifBlank { DEFAULT_LLM_MODEL } }
             optFloat(KEY_LLM_TEMPERATURE)?.let { llmTemperature = it.coerceIn(0f, 2f) }
             optBool(KEY_AI_EDIT_DEFAULT_TO_LAST_ASR)?.let { aiEditDefaultToLastAsr = it }
+            optInt(KEY_POSTPROC_SKIP_UNDER_CHARS)?.let { postprocSkipUnderChars = it }
             // OpenAI ASR：Prompt 开关
             optBool(KEY_OA_ASR_USE_PROMPT)?.let { oaAsrUsePrompt = it }
             optBool(KEY_VOLC_STREAMING_ENABLED)?.let { volcStreamingEnabled = it }

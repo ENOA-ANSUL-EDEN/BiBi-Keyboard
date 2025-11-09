@@ -28,4 +28,8 @@
     <string name="llm_test_failed_reason">原因：%1$s</string>
     <string name="llm_test_failed_generic">调用失败</string>
     <string name="llm_test_missing_params">请填写 API 地址与模型名</string>
+    <!-- Skip AI under char count -->
+    <string name="label_ai_skip_under_chars">少于特定字数时跳过 AI 后处理</string>
+    <string name="helper_ai_skip_under_chars">当有效字数（中文按字，英文按词）小于该数值时不进行 AI 后处理；设为 0 表示不启用。</string>
+    <string name="title_ai_skip_under">自动跳过阈值（有效字数）</string>
 </resources>

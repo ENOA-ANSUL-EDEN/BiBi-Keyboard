@@ -31,9 +31,47 @@
         android:layout_height="wrap_content"
         android:text="@string/label_ai_edit_default_use_last_asr" />
 
+      <com.google.android.material.divider.MaterialDivider
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp" />
+
+      <!-- 少于特定字数时跳过 AI 后处理：小标题 -->
       <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/title_ai_skip_under"
+        android:textColor="?attr/colorOnSurface"
+        android:textStyle="bold" />
+
+      <!-- 少于特定字数时跳过 AI 后处理（0 表示不启用） -->
+      <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:boxBackgroundMode="outline"
+        android:hint="@string/label_ai_skip_under_chars"
+        app:helperText="@string/helper_ai_skip_under_chars">
+
+        <com.google.android.material.textfield.TextInputEditText
+          android:id="@+id/etSkipAiUnderChars"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:inputType="number"
+          android:maxLength="4"
+          android:textColor="?attr/colorOnSurface"
+          android:textColorHint="?attr/colorOnSurfaceVariant" />
+      </com.google.android.material.textfield.TextInputLayout>
+
+      <com.google.android.material.divider.MaterialDivider
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp" />
+
+      <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
         android:text="@string/label_llm_choose_profile"
         android:textColor="?attr/colorOnSurface"
         android:textStyle="bold" />
@@ -160,6 +198,11 @@
         android:layout_marginTop="8dp"
         style="@style/Widget.Material3.Button.TonalButton"
         android:text="@string/btn_llm_test_call" />
+
+      <com.google.android.material.divider.MaterialDivider
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp" />
 
       <TextView
         android:layout_width="match_parent"

@@ -55,25 +55,7 @@ object AsrFinalFilters {
     return out
   }
 
-  /** 仅在开启时执行去除句末标点/emoji；否则原样返回。 */
-  fun trimIfEnabled(prefs: Prefs, input: String): String {
-    return try {
-      if (prefs.trimFinalTrailingPunct) TextSanitizer.trimTrailingPunctAndEmoji(input) else input
-    } catch (t: Throwable) {
-      Log.w(TAG, "trimIfEnabled failed", t)
-      input
-    }
-  }
-
-  /** 仅在 Pro 变体/开关允许时进行繁体转换；OSS 变体为 no-op。 */
-  fun toTraditionalIfEnabled(context: Context, input: String): String {
-    return try {
-      ProTradFacade.maybeToTraditional(context, input)
-    } catch (t: Throwable) {
-      Log.w(TAG, "toTraditionalIfEnabled failed", t)
-      input
-    }
-  }
+  // 已移除旧的 trimIfEnabled/toTraditionalIfEnabled 辅助函数，统一通过 applySimple/applyWithAi 管线处理。
 
   /**
    * 可选 AI 后处理：
@@ -114,7 +96,20 @@ object AsrFinalFilters {
     var http: Int? = null
     var err: String? = null
 
-    if ((forceAi || prefs.postProcessEnabled) && prefs.hasLlmKeys()) {
+    // 少于阈值时自动跳过 AI 后处理（forceAi 时不跳过）
+    val skipForShort = try {
+      if (forceAi || prefs.postprocSkipUnderChars <= 0) {
+        false
+      } else {
+        val effective = TextSanitizer.countEffectiveChars(base)
+        effective < prefs.postprocSkipUnderChars
+      }
+    } catch (t: Throwable) {
+      Log.w(TAG, "skip threshold calculation failed", t)
+      false
+    }
+
+    if (!skipForShort && (forceAi || prefs.postProcessEnabled) && prefs.hasLlmKeys()) {
       try {
         val res = postProcessor.processWithStatus(base, prefs, promptOverride)
         ok = res.ok
