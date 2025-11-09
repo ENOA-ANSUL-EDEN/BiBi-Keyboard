@@ -116,6 +116,58 @@ class ExternalSpeechService : Service() {
                     reply?.apply { writeNoException(); writeString(com.brycewg.asrkb.BuildConfig.VERSION_NAME) }
                     return true
                 }
+                // ================= 推送 PCM 模式 =================
+                TRANSACTION_startPcmSession -> {
+                    data.enforceInterface(DESCRIPTOR_SVC)
+                    val cfg = if (data.readInt() != 0) SpeechConfig.CREATOR.createFromParcel(data) else null
+                    val cbBinder = data.readStrongBinder()
+                    val cb = CallbackProxy(cbBinder)
+
+                    if (!prefs.externalAidlEnabled) {
+                        safe { cb.onError(-1, 403, "feature disabled") }
+                        reply?.apply { writeNoException(); writeInt(-3) }
+                        return true
+                    }
+                    if (sessions.values.any { it.engine?.isRunning == true }) {
+                        reply?.apply { writeNoException(); writeInt(-2) }
+                        return true
+                    }
+
+                    val sid = synchronized(this@ExternalSpeechService) { nextId++ }
+                    val s = Session(sid, this@ExternalSpeechService, prefs, cb, cfg)
+                    if (!s.preparePushPcm()) {
+                        reply?.apply { writeNoException(); writeInt(-5) }
+                        return true
+                    }
+                    sessions[sid] = s
+                    s.start()
+                    reply?.apply { writeNoException(); writeInt(sid) }
+                    return true
+                }
+                TRANSACTION_writePcm -> {
+                    data.enforceInterface(DESCRIPTOR_SVC)
+                    val sid = data.readInt()
+                    val bytes = data.createByteArray() ?: ByteArray(0)
+                    val sr = data.readInt()
+                    val ch = data.readInt()
+                    try {
+                        val e = sessions[sid]?.engine
+                        if (e is com.brycewg.asrkb.asr.ExternalPcmConsumer) {
+                            e.appendPcm(bytes, sr, ch)
+                        }
+                    } catch (t: Throwable) {
+                        Log.w(TAG, "writePcm failed for sid=$sid", t)
+                    }
+                    reply?.writeNoException()
+                    return true
+                }
+                TRANSACTION_finishPcm -> {
+                    data.enforceInterface(DESCRIPTOR_SVC)
+                    val sid = data.readInt()
+                    sessions[sid]?.stop()
+                    reply?.writeNoException()
+                    return true
+                }
             }
             return super.onTransact(code, data, reply, flags)
         }
@@ -135,6 +187,13 @@ class ExternalSpeechService : Service() {
             val vendor = prefs.asrVendor
             val streamingPref = resolveStreamingBySettings(vendor)
             engine = buildEngine(vendor, streamingPref)
+            return engine != null
+        }
+
+        fun preparePushPcm(): Boolean {
+            val vendor = prefs.asrVendor
+            val streamingPref = resolveStreamingBySettings(vendor)
+            engine = buildPushPcmEngine(vendor, streamingPref)
             return engine != null
         }
 
@@ -191,6 +250,64 @@ class ExternalSpeechService : Service() {
                 AsrVendor.SenseVoice -> SenseVoiceFileAsrEngine(context, scope, prefs, this)
                 AsrVendor.Paraformer -> ParaformerStreamAsrEngine(context, scope, prefs, this)
                 AsrVendor.Zipformer -> ZipformerStreamAsrEngine(context, scope, prefs, this)
+            }
+        }
+
+        private fun buildPushPcmEngine(vendor: AsrVendor, streamingPreferred: Boolean): StreamingAsrEngine? {
+            val scope = CoroutineScope(Dispatchers.Main)
+            return when (vendor) {
+                // 火山引擎：该流式就流式，该非流式就非流式
+                AsrVendor.Volc -> if (streamingPreferred) {
+                    com.brycewg.asrkb.asr.VolcStreamAsrEngine(context, scope, prefs, this, externalPcmMode = true)
+                } else {
+                    com.brycewg.asrkb.asr.GenericPushFileAsrAdapter(
+                        context, scope, prefs, this,
+                        com.brycewg.asrkb.asr.VolcFileAsrEngine(context, scope, prefs, this)
+                    )
+                }
+                // 阿里 DashScope：依据设置走流式或非流式
+                AsrVendor.DashScope -> if (streamingPreferred) {
+                    com.brycewg.asrkb.asr.DashscopeStreamAsrEngine(context, scope, prefs, this, externalPcmMode = true)
+                } else {
+                    com.brycewg.asrkb.asr.GenericPushFileAsrAdapter(
+                        context, scope, prefs, this,
+                        com.brycewg.asrkb.asr.DashscopeFileAsrEngine(context, scope, prefs, this)
+                    )
+                }
+                // Soniox：依据设置走流式或非流式
+                AsrVendor.Soniox -> if (streamingPreferred) {
+                    com.brycewg.asrkb.asr.SonioxStreamAsrEngine(context, scope, prefs, this, externalPcmMode = true)
+                } else {
+                    com.brycewg.asrkb.asr.GenericPushFileAsrAdapter(
+                        context, scope, prefs, this,
+                        com.brycewg.asrkb.asr.SonioxFileAsrEngine(context, scope, prefs, this)
+                    )
+                }
+                // 其他云厂商：仅非流式
+                AsrVendor.ElevenLabs -> com.brycewg.asrkb.asr.GenericPushFileAsrAdapter(
+                    context, scope, prefs, this,
+                    com.brycewg.asrkb.asr.ElevenLabsFileAsrEngine(context, scope, prefs, this)
+                )
+                AsrVendor.OpenAI -> com.brycewg.asrkb.asr.GenericPushFileAsrAdapter(
+                    context, scope, prefs, this,
+                    com.brycewg.asrkb.asr.OpenAiFileAsrEngine(context, scope, prefs, this)
+                )
+                AsrVendor.Gemini -> com.brycewg.asrkb.asr.GenericPushFileAsrAdapter(
+                    context, scope, prefs, this,
+                    com.brycewg.asrkb.asr.GeminiFileAsrEngine(context, scope, prefs, this)
+                )
+                AsrVendor.SiliconFlow -> com.brycewg.asrkb.asr.GenericPushFileAsrAdapter(
+                    context, scope, prefs, this,
+                    com.brycewg.asrkb.asr.SiliconFlowFileAsrEngine(context, scope, prefs, this)
+                )
+                // 本地：Paraformer/Zipformer 固定流式
+                AsrVendor.Paraformer -> com.brycewg.asrkb.asr.ParaformerStreamAsrEngine(context, scope, prefs, this, externalPcmMode = true)
+                AsrVendor.Zipformer -> com.brycewg.asrkb.asr.ZipformerStreamAsrEngine(context, scope, prefs, this, externalPcmMode = true)
+                // SenseVoice：非流式 → 走文件引擎 + 通用适配器
+                AsrVendor.SenseVoice -> com.brycewg.asrkb.asr.GenericPushFileAsrAdapter(
+                    context, scope, prefs, this,
+                    com.brycewg.asrkb.asr.SenseVoiceFileAsrEngine(context, scope, prefs, this)
+                )
             }
         }
 
@@ -305,6 +422,9 @@ class ExternalSpeechService : Service() {
         private const val TRANSACTION_isRecording = IBinder.FIRST_CALL_TRANSACTION + 3
         private const val TRANSACTION_isAnyRecording = IBinder.FIRST_CALL_TRANSACTION + 4
         private const val TRANSACTION_getVersion = IBinder.FIRST_CALL_TRANSACTION + 5
+        private const val TRANSACTION_startPcmSession = IBinder.FIRST_CALL_TRANSACTION + 6
+        private const val TRANSACTION_writePcm = IBinder.FIRST_CALL_TRANSACTION + 7
+        private const val TRANSACTION_finishPcm = IBinder.FIRST_CALL_TRANSACTION + 8
 
         private const val DESCRIPTOR_CB = "com.brycewg.asrkb.aidl.ISpeechCallback"
         private const val CB_onState = IBinder.FIRST_CALL_TRANSACTION + 0

@@ -29,8 +29,9 @@ class ZipformerStreamAsrEngine(
     private val context: Context,
     private val scope: CoroutineScope,
     private val prefs: Prefs,
-    private val listener: StreamingAsrEngine.Listener
-) : StreamingAsrEngine {
+    private val listener: StreamingAsrEngine.Listener,
+    private val externalPcmMode: Boolean = false
+) : StreamingAsrEngine, ExternalPcmConsumer {
 
     companion object {
         private const val TAG = "ZipformerStreamAsrEngine"
@@ -65,13 +66,15 @@ class ZipformerStreamAsrEngine(
         closing.set(false)
         finalizeOnce.set(false)
 
-        val hasPermission = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.RECORD_AUDIO
-        ) == PackageManager.PERMISSION_GRANTED
-        if (!hasPermission) {
-            listener.onError(context.getString(R.string.error_record_permission_denied))
-            return
+        if (!externalPcmMode) {
+            val hasPermission = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.RECORD_AUDIO
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!hasPermission) {
+                listener.onError(context.getString(R.string.error_record_permission_denied))
+                return
+            }
         }
 
         if (!mgr.isOnnxAvailable()) {
@@ -83,7 +86,7 @@ class ZipformerStreamAsrEngine(
         lastEmitUptimeMs = 0L
         lastEmittedText = null
 
-        startCapture()
+        if (!externalPcmMode) startCapture()
         scope.launch(Dispatchers.Default) {
             val base = context.getExternalFilesDir(null) ?: context.filesDir
             val root = java.io.File(base, "zipformer")
@@ -156,6 +159,19 @@ class ZipformerStreamAsrEngine(
                 closing.set(false)
                 running.set(false)
             }
+        }
+    }
+
+    // ========== ExternalPcmConsumer（外部推流） ==========
+    override fun appendPcm(pcm: ByteArray, sampleRate: Int, channels: Int) {
+        if (!running.get() && currentStream == null && !closing.get()) return
+        if (sampleRate != 16000 || channels != 1) return
+        try { listener.onAmplitude(com.brycewg.asrkb.asr.calculateNormalizedAmplitude(pcm)) } catch (_: Throwable) { }
+        val s = currentStream
+        if (s == null) {
+            scope.launch { appendPrebuffer(pcm) }
+        } else {
+            scope.launch { deliverChunk(s, pcm, pcm.size) }
         }
     }
 

@@ -31,8 +31,9 @@ class DashscopeStreamAsrEngine(
   private val context: Context,
   private val scope: CoroutineScope,
   private val prefs: Prefs,
-  private val listener: StreamingAsrEngine.Listener
-) : StreamingAsrEngine {
+  private val listener: StreamingAsrEngine.Listener,
+  private val externalPcmMode: Boolean = false
+) : StreamingAsrEngine, ExternalPcmConsumer {
 
   companion object {
     private const val TAG = "DashscopeStreamAsrEngine"
@@ -53,16 +54,21 @@ class DashscopeStreamAsrEngine(
   override val isRunning: Boolean
     get() = running.get()
 
+  private val prebuffer = java.util.ArrayDeque<ByteArray>()
+  private val prebufferLock = Any()
+  @Volatile private var recReady: Boolean = false
+
   override fun start() {
     if (running.get()) return
-
-    val hasPermission = ContextCompat.checkSelfPermission(
-      context,
-      Manifest.permission.RECORD_AUDIO
-    ) == PackageManager.PERMISSION_GRANTED
-    if (!hasPermission) {
-      listener.onError(context.getString(R.string.error_record_permission_denied))
-      return
+    if (!externalPcmMode) {
+      val hasPermission = ContextCompat.checkSelfPermission(
+        context,
+        Manifest.permission.RECORD_AUDIO
+      ) == PackageManager.PERMISSION_GRANTED
+      if (!hasPermission) {
+        listener.onError(context.getString(R.string.error_record_permission_denied))
+        return
+      }
     }
     if (prefs.dashApiKey.isBlank()) {
       listener.onError(context.getString(R.string.error_missing_dashscope_key))
@@ -120,16 +126,46 @@ class DashscopeStreamAsrEngine(
 
         val rec = Recognition()
         recognizer = rec
+        recReady = false
         rec.call(param, cb)
+        recReady = true
 
-        // 建立连接后开始推送音频
-        startCaptureAndSend(rec)
+        // 建立连接后开始推送音频（仅非外部模式）
+        if (!externalPcmMode) {
+          startCaptureAndSend(rec)
+        } else {
+          // 外部模式：若已有缓冲帧，尽快冲刷
+          var flushed: Array<ByteArray>? = null
+          synchronized(prebufferLock) {
+            if (prebuffer.isNotEmpty()) { flushed = prebuffer.toTypedArray(); prebuffer.clear() }
+          }
+          flushed?.forEach { b -> kotlin.runCatching { recognizer?.sendAudioFrame(ByteBuffer.wrap(b)) } }
+        }
       } catch (t: Throwable) {
         Log.e(TAG, "Failed to start Fun-ASR recognition", t)
         try { listener.onError(context.getString(R.string.error_recognize_failed_with_reason, t.message ?: "")) } catch (_: Throwable) {}
         running.set(false)
         safeClose()
       }
+    }
+  }
+
+  // ========== ExternalPcmConsumer（外部推流） ==========
+  override fun appendPcm(pcm: ByteArray, sampleRate: Int, channels: Int) {
+    if (!running.get()) return
+    if (sampleRate != 16000 || channels != 1) return
+    try { listener.onAmplitude(com.brycewg.asrkb.asr.calculateNormalizedAmplitude(pcm)) } catch (_: Throwable) {}
+    val rec = recognizer
+    if (!recReady || rec == null) {
+      synchronized(prebufferLock) { prebuffer.addLast(pcm.copyOf()) }
+    } else {
+      // 先冲刷预缓冲
+      var flushed: Array<ByteArray>? = null
+      synchronized(prebufferLock) {
+        if (prebuffer.isNotEmpty()) { flushed = prebuffer.toTypedArray(); prebuffer.clear() }
+      }
+      flushed?.forEach { b -> kotlin.runCatching { rec.sendAudioFrame(ByteBuffer.wrap(b)) } }
+      kotlin.runCatching { rec.sendAudioFrame(ByteBuffer.wrap(pcm)) }
     }
   }
 

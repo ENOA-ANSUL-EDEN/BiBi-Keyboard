@@ -35,8 +35,9 @@ class SonioxStreamAsrEngine(
     private val context: Context,
     private val scope: CoroutineScope,
     private val prefs: Prefs,
-    private val listener: StreamingAsrEngine.Listener
-) : StreamingAsrEngine {
+    private val listener: StreamingAsrEngine.Listener,
+    private val externalPcmMode: Boolean = false
+) : StreamingAsrEngine, ExternalPcmConsumer {
 
     companion object {
         private const val TAG = "SonioxStreamAsrEngine"
@@ -65,14 +66,16 @@ class SonioxStreamAsrEngine(
 
     override fun start() {
         if (running.get()) return
-        // 权限校验
-        val hasPermission = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.RECORD_AUDIO
-        ) == PackageManager.PERMISSION_GRANTED
-        if (!hasPermission) {
-            listener.onError(context.getString(R.string.error_record_permission_denied))
-            return
+        // 外部推流模式下跳过权限
+        if (!externalPcmMode) {
+            val hasPermission = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.RECORD_AUDIO
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!hasPermission) {
+                listener.onError(context.getString(R.string.error_record_permission_denied))
+                return
+            }
         }
         if (prefs.sonioxApiKey.isBlank()) {
             listener.onError(context.getString(R.string.error_missing_soniox_key))
@@ -81,7 +84,7 @@ class SonioxStreamAsrEngine(
         running.set(true)
         wsReady.set(false)
         synchronized(prebufferLock) { prebuffer.clear() }
-        openWebSocketAndStartAudio()
+        openWebSocketAndMaybeStartAudio(startAudio = !externalPcmMode)
     }
 
     override fun stop() {
@@ -99,10 +102,10 @@ class SonioxStreamAsrEngine(
         audioJob = null
     }
 
-    private fun openWebSocketAndStartAudio() {
+    private fun openWebSocketAndMaybeStartAudio(startAudio: Boolean) {
         finalTextBuffer.setLength(0)
-        // 并行：先启动录音进行预采集，后建立 WS 连接
-        startCaptureAndSendAudio()
+        // 非外部模式才启动录音
+        if (startAudio) startCaptureAndSendAudio()
         val req = Request.Builder()
             .url(Prefs.SONIOX_WS_URL)
             .build()
@@ -275,6 +278,24 @@ class SonioxStreamAsrEngine(
             }
         }
         return o.toString()
+    }
+
+    // ========== ExternalPcmConsumer（外部推流） ==========
+    override fun appendPcm(pcm: ByteArray, sampleRate: Int, channels: Int) {
+        if (!running.get()) return
+        if (sampleRate != 16000 || channels != 1) return
+        try { listener.onAmplitude(com.brycewg.asrkb.asr.calculateNormalizedAmplitude(pcm)) } catch (_: Throwable) {}
+        if (!wsReady.get()) {
+            synchronized(prebufferLock) { prebuffer.addLast(pcm.copyOf()) }
+        } else {
+            var flushed: Array<ByteArray>? = null
+            synchronized(prebufferLock) {
+                if (prebuffer.isNotEmpty()) { flushed = prebuffer.toTypedArray(); prebuffer.clear() }
+            }
+            val socket = ws ?: return
+            flushed?.forEach { b -> kotlin.runCatching { socket.send(ByteString.of(*b)) } }
+            kotlin.runCatching { socket.send(ByteString.of(*pcm)) }
+        }
     }
 
     private fun handleMessage(json: String) {

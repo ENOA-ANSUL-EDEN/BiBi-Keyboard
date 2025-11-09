@@ -28,7 +28,7 @@ class SonioxFileAsrEngine(
     listener: StreamingAsrEngine.Listener,
     onRequestDuration: ((Long) -> Unit)? = null,
     httpClient: OkHttpClient? = null
-) : BaseFileAsrEngine(context, scope, prefs, listener, onRequestDuration) {
+) : BaseFileAsrEngine(context, scope, prefs, listener, onRequestDuration), PcmBatchRecognizer {
 
     companion object {
         private const val TAG = "SonioxFileAsrEngine"
@@ -76,6 +76,8 @@ class SonioxFileAsrEngine(
             )
         }
     }
+
+    override suspend fun recognizeFromPcm(pcm: ByteArray) { recognize(pcm) }
 
     private fun uploadAudioFile(apiKey: String, file: File): String {
         val multipart = MultipartBody.Builder().setType(MultipartBody.FORM)

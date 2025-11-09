@@ -30,7 +30,7 @@ class DashscopeFileAsrEngine(
     prefs: Prefs,
     listener: StreamingAsrEngine.Listener,
     onRequestDuration: ((Long) -> Unit)? = null
-) : BaseFileAsrEngine(context, scope, prefs, listener, onRequestDuration) {
+) : BaseFileAsrEngine(context, scope, prefs, listener, onRequestDuration), PcmBatchRecognizer {
 
     companion object {
         private const val TAG = "DashscopeFileAsrEngine"
@@ -123,6 +123,8 @@ class DashscopeFileAsrEngine(
             tmp.delete()
         }
     }
+
+    override suspend fun recognizeFromPcm(pcm: ByteArray) { recognize(pcm) }
 
     /**
      * 从 DashScope 响应体中解析转写文本

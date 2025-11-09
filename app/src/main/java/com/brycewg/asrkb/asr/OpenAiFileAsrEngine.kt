@@ -26,7 +26,7 @@ class OpenAiFileAsrEngine(
     listener: StreamingAsrEngine.Listener,
     onRequestDuration: ((Long) -> Unit)? = null,
     httpClient: OkHttpClient? = null
-) : BaseFileAsrEngine(context, scope, prefs, listener, onRequestDuration) {
+) : BaseFileAsrEngine(context, scope, prefs, listener, onRequestDuration), PcmBatchRecognizer {
 
     companion object {
         private const val TAG = "OpenAiFileAsrEngine"
@@ -109,6 +109,8 @@ class OpenAiFileAsrEngine(
             )
         }
     }
+
+    override suspend fun recognizeFromPcm(pcm: ByteArray) { recognize(pcm) }
 
     /**
      * 从响应体中提取错误提示信息

@@ -31,8 +31,9 @@ class ParaformerStreamAsrEngine(
     private val context: Context,
     private val scope: CoroutineScope,
     private val prefs: Prefs,
-    private val listener: StreamingAsrEngine.Listener
-) : StreamingAsrEngine {
+    private val listener: StreamingAsrEngine.Listener,
+    private val externalPcmMode: Boolean = false
+) : StreamingAsrEngine, ExternalPcmConsumer {
 
     companion object {
         private const val TAG = "ParaformerStreamAsrEngine"
@@ -65,14 +66,16 @@ class ParaformerStreamAsrEngine(
     override fun start() {
         if (running.get()) return
         closing.set(false)
-        // 权限校验
-        val hasPermission = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.RECORD_AUDIO
-        ) == PackageManager.PERMISSION_GRANTED
-        if (!hasPermission) {
-            listener.onError(context.getString(R.string.error_record_permission_denied))
-            return
+        // 外部推流模式下不检查录音权限
+        if (!externalPcmMode) {
+            val hasPermission = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.RECORD_AUDIO
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!hasPermission) {
+                listener.onError(context.getString(R.string.error_record_permission_denied))
+                return
+            }
         }
 
         if (!mgr.isOnnxAvailable()) {
@@ -84,8 +87,8 @@ class ParaformerStreamAsrEngine(
         lastEmitUptimeMs = 0L
         lastEmittedText = null
 
-        // 启动采集；后台准备模型与在线识别器
-        startCapture()
+        // 非外部模式才启动采集；外部模式下由 appendPcm 注入
+        if (!externalPcmMode) startCapture()
         scope.launch(Dispatchers.Default) {
             val base = context.getExternalFilesDir(null) ?: context.filesDir
             val root = java.io.File(base, "paraformer")
@@ -147,6 +150,19 @@ class ParaformerStreamAsrEngine(
                 closing.set(false)
                 running.set(false)
             }
+        }
+    }
+
+    // ========== ExternalPcmConsumer（外部推流） ==========
+    override fun appendPcm(pcm: ByteArray, sampleRate: Int, channels: Int) {
+        if (!running.get() && currentStream == null && !closing.get()) return
+        if (sampleRate != 16000 || channels != 1) return
+        try { listener.onAmplitude(com.brycewg.asrkb.asr.calculateNormalizedAmplitude(pcm)) } catch (_: Throwable) { }
+        val s = currentStream
+        if (s == null) {
+            scope.launch { appendPrebuffer(pcm) }
+        } else {
+            scope.launch { deliverChunk(s, pcm, pcm.size) }
         }
     }
 

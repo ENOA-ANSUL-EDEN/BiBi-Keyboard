@@ -26,7 +26,7 @@ class SenseVoiceFileAsrEngine(
     prefs: Prefs,
     listener: StreamingAsrEngine.Listener,
     onRequestDuration: ((Long) -> Unit)? = null
-) : BaseFileAsrEngine(context, scope, prefs, listener, onRequestDuration) {
+) : BaseFileAsrEngine(context, scope, prefs, listener, onRequestDuration), PcmBatchRecognizer {
 
     // 本地 SenseVoice：为降低内存占用，主动限制为 5 分钟
     override val maxRecordDurationMillis: Int = 5 * 60 * 1000
@@ -185,6 +185,8 @@ class SenseVoiceFileAsrEngine(
             }
         }
     }
+
+    override suspend fun recognizeFromPcm(pcm: ByteArray) { recognize(pcm) }
 
     private fun pcmToFloatArray(pcm: ByteArray): FloatArray {
         if (pcm.isEmpty()) return FloatArray(0)

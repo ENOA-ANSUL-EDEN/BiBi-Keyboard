@@ -41,8 +41,9 @@ class VolcStreamAsrEngine(
     private val context: Context,
     private val scope: CoroutineScope,
     private val prefs: Prefs,
-    private val listener: StreamingAsrEngine.Listener
-) : StreamingAsrEngine {
+    private val listener: StreamingAsrEngine.Listener,
+    private val externalPcmMode: Boolean = false
+) : StreamingAsrEngine, ExternalPcmConsumer {
 
     companion object {
         private const val TAG = "VolcStreamAsrEngine"
@@ -97,19 +98,21 @@ class VolcStreamAsrEngine(
 
     override fun start() {
         if (running.get()) return
-        // 权限校验
-        val hasPermission = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.RECORD_AUDIO
-        ) == PackageManager.PERMISSION_GRANTED
-        if (!hasPermission) {
-            listener.onError(context.getString(R.string.error_record_permission_denied))
-            return
+        // 外部推流模式下不再检查/申请录音权限
+        if (!externalPcmMode) {
+            val hasPermission = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.RECORD_AUDIO
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!hasPermission) {
+                listener.onError(context.getString(R.string.error_record_permission_denied))
+                return
+            }
         }
         running.set(true)
         synchronized(prebufferLock) { prebuffer.clear() }
         audioLastSent.set(false)
-        openWebSocketAndStartAudio()
+        openWebSocket(startAudio = !externalPcmMode)
     }
 
     override fun stop() {
@@ -164,9 +167,9 @@ class VolcStreamAsrEngine(
         }
     }
 
-    private fun openWebSocketAndStartAudio() {
+    private fun openWebSocket(startAudio: Boolean) {
         val connectId = UUID.randomUUID().toString()
-        startAudioStreaming()
+        if (startAudio) startAudioStreaming()
         val wsUrl = if (prefs.volcBidiStreamingEnabled) WS_ENDPOINT_BIDI_ASYNC else WS_ENDPOINT_NOSTREAM
         val req = Request.Builder()
             .url(wsUrl)
@@ -236,6 +239,26 @@ class VolcStreamAsrEngine(
                 running.set(false)
             }
         })
+    }
+
+    // ========== ExternalPcmConsumer 实现（外部推流） ==========
+    override fun appendPcm(pcm: ByteArray, sampleRate: Int, channels: Int) {
+        if (!running.get()) return
+        if (sampleRate != 16000 || channels != 1) {
+            Log.w(TAG, "ignore frame: sr=$sampleRate ch=$channels")
+            return
+        }
+        try { listener.onAmplitude(com.brycewg.asrkb.asr.calculateNormalizedAmplitude(pcm)) } catch (_: Throwable) { }
+        if (!wsReady.get()) {
+            synchronized(prebufferLock) { prebuffer.addLast(pcm.copyOf()) }
+        } else {
+            var flushed: Array<ByteArray>? = null
+            synchronized(prebufferLock) {
+                if (prebuffer.isNotEmpty()) { flushed = prebuffer.toTypedArray(); prebuffer.clear() }
+            }
+            flushed?.forEach { b -> kotlin.runCatching { sendAudioFrame(b, last = false) } }
+            kotlin.runCatching { sendAudioFrame(pcm, last = false) }
+        }
     }
 
     /**

@@ -23,7 +23,7 @@ class GeminiFileAsrEngine(
     listener: StreamingAsrEngine.Listener,
     onRequestDuration: ((Long) -> Unit)? = null,
     httpClient: OkHttpClient? = null
-) : BaseFileAsrEngine(context, scope, prefs, listener, onRequestDuration) {
+) : BaseFileAsrEngine(context, scope, prefs, listener, onRequestDuration), PcmBatchRecognizer {
 
     companion object {
         private const val TAG = "GeminiFileAsrEngine"
@@ -95,6 +95,8 @@ class GeminiFileAsrEngine(
             )
         }
     }
+
+    override suspend fun recognizeFromPcm(pcm: ByteArray) { recognize(pcm) }
 
     /**
      * 构建 Gemini API 请求体

@@ -25,7 +25,7 @@ class VolcFileAsrEngine(
     listener: StreamingAsrEngine.Listener,
     onRequestDuration: ((Long) -> Unit)? = null,
     httpClient: OkHttpClient? = null
-) : BaseFileAsrEngine(context, scope, prefs, listener, onRequestDuration) {
+) : BaseFileAsrEngine(context, scope, prefs, listener, onRequestDuration), PcmBatchRecognizer {
 
     companion object {
         private const val DEFAULT_FILE_RESOURCE = "volc.bigasr.auc_turbo"
@@ -85,6 +85,9 @@ class VolcFileAsrEngine(
             )
         }
     }
+
+    // 供“推送 PCM 适配器”调用，直接复用现有实现
+    override suspend fun recognizeFromPcm(pcm: ByteArray) { recognize(pcm) }
 
     /**
      * 构建火山引擎 API 请求体
