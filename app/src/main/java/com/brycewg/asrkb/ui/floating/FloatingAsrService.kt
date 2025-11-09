@@ -53,6 +53,7 @@ class FloatingAsrService : Service(),
         private const val TAG = "FloatingAsrService"
         const val ACTION_SHOW = "com.brycewg.asrkb.action.FLOATING_ASR_SHOW"
         const val ACTION_HIDE = "com.brycewg.asrkb.action.FLOATING_ASR_HIDE"
+        const val ACTION_RESET_POSITION = "com.brycewg.asrkb.action.FLOATING_ASR_RESET_POS"
     }
 
     // 核心组件
@@ -145,6 +146,7 @@ class FloatingAsrService : Service(),
         when (intent?.action) {
             ACTION_SHOW -> updateVisibilityByPref("start_action_show")
             ACTION_HIDE -> hideBall()
+            ACTION_RESET_POSITION -> handleResetBallPosition()
             FloatingImeHints.ACTION_HINT_IME_VISIBLE -> {
                 imeVisible = true
                 DebugLogManager.log("float", "hint", mapOf("action" to "VISIBLE"))
@@ -299,6 +301,31 @@ class FloatingAsrService : Service(),
     private fun hideBall() {
         viewManager.hideBall()
         DebugLogManager.log("float", "hide")
+    }
+
+    private fun handleResetBallPosition() {
+        try {
+            // 先将记录位置清空为默认标记
+            prefs.floatingBallPosX = -1
+            prefs.floatingBallPosY = -1
+        } catch (e: Throwable) {
+            Log.w(TAG, "Failed to reset saved position in prefs", e)
+        }
+
+        val hasView = viewManager.getBallView() != null
+        if (hasView) {
+            try {
+                viewManager.resetPositionToDefault()
+                if (!prefs.floatingSwitcherOnlyWhenImeVisible) {
+                    viewManager.animateHideToEdgePartialIfNeeded()
+                }
+            } catch (e: Throwable) {
+                Log.e(TAG, "Failed to apply default position reset on existing view", e)
+            }
+        } else {
+            // 没有视图时，按当前可见性策略尝试显示（首次显示会走默认位置）
+            updateVisibilityByPref("reset_pos_no_view")
+        }
     }
 
     private fun updateVisibilityByPref(src: String = "update_visibility") {
@@ -501,10 +528,25 @@ class FloatingAsrService : Service(),
             stateMachine.transitionTo(FloatingBallState.Idle)
             viewManager.getBallView()?.let {
                 try {
-                    viewManager.animateSnapToEdge(it)
+                    viewManager.animateSnapToEdge(it) {
+                        try {
+                            if (!prefs.floatingSwitcherOnlyWhenImeVisible) {
+                                viewManager.animateHideToEdgePartialIfNeeded()
+                            }
+                        } catch (e: Throwable) {
+                            Log.w(TAG, "Failed to partial hide after exit move mode", e)
+                        }
+                    }
                 } catch (e: Throwable) {
                     Log.e(TAG, "Failed to animate snap, falling back", e)
                     viewManager.snapToEdge(it)
+                    try {
+                        if (!prefs.floatingSwitcherOnlyWhenImeVisible) {
+                            viewManager.animateHideToEdgePartialIfNeeded()
+                        }
+                    } catch (ex: Throwable) {
+                        Log.w(TAG, "Failed to partial hide after fallback snap", ex)
+                    }
                 }
             }
             hideRadialMenu()
@@ -646,9 +688,9 @@ class FloatingAsrService : Service(),
 
     override fun onMoveEnded() {
         touchActiveGuard = false
-        // 移动结束：在静息场景执行贴边吸附+半隐（底部除外）
+        // 移动结束：仍处在“移动模式”时不要自动半隐，等待退出移动后再恢复
         try {
-            if (stateMachine.isIdle && !prefs.floatingSwitcherOnlyWhenImeVisible) {
+            if (!stateMachine.isMoveMode && !prefs.floatingSwitcherOnlyWhenImeVisible) {
                 // 仅当未开启“仅在键盘显示时显示悬浮球”时执行半隐
                 viewManager.animateHideToEdgePartialIfNeeded()
             }

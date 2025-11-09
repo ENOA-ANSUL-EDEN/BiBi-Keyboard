@@ -564,6 +564,26 @@ class FloatingBallViewManager(
         return params
     }
 
+    /** 重置位置为默认（左上偏下），并立即应用到当前视图（若存在） */
+    fun resetPositionToDefault() {
+        val p = lp ?: return
+        val v = ballView ?: return
+        try {
+            p.x = dp(12)
+            p.y = dp(180)
+            windowManager.updateViewLayout(v, p)
+        } catch (e: Throwable) {
+            Log.e(TAG, "Failed to reset position to default", e)
+        }
+        // 覆盖并持久化当前位置
+        try {
+            prefs.floatingBallPosX = p.x
+            prefs.floatingBallPosY = p.y
+        } catch (e: Throwable) {
+            Log.e(TAG, "Failed to persist default position after reset", e)
+        }
+    }
+
     private fun calculateSnapTarget(v: View): Pair<Int, Int> {
         val p = lp ?: return 0 to 0
         val dm = context.resources.displayMetrics

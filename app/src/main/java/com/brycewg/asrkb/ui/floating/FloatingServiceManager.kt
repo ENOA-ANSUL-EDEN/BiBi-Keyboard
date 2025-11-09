@@ -55,4 +55,17 @@ class FloatingServiceManager(private val context: Context) {
             Log.e(TAG, "Failed to refresh ASR service", e)
         }
     }
+
+    /** 重置悬浮球位置到默认值（用于设置页按钮） */
+    fun resetAsrBallPosition() {
+        try {
+            val intent = Intent(context, FloatingAsrService::class.java).apply {
+                action = FloatingAsrService.ACTION_RESET_POSITION
+            }
+            context.startService(intent)
+            Log.d(TAG, "Requested reset of Floating ball position")
+        } catch (e: Throwable) {
+            Log.e(TAG, "Failed to request position reset", e)
+        }
+    }
 }

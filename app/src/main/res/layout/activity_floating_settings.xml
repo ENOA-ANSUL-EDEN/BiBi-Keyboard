@@ -68,6 +68,16 @@
         android:valueTo="96"
         android:stepSize="4" />
 
+      <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnResetFloatingPos"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/label_reset_floating_position"
+        app:icon="@drawable/arrow_counter_clockwise"
+        app:iconPadding="8dp"
+        app:iconGravity="textStart" />
+
       <com.google.android.material.divider.MaterialDivider
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

@@ -232,6 +232,26 @@ class FloatingSettingsViewModel : ViewModel() {
         }
     }
 
+    /**
+     * 重置悬浮球位置到默认值。
+     * - 将偏好中的坐标重置为 -1
+     * - 通知服务复位当前位置（若服务正在运行）
+     */
+    fun resetFloatingPosition(context: Context, serviceManager: FloatingServiceManager) {
+        try {
+            val prefs = Prefs(context)
+            prefs.floatingBallPosX = -1
+            prefs.floatingBallPosY = -1
+        } catch (e: Throwable) {
+            Log.e(TAG, "Failed to reset floating position in prefs", e)
+        }
+        try {
+            serviceManager.resetAsrBallPosition()
+        } catch (e: Throwable) {
+            Log.e(TAG, "Failed to dispatch reset to service", e)
+        }
+    }
+
 
     /**
      * 检查无障碍服务是否已启用

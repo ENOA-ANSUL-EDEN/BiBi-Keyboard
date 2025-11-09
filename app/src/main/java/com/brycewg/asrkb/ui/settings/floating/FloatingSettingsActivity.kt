@@ -15,6 +15,7 @@ import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.slider.Slider
 import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.button.MaterialButton
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.HapticFeedbackConstants
@@ -41,6 +42,7 @@ class FloatingSettingsActivity : AppCompatActivity() {
     private lateinit var etFloatingWriteCompatPkgs: TextInputEditText
     private lateinit var switchFloatingWritePaste: MaterialSwitch
     private lateinit var etFloatingWritePastePkgs: TextInputEditText
+    private lateinit var btnResetFloatingPos: MaterialButton
     
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -87,6 +89,7 @@ class FloatingSettingsActivity : AppCompatActivity() {
         etFloatingWriteCompatPkgs = findViewById(R.id.etFloatingWriteCompatPkgs)
         switchFloatingWritePaste = findViewById(R.id.switchFloatingWritePaste)
         etFloatingWritePastePkgs = findViewById(R.id.etFloatingWritePastePkgs)
+        btnResetFloatingPos = findViewById(R.id.btnResetFloatingPos)
     }
 
     /**
@@ -210,6 +213,13 @@ class FloatingSettingsActivity : AppCompatActivity() {
         switchFloatingWritePaste.setOnCheckedChangeListener { btn, isChecked ->
             hapticTapIfEnabled(btn)
             viewModel.handleWritePasteToggle(this, isChecked)
+        }
+
+        // 重置悬浮球位置
+        btnResetFloatingPos.setOnClickListener { v ->
+            hapticTapIfEnabled(v)
+            viewModel.resetFloatingPosition(this, serviceManager)
+            Toast.makeText(this, getString(R.string.toast_floating_position_reset), Toast.LENGTH_SHORT).show()
         }
 
         // 兼容目标包名（写入兼容）
