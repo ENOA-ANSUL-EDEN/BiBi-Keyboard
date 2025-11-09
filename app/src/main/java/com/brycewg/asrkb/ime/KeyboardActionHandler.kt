@@ -57,8 +57,9 @@ class KeyboardActionHandler(
     // 会话上下文
     private var sessionContext = KeyboardSessionContext()
 
-    // 全局撤销快照
-    private var undoSnapshot: UndoSnapshot? = null
+    // 全局撤销快照栈（支持多次撤回，最多保存3个快照）
+    private val undoSnapshots = ArrayDeque<UndoSnapshot>(3)
+    private val maxUndoSnapshots = 3
 
     // Processing 阶段兜底定时器（防止最终结果长时间未回调导致无法再次开始）
     private var processingTimeoutJob: Job? = null
@@ -325,7 +326,7 @@ class KeyboardActionHandler(
     }
 
     /**
-     * 处理全局撤销（优先撤销 AI 后处理，否则恢复撤销快照）
+     * 处理全局撤销（优先撤销 AI 后处理，否则从撤销栈恢复快照）
      */
     fun handleUndo(ic: InputConnection?): Boolean {
         if (ic == null) return false
@@ -343,12 +344,17 @@ class KeyboardActionHandler(
             }
         }
 
-        // 2) 否则恢复全局撤销快照
-        val snapshot = undoSnapshot
+        // 2) 否则从撤销栈恢复快照
+        val snapshot = undoSnapshots.removeLastOrNull()
         if (snapshot != null) {
             if (inputHelper.restoreSnapshot(ic, snapshot)) {
-                undoSnapshot = null
-                uiListener?.onStatusMessage(context.getString(R.string.status_undone))
+                val remaining = undoSnapshots.size
+                val message = if (remaining > 0) {
+                    context.getString(R.string.status_undone) + " ($remaining)"
+                } else {
+                    context.getString(R.string.status_undone)
+                }
+                uiListener?.onStatusMessage(message)
                 return true
             }
         }
@@ -472,11 +478,59 @@ class KeyboardActionHandler(
 
     /**
      * 保存撤销快照（在执行变更操作前调用）
+     *
+     * 优化策略：
+     * - 支持多级撤回（最多3个快照）
+     * - 如果 force=true，强制保存新快照
+     * - 如果当前内容与栈顶快照不同，则保存新快照（智能判断）
      */
     fun saveUndoSnapshot(ic: InputConnection?, force: Boolean = false) {
         if (ic == null) return
-        if (undoSnapshot != null && !force) return
-        undoSnapshot = inputHelper.captureUndoSnapshot(ic)
+
+        // 获取栈顶快照（最近的一个）
+        val topSnapshot = undoSnapshots.lastOrNull()
+
+        // 强制保存或首次保存
+        if (force || topSnapshot == null) {
+            val newSnapshot = inputHelper.captureUndoSnapshot(ic)
+            if (newSnapshot != null) {
+                undoSnapshots.addLast(newSnapshot)
+                // 限制栈大小
+                while (undoSnapshots.size > maxUndoSnapshots) {
+                    undoSnapshots.removeFirst()
+                }
+            }
+            return
+        }
+
+        // 智能判断：检查当前内容是否与栈顶快照不同
+        try {
+            val currentBefore = inputHelper.getTextBeforeCursor(ic, 10000)?.toString() ?: ""
+            val currentAfter = inputHelper.getTextAfterCursor(ic, 10000)?.toString() ?: ""
+            val snapshotBefore = topSnapshot.beforeCursor.toString()
+            val snapshotAfter = topSnapshot.afterCursor.toString()
+
+            // 如果内容有变化，保存新快照
+            if (currentBefore != snapshotBefore || currentAfter != snapshotAfter) {
+                val newSnapshot = inputHelper.captureUndoSnapshot(ic)
+                if (newSnapshot != null) {
+                    undoSnapshots.addLast(newSnapshot)
+                    // 限制栈大小
+                    while (undoSnapshots.size > maxUndoSnapshots) {
+                        undoSnapshots.removeFirst()
+                    }
+                }
+            }
+        } catch (e: Throwable) {
+            Log.w(TAG, "Failed to compare snapshot, saving anyway", e)
+            val newSnapshot = inputHelper.captureUndoSnapshot(ic)
+            if (newSnapshot != null) {
+                undoSnapshots.addLast(newSnapshot)
+                while (undoSnapshots.size > maxUndoSnapshots) {
+                    undoSnapshots.removeFirst()
+                }
+            }
+        }
     }
 
     /**
