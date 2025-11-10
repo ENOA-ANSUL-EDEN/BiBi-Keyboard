@@ -99,6 +99,11 @@ class InputSettingsActivity : AppCompatActivity() {
         switchExternalImeAidl.setOnCheckedChangeListener { btn, isChecked ->
             hapticTapIfEnabled(btn)
             prefs.externalAidlEnabled = isChecked
+
+            // 当开启时显示使用指引（如果尚未显示过）
+            if (isChecked && !prefs.externalAidlGuideShown) {
+                showExternalAidlGuide(prefs)
+            }
         }
         switchMicTapToggle.setOnCheckedChangeListener { btn, isChecked ->
             hapticTapIfEnabled(btn)
@@ -494,5 +499,33 @@ class InputSettingsActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    /**
+     * 显示外部输入法联动使用指引弹窗
+     * 按钮布局：不再提醒(左) - 打开Release页(中) - 关闭(右)
+     */
+    private fun showExternalAidlGuide(prefs: Prefs) {
+        val message = getString(R.string.external_aidl_guide_message)
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.external_aidl_guide_title)
+            .setMessage(message)
+            .setNeutralButton(R.string.external_aidl_guide_btn_no_remind) { _, _ ->
+                prefs.externalAidlGuideShown = true
+            }
+            .setNegativeButton(R.string.external_aidl_guide_btn_open_release) { _, _ ->
+                try {
+                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                        data = android.net.Uri.parse("https://github.com/BryceWG/fcitx5-android-lexi-keyboard/releases")
+                    }
+                    startActivity(intent)
+                } catch (e: Throwable) {
+                    Log.e(TAG, "Failed to open release page", e)
+                    Toast.makeText(this, R.string.external_aidl_guide_open_failed, Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setPositiveButton(R.string.external_aidl_guide_btn_close, null)
+            .show()
     }
 }

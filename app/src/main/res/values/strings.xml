@@ -37,7 +37,7 @@
   <!-- ============================================== -->
   <!-- 设置相关 -->
   <!-- ============================================== -->
-  <string name="settings_instructions">首次使用步骤：\n1. 点击"启用键盘"，在系统设置中启用 言犀键盘\n2. 点击"选择键盘"，切换到 言犀键盘\n3. 授予麦克风权限后，回到任意输入框，长按键盘上的麦克风按钮即可体验</string>
+  <string name="settings_instructions">首次使用步骤：\n1. 点击"启用键盘"，在系统设置中启用 言犀键盘\n2. 点击"选择键盘"，切换到 言犀键盘\n3. 授予麦克风权限后，回到任意输入框，长按键盘上的麦克风按钮即可体验\n\n为获得更稳定的后台服务体验，建议在系统设置中为本应用授予以下权限：\n• 后台自启动\n• 后台运行（保活）\n• 后台弹出界面\n\n本软件是开源项目，保证不会上传任何隐私数据。</string>
   <string name="btn_one_click_setup">一键设置</string>
 
   <string name="settings_title">言犀键盘设置</string>
@@ -149,6 +149,12 @@
   <string name="label_headset_mic_priority">优先尝试使用耳机的麦克风(实验性)</string>
   <!-- 外部输入法联动（AIDL） -->
   <string name="label_external_ime_link_aidl">允许外部输入法联动（AIDL）</string>
+  <string name="external_aidl_guide_title">如何使用联动功能</string>
+  <string name="external_aidl_guide_message">支持了从小企鹅输入法调用言犀的语音识别能力。使用方式：\n\n1. 下载修改版的 Fcitx：https://github.com/BryceWG/fcitx5-android-lexi-keyboard/releases，需要卸载之前的 Fcitx，注意数据备份\n\n2. 打开 Fcitx 设置 - 虚拟键盘 - 空格键长按行为 - 语音输入(AIDL)\n\n3. 更新言犀到 3.6.2 以上，在言犀设置 - 输入设置 - 允许外部输入法联动(AIDL)，无需启用悬浮球和无障碍功能\n\n4. 在小企鹅输入法面板，长按空格键即可语音输入。</string>
+  <string name="external_aidl_guide_btn_close">关闭</string>
+  <string name="external_aidl_guide_btn_no_remind">不再提醒</string>
+  <string name="external_aidl_guide_btn_open_release">打开Release页</string>
+  <string name="external_aidl_guide_open_failed">无法打开浏览器，请手动访问</string>
   <string name="label_return_prev_ime_on_hide">键盘收起后切回上一个输入法</string>
   <string name="toast_bt_connect_permission_required">需要蓝牙连接权限以使用耳机麦克风</string>
   <string name="toast_bt_connect_permission_denied">已拒绝蓝牙连接权限，将停用耳机麦克风优先</string>

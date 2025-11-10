@@ -37,7 +37,7 @@
   <!-- ============================================== -->
   <!-- Settings Related -->
   <!-- ============================================== -->
-  <string name="settings_instructions">First-time setup:\n1. Tap "Enable Keyboard" and enable LexiSharp Keyboard in system settings\n2. Tap "Choose Keyboard" to switch to LexiSharp Keyboard\n3. Grant microphone permission, then long‑press the mic button on the keyboard to try</string>
+  <string name="settings_instructions">First-time setup:\n1. Tap \"Enable Keyboard\" and enable LexiSharp Keyboard in system settings\n2. Tap \"Choose Keyboard\" to switch to LexiSharp Keyboard\n3. Grant microphone permission, then long‑press the mic button on the keyboard to try\n\nFor better background service stability, it\'s recommended to grant the following permissions in system settings:\n• Auto-start in background\n• Background running (keep alive)\n• Show pop-up windows while running in the background\n\nThis is an open-source app that guarantees no privacy data will be uploaded.</string>
   <string name="btn_one_click_setup">One-click Setup</string>
 
   <string name="settings_title">LexiSharp Keyboard Settings</string>
@@ -149,6 +149,12 @@
   <string name="label_headset_mic_priority">Prefer headset microphone (experimental)</string>
   <!-- External IME linking (AIDL) -->
   <string name="label_external_ime_link_aidl">Allow external IME linking (AIDL)</string>
+  <string name="external_aidl_guide_title">How to Use the Linking Feature</string>
+  <string name="external_aidl_guide_message">This feature enables voice recognition from Fcitx (Little Penguin) input method. Usage:\n\n1. Download the modified Fcitx: https://github.com/BryceWG/fcitx5-android-lexi-keyboard/releases (uninstall the original Fcitx first and backup your data)\n\n2. Open Fcitx Settings - Virtual Keyboard - Long-press Space Bar Behavior - Voice Input (AIDL)\n\n3. Update LexiSharp to 3.6.2 or later, enable Settings - Input Settings - Allow external IME linking (AIDL), no need to enable floating ball or accessibility service\n\n4. In Fcitx keyboard panel, long-press the space bar to activate voice input.</string>
+  <string name="external_aidl_guide_btn_close">Close</string>
+  <string name="external_aidl_guide_btn_no_remind">Don\'t remind again</string>
+  <string name="external_aidl_guide_btn_open_release">Open Release Page</string>
+  <string name="external_aidl_guide_open_failed">Cannot open browser, please visit manually</string>
   <string name="label_return_prev_ime_on_hide">Switch back to previous IME when hidden</string>
   <string name="toast_bt_connect_permission_required">Bluetooth connect permission is required to use headset mic</string>
   <string name="toast_bt_connect_permission_denied">Bluetooth connect permission denied; headset priority disabled</string>

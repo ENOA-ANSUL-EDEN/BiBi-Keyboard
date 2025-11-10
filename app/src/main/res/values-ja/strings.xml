@@ -38,7 +38,7 @@
   <!-- ============================================== -->
   <!-- 设置相关 -->
   <!-- ============================================== -->
-  <string name="settings_instructions">初回セットアップ:\n1.「キーボードを有効化」をタップし、システム設定でLexiSharpキーボードを有効にします\n2.「キーボードを選択」をタップし、LexiSharpキーボードに切り替えます\n3.マイク権限を許可し、キーボードのマイクボタンを長押しして音声入力をお試しください</string>
+  <string name="settings_instructions">初回セットアップ:\n1.「キーボードを有効化」をタップし、システム設定でLexiSharpキーボードを有効にします\n2.「キーボードを選択」をタップし、LexiSharpキーボードに切り替えます\n3.マイク権限を許可し、キーボードのマイクボタンを長押しして音声入力をお試しください\n\nより安定したバックグラウンドサービスを利用するため、システム設定で以下の権限を許可することを推奨します：\n• バックグラウンドでの自動起動\n• バックグラウンド実行（常駐）\n• バックグラウンドでのポップアップ表示\n\n本ソフトウェアはオープンソースであり、いかなるプライバシーデータもアップロードしないことを保証します。</string>
   <string name="btn_one_click_setup">ワンクリック設定</string>
 
   <string name="settings_title">LexiSharpキーボード設定</string>
@@ -150,6 +150,12 @@
   <string name="label_headset_mic_priority">ヘッドセットマイクを優先（実験的）</string>
   <!-- 外部IME連携（AIDL） -->
   <string name="label_external_ime_link_aidl">外部IME連携（AIDL）を許可</string>
+  <string name="external_aidl_guide_title">連携機能の使用方法</string>
+  <string name="external_aidl_guide_message">Fcitx（小企鹅）入力法からLexiSharpの音声認識機能を呼び出すことができます。使用方法：\n\n1. 改造版Fcitxをダウンロード：https://github.com/BryceWG/fcitx5-android-lexi-keyboard/releases（元のFcitxをアンインストールし、データをバックアップしてください）\n\n2. Fcitx設定 - 仮想キーボード - スペースキー長押し動作 - 音声入力（AIDL）を選択\n\n3. LexiSharpを3.6.2以上に更新し、設定 - 入力設定 - 外部IME連携（AIDL）を許可を有効化。フローティングボールやアクセシビリティサービスは不要です\n\n4. Fcitx入力法パネルでスペースキーを長押しすると音声入力が起動します。</string>
+  <string name="external_aidl_guide_btn_close">閉じる</string>
+  <string name="external_aidl_guide_btn_no_remind">再表示しない</string>
+  <string name="external_aidl_guide_btn_open_release">リリースページを開く</string>
+  <string name="external_aidl_guide_open_failed">ブラウザを開けません。手動でアクセスしてください</string>
   <string name="label_return_prev_ime_on_hide">非表示時に前のIMEに切り替える</string>
   <string name="toast_bt_connect_permission_required">ヘッドセットマイクを使用するにはBluetooth接続権限が必要です</string>
   <string name="toast_bt_connect_permission_denied">Bluetooth接続権限が拒否されました。ヘッドセット優先が無効になりました。</string>
