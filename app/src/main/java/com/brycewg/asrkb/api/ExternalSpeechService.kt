@@ -74,7 +74,7 @@ class ExternalSpeechService : Service() {
                     }
 
                     val sid = synchronized(this@ExternalSpeechService) { nextId++ }
-                    val s = Session(sid, this@ExternalSpeechService, prefs, cb, cfg)
+                    val s = Session(sid, this@ExternalSpeechService, prefs, cb)
                     if (!s.prepare()) {
                         reply?.apply { writeNoException(); writeInt(-3) }
                         return true
@@ -120,7 +120,7 @@ class ExternalSpeechService : Service() {
                 // ================= 推送 PCM 模式 =================
                 TRANSACTION_startPcmSession -> {
                     data.enforceInterface(DESCRIPTOR_SVC)
-                    val cfg = if (data.readInt() != 0) SpeechConfig.CREATOR.createFromParcel(data) else null
+                    if (data.readInt() != 0) SpeechConfig.CREATOR.createFromParcel(data) else null
                     val cbBinder = data.readStrongBinder()
                     val cb = CallbackProxy(cbBinder)
 
@@ -135,7 +135,7 @@ class ExternalSpeechService : Service() {
                     }
 
                     val sid = synchronized(this@ExternalSpeechService) { nextId++ }
-                    val s = Session(sid, this@ExternalSpeechService, prefs, cb, cfg)
+                    val s = Session(sid, this@ExternalSpeechService, prefs, cb)
                     if (!s.preparePushPcm()) {
                         reply?.apply { writeNoException(); writeInt(-5) }
                         return true
@@ -178,8 +178,7 @@ class ExternalSpeechService : Service() {
         private val id: Int,
         private val context: Context,
         private val prefs: Prefs,
-        private val cb: CallbackProxy,
-        private val cfg: SpeechConfig?
+        private val cb: CallbackProxy
     ) : StreamingAsrEngine.Listener {
         var engine: StreamingAsrEngine? = null
         // 统计：录音起止与耗时（用于历史记录展示）
@@ -427,10 +426,18 @@ class ExternalSpeechService : Service() {
                 CoroutineScope(Dispatchers.Main).launch {
                     val out = try {
                         val processed = com.brycewg.asrkb.util.AsrFinalFilters.applyWithAi(context, prefs, text).text
-                        if (processed.isBlank()) {
+                        processed.ifBlank {
                             // AI 返回空：回退到简单后处理（包含正则/繁体）
-                            try { com.brycewg.asrkb.util.AsrFinalFilters.applySimple(context, prefs, text) } catch (_: Throwable) { text }
-                        } else processed
+                            try {
+                                com.brycewg.asrkb.util.AsrFinalFilters.applySimple(
+                                    context,
+                                    prefs,
+                                    text
+                                )
+                            } catch (_: Throwable) {
+                                text
+                            }
+                        }
                     } catch (t: Throwable) {
                         Log.w(TAG, "applyWithAi failed, fallback to simple", t)
                         try { com.brycewg.asrkb.util.AsrFinalFilters.applySimple(context, prefs, text) } catch (_: Throwable) { text }

@@ -134,6 +134,11 @@
     public *;
 }
 
+# Pro 更新对话框门面（oss/pro 双实现），保持类与方法签名稳定
+-keep class com.brycewg.asrkb.ui.update.ProUpdateDialogFacade {
+    public *;
+}
+
 # BuildConfig
 -keep class com.brycewg.asrkb.BuildConfig { *; }
 

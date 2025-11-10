@@ -32,6 +32,7 @@ import com.brycewg.asrkb.ui.setup.SetupState
 import com.brycewg.asrkb.ui.setup.SetupStateMachine
 import com.brycewg.asrkb.ui.update.UpdateChecker
 import com.brycewg.asrkb.ui.update.ApkDownloadService
+import com.brycewg.asrkb.ui.update.ProUpdateDialogFacade
 import com.brycewg.asrkb.ui.about.AboutActivity
 import com.brycewg.asrkb.ui.settings.input.InputSettingsActivity
 import com.brycewg.asrkb.ui.settings.asr.AsrSettingsActivity
@@ -117,8 +118,8 @@ class SettingsActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
 
-        // 授权返回后：若已下载APK且具备安装权限，自动继续安装（仅非 Pro 渠道）
-        if (updatesEnabled) {
+        // 授权返回后：若已下载APK且具备安装权限，自动继续安装（仅 OSS 版本）
+        if (updatesEnabled && !ProUpdateDialogFacade.shouldShowProDialog()) {
             maybeResumePendingApkInstall()
         }
 
@@ -504,6 +505,13 @@ class SettingsActivity : AppCompatActivity() {
      * 显示更新对话框
      */
     private fun showUpdateDialog(result: UpdateChecker.UpdateCheckResult) {
+        // Pro 版本显示特殊的更新对话框（引导到 Play 商店）
+        if (ProUpdateDialogFacade.shouldShowProDialog()) {
+            ProUpdateDialogFacade.showProUpdateDialog(this, result)
+            return
+        }
+
+        // OSS 版本显示标准更新对话框（提供 APK 下载）
         val messageBuilder = StringBuilder()
         messageBuilder.append(
             getString(
@@ -582,7 +590,7 @@ class SettingsActivity : AppCompatActivity() {
             .create()
 
         dialog.setOnShowListener {
-            // 使消息内的“查看 Release 页”可点击
+            // 使消息内的"查看 Release 页"可点击
             val msgView = dialog.findViewById<TextView>(android.R.id.message)
             msgView?.movementMethod = android.text.method.LinkMovementMethod.getInstance()
         }
