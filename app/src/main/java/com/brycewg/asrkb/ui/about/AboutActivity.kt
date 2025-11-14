@@ -12,6 +12,8 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import android.content.pm.PackageManager
 import com.brycewg.asrkb.R
+import com.brycewg.asrkb.UiColors
+import com.brycewg.asrkb.UiColorTokens
 import com.brycewg.asrkb.asr.AsrVendor
 import com.brycewg.asrkb.store.Prefs
 import com.google.android.material.progressindicator.LinearProgressIndicator
@@ -239,7 +241,7 @@ class AboutActivity : AppCompatActivity() {
 
   private fun addInfoLine(container: android.view.ViewGroup, text: String) {
     val tv = TextView(this)
-    tv.setTextColor(com.google.android.material.color.MaterialColors.getColor(tv, com.google.android.material.R.attr.colorOnSurfaceVariant))
+    tv.setTextColor(UiColors.get(tv, UiColorTokens.panelFgVariant))
     tv.textSize = 14f
     tv.text = text
     container.addView(tv)

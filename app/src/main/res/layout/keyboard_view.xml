@@ -433,7 +433,7 @@
             android:layout_height="wrap_content"
             android:contentDescription="@string/cd_mic"
             app:srcCompat="@drawable/microphone"
-            app:backgroundTint="@color/fab_mic_tint"
+            app:backgroundTint="?attr/colorPrimaryContainer"
             app:tint="?attr/colorOnPrimaryContainer"
             android:elevation="0dp"
             app:elevation="0dp"

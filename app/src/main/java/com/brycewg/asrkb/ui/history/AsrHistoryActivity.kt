@@ -12,7 +12,6 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
-import com.google.android.material.color.MaterialColors
 import com.google.android.material.card.MaterialCardView
 import android.widget.TextView
 import android.widget.Toast
@@ -22,6 +21,8 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.brycewg.asrkb.R
+import com.brycewg.asrkb.UiColors
+import com.brycewg.asrkb.UiColorTokens
 import com.brycewg.asrkb.asr.AsrVendor
 import com.brycewg.asrkb.store.AsrHistoryStore
 import com.google.android.material.appbar.MaterialToolbar
@@ -591,8 +592,8 @@ class AsrHistoryActivity : AppCompatActivity() {
 
         // 选中高亮（不使用勾选图标），使用更深的 Monet 取色
         val card = itemView as MaterialCardView
-        val colorSelected = MaterialColors.getColor(itemView, com.google.android.material.R.attr.colorSecondaryContainer)
-        val colorDefault = MaterialColors.getColor(itemView, com.google.android.material.R.attr.colorSurface)
+        val colorSelected = UiColors.get(itemView, UiColorTokens.selectedBg)
+        val colorDefault = UiColors.get(itemView, UiColorTokens.panelBg)
         card.setCardBackgroundColor(if (row.selected) colorSelected else colorDefault)
 
         itemView.setOnLongClickListener {
