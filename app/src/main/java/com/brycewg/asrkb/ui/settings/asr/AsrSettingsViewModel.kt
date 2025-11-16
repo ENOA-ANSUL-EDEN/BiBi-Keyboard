@@ -67,11 +67,13 @@ class AsrSettingsViewModel : ViewModel() {
             svUseItn = prefs.svUseItn,
             svPreloadEnabled = prefs.svPreloadEnabled,
             svKeepAliveMinutes = prefs.svKeepAliveMinutes,
+            svPseudoStreamEnabled = prefs.svPseudoStreamEnabled,
             // TeleSpeech settings
             tsModelVariant = prefs.tsModelVariant,
             tsNumThreads = prefs.tsNumThreads,
             tsKeepAliveMinutes = prefs.tsKeepAliveMinutes,
             tsPreloadEnabled = prefs.tsPreloadEnabled,
+            tsPseudoStreamEnabled = prefs.tsPseudoStreamEnabled,
             // Paraformer settings
             pfModelVariant = prefs.pfModelVariant,
             pfNumThreads = prefs.pfNumThreads,
@@ -317,6 +319,11 @@ class AsrSettingsViewModel : ViewModel() {
         }
     }
 
+    fun updateSvPseudoStream(enabled: Boolean) {
+        prefs.svPseudoStreamEnabled = enabled
+        _uiState.value = _uiState.value.copy(svPseudoStreamEnabled = enabled)
+    }
+
     fun updateTsModelVariant(variant: String) {
         prefs.tsModelVariant = variant
         _uiState.value = _uiState.value.copy(tsModelVariant = variant)
@@ -353,6 +360,11 @@ class AsrSettingsViewModel : ViewModel() {
                 }
             }
         }
+    }
+
+    fun updateTsPseudoStream(enabled: Boolean) {
+        prefs.tsPseudoStreamEnabled = enabled
+        _uiState.value = _uiState.value.copy(tsPseudoStreamEnabled = enabled)
     }
 
     fun updateSvKeepAlive(minutes: Int) {
@@ -603,11 +615,13 @@ data class AsrSettingsUiState(
     val svUseItn: Boolean = true,
     val svPreloadEnabled: Boolean = false,
     val svKeepAliveMinutes: Int = -1,
+    val svPseudoStreamEnabled: Boolean = false,
     // TeleSpeech settings
     val tsModelVariant: String = "int8",
     val tsNumThreads: Int = 2,
     val tsKeepAliveMinutes: Int = -1,
     val tsPreloadEnabled: Boolean = false,
+    val tsPseudoStreamEnabled: Boolean = false,
     // Paraformer settings
     val pfModelVariant: String = "bilingual-int8",
     val pfNumThreads: Int = 2,

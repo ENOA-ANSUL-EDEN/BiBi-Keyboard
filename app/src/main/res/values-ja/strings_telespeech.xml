@@ -37,5 +37,9 @@
     <!-- TeleSpeech 設定 - 機能説明 -->
     <string name="feature_ts_preload_off_desc">必要なときだけモデルを読み込みます。初回利用時に遅延が発生する可能性があります。</string>
     <string name="feature_ts_preload_on_desc">キーボード表示時にモデルを事前読み込みし、初回利用時の待ち時間を短縮します。</string>
-</resources>
 
+    <!-- TeleSpeech - 疑似ストリーミング -->
+    <string name="label_ts_pseudo_stream">疑似ストリーミングプレビューを有効にする</string>
+    <string name="feature_ts_pseudo_stream_off_desc">疑似ストリーミングを無効化します。録音終了後に一度だけ認識し、従来のローカル認識と同じ動作になります。</string>
+    <string name="feature_ts_pseudo_stream_on_desc">VAD でポーズごとに音声を区切り、小さな断片を先にローカル認識してプレビューを表示し、録音終了後に全区間をまとめて再認識してプレビューを上書きします。</string>
+</resources>

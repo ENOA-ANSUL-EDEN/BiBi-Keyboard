@@ -855,6 +855,13 @@
           android:layout_marginTop="8dp"
           android:text="@string/label_sv_preload" />
 
+        <com.google.android.material.materialswitch.MaterialSwitch
+          android:id="@+id/switchSvPseudoStream"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:layout_marginTop="8dp"
+          android:text="@string/label_sv_pseudo_stream" />
+
         <TextView
           android:layout_width="match_parent"
           android:layout_height="wrap_content"
@@ -1020,6 +1027,13 @@
           android:layout_height="wrap_content"
           android:layout_marginTop="8dp"
           android:text="@string/label_ts_preload" />
+
+        <com.google.android.material.materialswitch.MaterialSwitch
+          android:id="@+id/switchTsPseudoStream"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:layout_marginTop="8dp"
+          android:text="@string/label_ts_pseudo_stream" />
 
         <LinearLayout
           android:layout_width="match_parent"

@@ -869,6 +869,20 @@ class AsrSettingsActivity : AppCompatActivity() {
             )
         }
 
+        findViewById<MaterialSwitch>(R.id.switchSvPseudoStream).apply {
+            isChecked = prefs.svPseudoStreamEnabled
+            installExplainedSwitch(
+                context = this@AsrSettingsActivity,
+                titleRes = R.string.label_sv_pseudo_stream,
+                offDescRes = R.string.feature_sv_pseudo_stream_off_desc,
+                onDescRes = R.string.feature_sv_pseudo_stream_on_desc,
+                preferenceKey = "sv_pseudo_stream_explained",
+                readPref = { prefs.svPseudoStreamEnabled },
+                writePref = { v -> viewModel.updateSvPseudoStream(v) },
+                hapticFeedback = { hapticTapIfEnabled(it) }
+            )
+        }
+
         // Keep alive
         setupSvKeepAliveSelection()
 
@@ -1689,6 +1703,20 @@ class AsrSettingsActivity : AppCompatActivity() {
                 preferenceKey = "ts_preload_explained",
                 readPref = { prefs.tsPreloadEnabled },
                 writePref = { v -> viewModel.updateTsPreload(v) },
+                hapticFeedback = { hapticTapIfEnabled(it) }
+            )
+        }
+
+        findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.switchTsPseudoStream).apply {
+            isChecked = prefs.tsPseudoStreamEnabled
+            installExplainedSwitch(
+                context = this@AsrSettingsActivity,
+                titleRes = R.string.label_ts_pseudo_stream,
+                offDescRes = R.string.feature_ts_pseudo_stream_off_desc,
+                onDescRes = R.string.feature_ts_pseudo_stream_on_desc,
+                preferenceKey = "ts_pseudo_stream_explained",
+                readPref = { prefs.tsPseudoStreamEnabled },
+                writePref = { v -> viewModel.updateTsPseudoStream(v) },
                 hapticFeedback = { hapticTapIfEnabled(it) }
             )
         }

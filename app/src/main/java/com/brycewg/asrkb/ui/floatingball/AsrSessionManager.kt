@@ -453,12 +453,18 @@ class AsrSessionManager(
                 }
             } else null
             AsrVendor.SenseVoice -> {
-                // 本地 SenseVoice：仅支持文件识别模式
-                SenseVoiceFileAsrEngine(context, serviceScope, prefs, this, onRequestDuration = ::onRequestDuration)
+                if (prefs.svPseudoStreamEnabled) {
+                    SenseVoicePseudoStreamAsrEngine(context, serviceScope, prefs, this, onRequestDuration = ::onRequestDuration)
+                } else {
+                    SenseVoiceFileAsrEngine(context, serviceScope, prefs, this, onRequestDuration = ::onRequestDuration)
+                }
             }
             AsrVendor.Telespeech -> {
-                // 本地 TeleSpeech：仅支持文件识别模式
-                TelespeechFileAsrEngine(context, serviceScope, prefs, this, onRequestDuration = ::onRequestDuration)
+                if (prefs.tsPseudoStreamEnabled) {
+                    TelespeechPseudoStreamAsrEngine(context, serviceScope, prefs, this, onRequestDuration = ::onRequestDuration)
+                } else {
+                    TelespeechFileAsrEngine(context, serviceScope, prefs, this, onRequestDuration = ::onRequestDuration)
+                }
             }
             AsrVendor.Paraformer -> {
                 ParaformerStreamAsrEngine(context, serviceScope, prefs, this)

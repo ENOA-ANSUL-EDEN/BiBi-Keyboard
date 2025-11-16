@@ -37,5 +37,9 @@
     <!-- TeleSpeech Settings - Feature Descriptions -->
     <string name="feature_ts_preload_off_desc">Loads the model only when needed, which may cause delay on first use.</string>
     <string name="feature_ts_preload_on_desc">Preloads the model when the keyboard appears to reduce first-use latency.</string>
-</resources>
 
+    <!-- TeleSpeech - Pseudo streaming -->
+    <string name="label_ts_pseudo_stream">Enable pseudo streaming preview</string>
+    <string name="feature_ts_pseudo_stream_off_desc">Disable pseudo streaming. Audio is recognized once at the end, same as traditional offline mode.</string>
+    <string name="feature_ts_pseudo_stream_on_desc">Use VAD to split speech by pauses, sending small segments for quick local preview, then run a full-segment recognition at the end to overwrite the preview text.</string>
+</resources>

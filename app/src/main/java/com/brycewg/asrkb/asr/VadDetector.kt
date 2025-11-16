@@ -256,6 +256,18 @@ class VadDetector(
     }
 
     /**
+     * 重置内部累计状态（不重新创建底层 VAD 实例）。
+     *
+     * 适用于同一会话内按“停顿”分片后继续使用当前检测器的场景。
+     */
+    fun reset() {
+        silentMsAcc = 0
+        speechHangoverRemainingMs = 0
+        initialDebounceRemainingMs = initialDebounceMs
+        hasDetectedSpeech = false
+    }
+
+    /**
      * 释放 VAD 资源
      */
     fun release() {

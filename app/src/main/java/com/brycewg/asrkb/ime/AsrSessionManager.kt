@@ -164,12 +164,22 @@ class AsrSessionManager(
             } else null
 
             AsrVendor.SenseVoice -> {
-                // 本地 SenseVoice：仅支持文件识别模式
-                SenseVoiceFileAsrEngine(context, scope, prefs, this, ::onRequestDuration)
+                if (prefs.svPseudoStreamEnabled) {
+                    // 本地 SenseVoice：伪流式模式（VAD 分片预览 + 整段离线识别）
+                    SenseVoicePseudoStreamAsrEngine(context, scope, prefs, this, ::onRequestDuration)
+                } else {
+                    // 本地 SenseVoice：传统文件识别模式
+                    SenseVoiceFileAsrEngine(context, scope, prefs, this, ::onRequestDuration)
+                }
             }
             AsrVendor.Telespeech -> {
-                // 本地 TeleSpeech：仅支持文件识别模式
-                TelespeechFileAsrEngine(context, scope, prefs, this, ::onRequestDuration)
+                if (prefs.tsPseudoStreamEnabled) {
+                    // 本地 TeleSpeech：伪流式模式（VAD 分片预览 + 整段离线识别）
+                    TelespeechPseudoStreamAsrEngine(context, scope, prefs, this, ::onRequestDuration)
+                } else {
+                    // 本地 TeleSpeech：传统文件识别模式
+                    TelespeechFileAsrEngine(context, scope, prefs, this, ::onRequestDuration)
+                }
             }
             AsrVendor.Paraformer -> {
                 ParaformerStreamAsrEngine(context, scope, prefs, this)
@@ -231,8 +241,16 @@ class AsrSessionManager(
                 else -> null
             }
 
-            AsrVendor.SenseVoice -> if (current is SenseVoiceFileAsrEngine) current else null
-            AsrVendor.Telespeech -> if (current is TelespeechFileAsrEngine) current else null
+            AsrVendor.SenseVoice -> when (current) {
+                is SenseVoicePseudoStreamAsrEngine -> if (prefs.svPseudoStreamEnabled) current else null
+                is SenseVoiceFileAsrEngine -> if (!prefs.svPseudoStreamEnabled) current else null
+                else -> null
+            }
+            AsrVendor.Telespeech -> when (current) {
+                is TelespeechPseudoStreamAsrEngine -> if (prefs.tsPseudoStreamEnabled) current else null
+                is TelespeechFileAsrEngine -> if (!prefs.tsPseudoStreamEnabled) current else null
+                else -> null
+            }
             AsrVendor.Paraformer -> when (current) {
                 is ParaformerStreamAsrEngine -> current
                 else -> null

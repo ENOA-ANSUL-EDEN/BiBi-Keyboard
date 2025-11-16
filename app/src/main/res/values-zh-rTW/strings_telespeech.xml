@@ -37,5 +37,9 @@
     <!-- TeleSpeech - 功能說明 -->
     <string name="feature_ts_preload_off_desc">僅在需要時載入模型，首次使用可能有延遲。</string>
     <string name="feature_ts_preload_on_desc">鍵盤顯示時預載模型，減少首次使用延遲。</string>
-</resources>
 
+    <!-- TeleSpeech - 伺流式模式 -->
+    <string name="label_ts_pseudo_stream">啟用伺流式預覽（依停頓分句）</string>
+    <string name="feature_ts_pseudo_stream_off_desc">不啟用伺流式預覽，錄音結束後一次性辨識，行為與傳統本機辨識相同。</string>
+    <string name="feature_ts_pseudo_stream_on_desc">在每次停頓處將語音切成小段，先給出本機預覽結果，錄音結束後再對整段語音重新辨識並覆寫預覽文字。</string>
+</resources>

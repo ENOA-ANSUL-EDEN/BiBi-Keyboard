@@ -66,4 +66,9 @@
     <!-- 预加载模型 - Preload model -->
     <string name="feature_sv_preload_off_desc">仅在需要时加载模型，首次使用可能有延迟。</string>
     <string name="feature_sv_preload_on_desc">键盘显示时预加载模型，减少首次使用延迟。</string>
+
+    <!-- 伪流式模式 - Pseudo streaming -->
+    <string name="label_sv_pseudo_stream">启用伪流式预览（按停顿分句）</string>
+    <string name="feature_sv_pseudo_stream_off_desc">不进行分句预览，整段录音结束后一次性识别，效果与传统本地识别相同。</string>
+    <string name="feature_sv_pseudo_stream_on_desc">在每次停顿处将语音拆成小段，先给出本地预览结果，整段录音结束后再统一识别并覆盖预览文本。</string>
 </resources>
