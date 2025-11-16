@@ -53,6 +53,7 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.ItemTouchHelper
 import android.view.ViewGroup
+import android.text.TextUtils
 import androidx.appcompat.widget.PopupMenu
 
 /**
@@ -506,6 +507,7 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
     override fun onStatusMessage(message: String) {
         clearStatusTextStyle()
         txtStatusText?.text = message
+        enableStatusMarquee()
         // 默认：状态文本可点击复制（便于调试提取报错信息）
         val tv = txtStatusText
         tv?.isClickable = true
@@ -528,6 +530,7 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
 
     override fun onShowClipboardPreview(preview: ClipboardPreview) {
         val tv = txtStatusText ?: return
+        disableStatusMarquee()
         tv.text = preview.displaySnippet
 
         // 限制粘贴板内容为单行显示，避免破坏 UI 布局（txtStatusText 默认已单行，这里冗余保证）
@@ -1426,6 +1429,7 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
      */
     private fun clearStatusTextStyle() {
         val tv = txtStatusText ?: return
+        enableStatusMarquee()
         tv.isClickable = false
         tv.isFocusable = false
         tv.setOnClickListener(null)
@@ -1434,6 +1438,19 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
         // 中心信息栏保持单行，以避免布局跳动
         tv.maxLines = 1
         tv.isSingleLine = true
+    }
+
+    private fun enableStatusMarquee() {
+        val tv = txtStatusText ?: return
+        tv.ellipsize = TextUtils.TruncateAt.MARQUEE
+        tv.marqueeRepeatLimit = -1
+        tv.isSelected = true
+    }
+
+    private fun disableStatusMarquee() {
+        val tv = txtStatusText ?: return
+        tv.ellipsize = TextUtils.TruncateAt.END
+        tv.isSelected = false
     }
 
     // ========== AI 编辑面板：辅助方法 ==========
