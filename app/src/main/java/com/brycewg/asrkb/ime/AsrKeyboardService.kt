@@ -508,15 +508,25 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
         clearStatusTextStyle()
         txtStatusText?.text = message
         enableStatusMarquee()
-        // 默认：状态文本可点击复制（便于调试提取报错信息）
-        val tv = txtStatusText
-        tv?.isClickable = true
-        tv?.isFocusable = true
-        tv?.setOnClickListener { v ->
-            performKeyHaptic(v)
-            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            cm.setPrimaryClip(ClipData.newPlainText("ASR Status", message))
-            Toast.makeText(this, getString(R.string.toast_copied), Toast.LENGTH_SHORT).show()
+
+        val isError = message.contains("错误", ignoreCase = true) ||
+            message.contains("失败", ignoreCase = true) ||
+            message.contains("异常", ignoreCase = true) ||
+            message.contains("error", ignoreCase = true) ||
+            message.contains("failed", ignoreCase = true) ||
+            message.contains("failure", ignoreCase = true) ||
+            message.contains("exception", ignoreCase = true) ||
+            message.contains("invalid", ignoreCase = true) ||
+            message.contains(Regex("\\b(401|403|404|500|502|503)\\b"))
+
+        if (isError) {
+            try {
+                val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                cm.setPrimaryClip(ClipData.newPlainText("ASR Error", message))
+                Toast.makeText(this, getString(R.string.error_auto_copied), Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                android.util.Log.e("AsrKeyboardService", "Failed to copy error message", e)
+            }
         }
     }
 

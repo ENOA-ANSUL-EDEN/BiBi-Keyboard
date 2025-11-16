@@ -29,4 +29,6 @@
     <string name="asr_error_mic_in_use">マイクが他のアプリで使用されています。後でもう一度お試しください。</string>
     <string name="asr_error_auth_invalid">認証失敗。認証情報が無効または期限切れです。設定で更新してください。</string>
     <string name="asr_error_auth_forbidden">禁止されています。サービス権限を確認してください。</string>
+
+    <string name="error_auto_copied">エラーメッセージを自動コピーしました</string>
 </resources>

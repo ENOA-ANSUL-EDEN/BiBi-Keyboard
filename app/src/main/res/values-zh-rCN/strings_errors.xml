@@ -28,4 +28,6 @@
     <string name="asr_error_mic_in_use">麦克风正被其他应用使用，请稍后再试</string>
     <string name="asr_error_auth_invalid">鉴权失败，凭证无效或已过期，请在设置中更新</string>
     <string name="asr_error_auth_forbidden">权限不足，请检查服务开通状态</string>
+
+    <string name="error_auto_copied">错误信息已自动复制</string>
 </resources>

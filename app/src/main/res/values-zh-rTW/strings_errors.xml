@@ -28,4 +28,6 @@
     <string name="asr_error_mic_in_use">麥克風正被其他應用程式使用，請稍後再試</string>
     <string name="asr_error_auth_invalid">鑑權失敗，憑證無效或已過期，請在設定中更新</string>
     <string name="asr_error_auth_forbidden">權限不足，請檢查服務開通狀態</string>
+
+    <string name="error_auto_copied">錯誤訊息已自動複製</string>
 </resources>

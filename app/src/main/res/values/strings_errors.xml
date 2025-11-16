@@ -28,4 +28,6 @@
     <string name="asr_error_mic_in_use">Microphone is in use by another app. Try again later.</string>
     <string name="asr_error_auth_invalid">Authentication failed. Credentials invalid or expired. Update in Settings.</string>
     <string name="asr_error_auth_forbidden">Forbidden. Please check your service permissions.</string>
+
+    <string name="error_auto_copied">Error message auto-copied</string>
 </resources>
