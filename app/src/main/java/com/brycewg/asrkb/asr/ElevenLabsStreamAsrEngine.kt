@@ -121,7 +121,8 @@ class ElevenLabsStreamAsrEngine(
         if (startAudio) startCaptureAndStream()
 
         val urlBuilder = HttpUrl.Builder()
-            .scheme("wss")
+            // OkHttp 的 HttpUrl 只支持 http/https，这里先用 https 构造，再转换为 wss 字符串用于 WebSocket
+            .scheme("https")
             .host(WS_HOST)
             .addPathSegments("v1/speech-to-text/realtime")
             .addQueryParameter("model_id", MODEL_ID)
@@ -134,8 +135,11 @@ class ElevenLabsStreamAsrEngine(
             urlBuilder.addQueryParameter("language_code", lang)
         }
 
+        val httpUrl = urlBuilder.build()
+        val wsUrl = httpUrl.toString().replaceFirst("https:", "wss:")
+
         val request = Request.Builder()
-            .url(urlBuilder.build())
+            .url(wsUrl)
             .addHeader("xi-api-key", prefs.elevenApiKey.trim())
             .build()
 
@@ -318,19 +322,20 @@ class ElevenLabsStreamAsrEngine(
                     Log.d(TAG, "Session started: id=${obj.optString("session_id")}")
                 }
                 "partial_transcript" -> {
+                    // 根据官方规范，partial_transcript.text 即当前完整草稿（非 delta），仅用于预览
                     val preview = obj.optString("text")
                     if (preview.isNotEmpty() && running.get()) {
-                        val combined = (finalText.toString() + preview)
-                        listener.onPartial(combined)
+                        listener.onPartial(preview)
                     }
                 }
                 "committed_transcript", "committed_transcript_with_timestamps" -> {
+                    // 根据官方规范，committed_transcript*.text 视作「最新完整稳定转写」快照，
+                    // 不做追加，只保留最后一次快照作为最终结果。
                     val committed = obj.optString("text")
                     if (committed.isNotEmpty()) {
+                        finalText.setLength(0)
                         finalText.append(committed)
-                        if (running.get()) {
-                            listener.onPartial(finalText.toString())
-                        }
+                        if (running.get()) listener.onPartial(finalText.toString())
                     }
                 }
                 "error", "auth_error" -> {
@@ -361,6 +366,8 @@ class ElevenLabsStreamAsrEngine(
     private fun emitFinalIfNeeded(reason: String) {
         if (finalEmitted.get()) return
         finalEmitted.set(true)
+        // 最终结果严格使用最后一次 committed_transcript*.text 快照；
+        // 若服务端未产生 committed 消息，则为空，交由上层按“未识别到内容”处理。
         val text = finalText.toString().trim()
         Log.d(TAG, "Emitting final result ($reason), length=${text.length}")
         try {
