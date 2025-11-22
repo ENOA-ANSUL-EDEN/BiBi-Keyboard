@@ -836,6 +836,11 @@ class Prefs(context: Context) {
         get() = sp.getBoolean(KEY_SHOWN_QUICK_GUIDE_ONCE, false)
         set(value) = sp.edit { putBoolean(KEY_SHOWN_QUICK_GUIDE_ONCE, value) }
 
+    // 模型选择引导是否已展示
+    var hasShownModelGuideOnce: Boolean
+        get() = sp.getBoolean(KEY_SHOWN_MODEL_GUIDE_ONCE, false)
+        set(value) = sp.edit { putBoolean(KEY_SHOWN_MODEL_GUIDE_ONCE, value) }
+
     // 隐私：关闭识别历史记录
     var disableAsrHistory: Boolean
         get() = sp.getBoolean(KEY_DISABLE_ASR_HISTORY, false)
@@ -1197,6 +1202,7 @@ class Prefs(context: Context) {
         private const val KEY_CLIP_PINNED_JSON = "clip_pinned"
         private const val KEY_FIRST_USE_DATE = "first_use_date"
         private const val KEY_SHOWN_QUICK_GUIDE_ONCE = "shown_quick_guide_once"
+        private const val KEY_SHOWN_MODEL_GUIDE_ONCE = "shown_model_guide_once"
 
         // 隐私：关闭识别历史与使用统计记录
         private const val KEY_DISABLE_ASR_HISTORY = "disable_asr_history"

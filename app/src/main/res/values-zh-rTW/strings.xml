@@ -157,6 +157,20 @@
   <string name="external_aidl_guide_btn_no_remind">不再提醒</string>
   <string name="external_aidl_guide_btn_open_release">開啟Release頁</string>
   <string name="external_aidl_guide_open_failed">無法開啟瀏覽器，請手動存取</string>
+
+  <!-- 模型選擇引導 -->
+  <string name="model_guide_title">選擇語音識別模型</string>
+  <string name="model_guide_message">使用言犀鍵盤前，請先選擇語音識別模型類型：</string>
+  <string name="model_guide_option_local">📦 使用本機模型</string>
+  <string name="model_guide_option_local_desc">無需配置密鑰，可以離線使用，隱私更安全</string>
+  <string name="model_guide_option_local_action">將下載 SenseVoice 模型（約1GB）並啟用離線識別</string>
+  <string name="model_guide_option_online">☁️ 使用線上模型</string>
+  <string name="model_guide_option_online_desc">識別更精準，支援多種供應商（火山引擎、OpenAI、Gemini 等），需要配置密鑰</string>
+  <string name="model_guide_option_online_action">將開啟配置指南，幫助您完成密鑰配置</string>
+  <string name="model_guide_online_dialog_message">線上語音識別支援多種供應商（火山引擎、硅基流動、OpenAI、Gemini、阿里雲百煉、Soniox、ElevenLabs 等），請參閱配置指南了解詳細步驟。</string>
+  <string name="model_guide_downloading">正在下載模型，請稍候…</string>
+  <string name="model_guide_download_complete">模型下載完成</string>
+  <string name="model_guide_config_doc_url">https://brycewg.notion.site/lexisharp-keyboard-providers-guide</string>
   <string name="label_return_prev_ime_on_hide">鍵盤收起後切回上一個輸入法</string>
   <string name="toast_bt_connect_permission_required">需要藍牙連線權限以使用耳機麥克風</string>
   <string name="toast_bt_connect_permission_denied">已拒絕藍牙連線權限，將停用耳機麥克風優先</string>

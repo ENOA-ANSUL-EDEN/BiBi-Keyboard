@@ -157,6 +157,20 @@
   <string name="external_aidl_guide_btn_no_remind">Don\'t remind again</string>
   <string name="external_aidl_guide_btn_open_release">Open Release Page</string>
   <string name="external_aidl_guide_open_failed">Cannot open browser, please visit manually</string>
+
+  <!-- Model Selection Guide -->
+  <string name="model_guide_title">Choose Speech Recognition Model</string>
+  <string name="model_guide_message">To use LexiSharp Keyboard, please choose a speech recognition model type:</string>
+  <string name="model_guide_option_local">📦 Local Model</string>
+  <string name="model_guide_option_local_desc">No API key required, works offline, more private</string>
+  <string name="model_guide_option_local_action">Will download SenseVoice model (~1GB) and enable offline recognition</string>
+  <string name="model_guide_option_online">☁️ Online Model</string>
+  <string name="model_guide_option_online_desc">Better recognition accuracy, supports multiple providers (Volcengine, OpenAI, Gemini, etc.), requires API key configuration</string>
+  <string name="model_guide_option_online_action">Will open the configuration guide to help you set up API keys</string>
+  <string name="model_guide_online_dialog_message">Online speech recognition supports multiple providers (Volcengine, SiliconFlow, OpenAI, Gemini, DashScope, Soniox, ElevenLabs, etc.). Please refer to the configuration guide for detailed instructions.</string>
+  <string name="model_guide_downloading">Downloading model, please wait…</string>
+  <string name="model_guide_download_complete">Model download complete</string>
+  <string name="model_guide_config_doc_url">https://brycewg.notion.site/lexisharp-keyboard-providers-guide</string>
   <string name="label_return_prev_ime_on_hide">Switch back to previous IME when hidden</string>
   <string name="toast_bt_connect_permission_required">Bluetooth connect permission is required to use headset mic</string>
   <string name="toast_bt_connect_permission_denied">Bluetooth connect permission denied; headset priority disabled</string>

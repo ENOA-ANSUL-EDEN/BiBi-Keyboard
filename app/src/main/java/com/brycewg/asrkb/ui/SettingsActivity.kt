@@ -137,6 +137,7 @@ class SettingsActivity : AppCompatActivity() {
         advanceSetupIfInProgress()
 
         // 首次进入时自动展示快速上手指南（首次需等待 5s 才能关闭）
+        // 使用指南关闭后会自动显示模型选择引导
         maybeAutoShowQuickGuideOnFirstOpen()
     }
 
@@ -907,11 +908,228 @@ class SettingsActivity : AppCompatActivity() {
             if (!prefs.hasShownQuickGuideOnce) {
                 // 记录为已展示，避免重复弹出
                 prefs.hasShownQuickGuideOnce = true
-                showQuickGuide(minCloseDelayMs = 5000L)
+                // 使用指南关闭后，自动显示模型选择引导
+                showQuickGuideWithModelGuide(minCloseDelayMs = 5000L)
+            } else {
+                // 如果已经显示过使用指南，直接检查是否需要显示模型选择引导
+                maybeAutoShowModelGuideOnFirstOpen()
             }
         } catch (t: Throwable) {
             Log.w(TAG, "Failed to maybe auto show quick guide", t)
         }
+    }
+
+    /**
+     * 显示使用指南，关闭后自动显示模型选择引导
+     */
+    private fun showQuickGuideWithModelGuide(minCloseDelayMs: Long = 0L) {
+        val view = LayoutInflater.from(this).inflate(R.layout.dialog_guide, null, false)
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.title_quick_guide)
+            .setView(view)
+            .setPositiveButton(R.string.btn_close, null)
+            .setCancelable(false)
+            .create()
+
+        var countdownJob: kotlinx.coroutines.Job? = null
+
+        dialog.setOnShowListener {
+            val positive = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+            dialog.setCanceledOnTouchOutside(false)
+            if (minCloseDelayMs > 0L) {
+                positive.isEnabled = false
+
+                val totalSeconds = (minCloseDelayMs / 1000L).toInt().coerceAtLeast(1)
+                countdownJob = lifecycleScope.launch(Dispatchers.Main) {
+                    var remain = totalSeconds
+                    while (remain > 0 && dialog.isShowing) {
+                        positive.text = getString(R.string.btn_close_with_seconds, remain)
+                        kotlinx.coroutines.delay(1000)
+                        remain -= 1
+                    }
+                    positive.text = getString(R.string.btn_close)
+                    positive.isEnabled = true
+                    // 倒计时结束后仍然不允许点击空白区域关闭
+                }
+            }
+        }
+
+        dialog.setOnDismissListener {
+            try {
+                countdownJob?.cancel()
+            } catch (t: Throwable) {
+                Log.w(TAG, "Failed to cancel countdown job", t)
+            }
+            // 使用指南关闭后，延迟 300ms 再显示模型选择引导
+            handler.postDelayed({
+                maybeAutoShowModelGuideOnFirstOpen()
+            }, 300L)
+        }
+
+        dialog.show()
+    }
+
+    /**
+     * 首次启动时自动显示模型选择引导
+     */
+    private fun maybeAutoShowModelGuideOnFirstOpen() {
+        try {
+            val prefs = Prefs(this)
+            if (!prefs.hasShownModelGuideOnce) {
+                // 记录为已展示，避免重复弹出
+                prefs.hasShownModelGuideOnce = true
+                showModelSelectionGuide()
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "Failed to maybe auto show model guide", t)
+        }
+    }
+
+    /**
+     * 显示模型选择引导对话框
+     */
+    private fun showModelSelectionGuide() {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_model_selection, null, false)
+        val cardLocal = dialogView.findViewById<com.google.android.material.card.MaterialCardView>(R.id.cardLocalModel)
+        val cardOnline = dialogView.findViewById<com.google.android.material.card.MaterialCardView>(R.id.cardOnlineModel)
+
+        // 设置初始选中状态
+        cardLocal.isChecked = true
+        cardOnline.isChecked = false
+
+        // 点击卡片切换选中状态（单选逻辑）
+        cardLocal.setOnClickListener {
+            cardLocal.isChecked = true
+            cardOnline.isChecked = false
+        }
+        cardOnline.setOnClickListener {
+            cardLocal.isChecked = false
+            cardOnline.isChecked = true
+        }
+
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.model_guide_title)
+            .setMessage(R.string.model_guide_message)
+            .setView(dialogView)
+            .setCancelable(false)
+            .setPositiveButton(R.string.btn_confirm, null) // 先设置为 null，稍后在 onShow 中设置真正的点击监听
+            .create()
+
+        dialog.setOnShowListener {
+            // 防止点击空白区域关闭对话框
+            dialog.setCanceledOnTouchOutside(false)
+            val positiveButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+            positiveButton.setOnClickListener {
+                // 根据选择执行不同的操作
+                when {
+                    cardLocal.isChecked -> {
+                        // 选择本地模型：先切换 vendor，然后显示镜像源选择
+                        val prefs = Prefs(this)
+                        prefs.asrVendor = com.brycewg.asrkb.asr.AsrVendor.SenseVoice
+                        prefs.svModelVariant = "small-full"
+
+                        dialog.dismiss()
+
+                        // 显示镜像源选择对话框
+                        showModelDownloadSourceDialog()
+                    }
+                    cardOnline.isChecked -> {
+                        // 选择在线模型：显示配置指南对话框
+                        dialog.dismiss()
+                        showOnlineModelConfigGuide()
+                    }
+                    else -> {
+                        // 未选择任何选项，提示用户
+                        Toast.makeText(
+                            this,
+                            "Please select a model type",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+            }
+        }
+
+        dialog.show()
+    }
+
+    /**
+     * 显示在线模型配置指南
+     */
+    private fun showOnlineModelConfigGuide() {
+        val docUrl = getString(R.string.model_guide_config_doc_url)
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.model_guide_option_online)
+            .setMessage(R.string.model_guide_online_dialog_message)
+            .setPositiveButton(R.string.btn_get_api_key_guide) { _, _ ->
+                try {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(docUrl))
+                    startActivity(intent)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to open documentation", e)
+                    Toast.makeText(
+                        this,
+                        getString(R.string.external_aidl_guide_open_failed),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+            .setNegativeButton(R.string.btn_cancel, null)
+            .show()
+    }
+
+    /**
+     * 显示模型下载镜像源选择对话框（从模型选择引导进入）
+     */
+    private fun showModelDownloadSourceDialog() {
+        val downloadSources = arrayOf(
+            getString(R.string.download_source_github_official),
+            getString(R.string.download_source_mirror_ghproxy),
+            getString(R.string.download_source_mirror_gitmirror),
+            getString(R.string.download_source_mirror_gh_proxynet)
+        )
+
+        val variant = "small-full"
+        val urlOfficial = "https://github.com/BryceWG/Lexi-Keyboard/releases/download/models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.zip"
+
+        val downloadUrls = arrayOf(
+            urlOfficial,
+            "https://ghproxy.net/$urlOfficial",
+            "https://hub.gitmirror.com/$urlOfficial",
+            "https://gh-proxy.net/$urlOfficial"
+        )
+
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.download_source_title)
+            .setItems(downloadSources) { _, which ->
+                try {
+                    com.brycewg.asrkb.ui.settings.asr.ModelDownloadService.startDownload(
+                        this,
+                        downloadUrls[which],
+                        variant
+                    )
+                    Toast.makeText(
+                        this,
+                        getString(R.string.model_guide_downloading),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to start model download", e)
+                    Toast.makeText(
+                        this,
+                        getString(R.string.sv_download_status_failed),
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+            .setNegativeButton(R.string.btn_cancel, null)
+            .setCancelable(false)
+            .create()
+
+        // 防止点击空白区域关闭对话框（必须在 create() 后、show() 前设置）
+        dialog.setCanceledOnTouchOutside(false)
+        dialog.show()
     }
 
     /**
