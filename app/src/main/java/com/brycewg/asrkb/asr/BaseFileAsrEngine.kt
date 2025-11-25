@@ -40,6 +40,7 @@ abstract class BaseFileAsrEngine(
     private var processingJob: Job? = null
     private var segmentChan: Channel<ByteArray>? = null
     private var lastSegmentForRetry: ByteArray? = null
+    @Volatile private var discardOnStop: Boolean = false
 
     protected open val sampleRate: Int = 16000
     protected open val channelConfig: Int = AudioFormat.CHANNEL_IN_MONO
@@ -60,6 +61,7 @@ abstract class BaseFileAsrEngine(
         running.set(true)
         stopRequested = false
         stoppedDelivered = false
+        discardOnStop = false
         audioJob?.cancel()
         processingJob?.cancel()
         // 使用有界队列并在溢出时丢弃最旧的数据，避免内存溢出
@@ -73,6 +75,9 @@ abstract class BaseFileAsrEngine(
             try {
                 for (seg in chan) {
                     try {
+                        if (discardOnStop) {
+                            continue
+                        }
                         // 记录最近一次用于识别的片段，供“重试”功能使用
                         lastSegmentForRetry = seg
                         recognize(seg)
@@ -377,6 +382,19 @@ abstract class BaseFileAsrEngine(
      * @param pcm PCM 格式音频数据
      */
     protected abstract suspend fun recognize(pcm: ByteArray)
+
+    /**
+     * 标记当前会话在停止时丢弃所有待处理片段，避免上传/识别。
+     */
+    fun markDiscardOnStop() {
+        discardOnStop = true
+        lastSegmentForRetry = null
+        try {
+            processingJob?.cancel()
+        } catch (t: Throwable) {
+            Log.e(TAG, "Failed to cancel processing job on discard", t)
+        }
+    }
 
     /**
      * 是否存在可用于重试的片段

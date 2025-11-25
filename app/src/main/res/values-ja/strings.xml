@@ -29,9 +29,12 @@
 
   <string name="toggle_on">ON</string>
   <string name="toggle_off">OFF</string>
+  <string name="label_recording_gesture_cancel">左スワイプ キャンセル</string>
+  <string name="label_recording_gesture_send">右スワイプ 送信</string>
+  <string name="hint_swipe_down_lock">下にスワイプしてロック</string>
+  <string name="hint_tap_to_stop_recording">タップで録音停止</string>
 
   <string name="label_ai_edit_default_use_last_asr">AI編集のデフォルト範囲を前回の音声認識結果にする</string>
-  <string name="label_mic_swipe_up_auto_enter">離すときに上スワイプで自動送信</string>
   <string name="label_auto_start_recording_on_show">キーボード表示時に自動的に録音を開始</string>
   <string name="btn_retry">接続に失敗しました。再試行しますか?</string>
 
@@ -219,10 +222,6 @@
   <!-- タップコントロール -->
   <string name="feature_mic_tap_toggle_off_desc">マイクボタンを長押しして録音を開始し、離すと停止します。</string>
   <string name="feature_mic_tap_toggle_on_desc">マイクボタンをタップして録音を開始し、もう一度タップして停止します。片手操作に便利です。</string>
-
-  <!-- 上スワイプ自動送信 -->
-  <string name="feature_mic_swipe_up_auto_enter_off_desc">マイクボタンを離した後、テキストは確定されますがEnterキーは送信されません。</string>
-  <string name="feature_mic_swipe_up_auto_enter_on_desc">マイクボタンを離すときに上スワイプすると、自動的にテキストを確定してEnterを送信します。メッセージアプリに便利です。</string>
 
   <!-- 表示時自動録音開始 -->
   <string name="feature_auto_start_recording_on_show_off_desc">キーボードが表示された後、手動でマイクボタンを押して録音を開始する必要があります。</string>

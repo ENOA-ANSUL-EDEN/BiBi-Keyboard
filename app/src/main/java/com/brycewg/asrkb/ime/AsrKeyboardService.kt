@@ -132,6 +132,11 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
     private var btnPunct2: com.brycewg.asrkb.ui.widgets.PunctKeyView? = null
     private var btnPunct3: com.brycewg.asrkb.ui.widgets.PunctKeyView? = null
     private var btnPunct4: ImageButton? = null
+    private var rowTop: ConstraintLayout? = null
+    private var rowOverlay: ConstraintLayout? = null
+    private var rowRecordingGestures: ConstraintLayout? = null
+    private var btnGestureCancel: TextView? = null
+    private var btnGestureSend: TextView? = null
     private var rowExtension: ConstraintLayout? = null
     private var btnExt1: ImageButton? = null
     private var btnExt2: ImageButton? = null
@@ -146,8 +151,10 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
     // 记录麦克风容器基线高度与上次应用的缩放，避免缩放后沿用旧高度造成偏移
     private var micBaseGroupHeight: Int = -1
     private var lastAppliedHeightScale: Float = 1.0f
-    // 记录麦克风按下的原始Y坐标，用于检测上滑手势
+    // 记录麦克风按下的原始坐标，用于检测滑动手势
+    private var micDownRawX: Float = 0f
     private var micDownRawY: Float = 0f
+    private var micGestureState: MicGestureState = MicGestureState.None
     // AI编辑面板：选择模式与锚点
     private var aiSelectMode: Boolean = false
     private var aiSelectAnchor: Int? = null
@@ -168,6 +175,10 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
     // 光标左右移动长按连发
     private var repeatLeftRunnable: Runnable? = null
     private var repeatRightRunnable: Runnable? = null
+
+    private enum class MicGestureState {
+        None, PendingCancel, PendingSend, PendingLock
+    }
     // 系统导航栏底部高度（用于适配 Android 15 边缘到边缘显示）
     private var systemNavBarBottomInset: Int = 0
     // 记录最近一次在 IME 内弹出菜单的时间，用于限制“防误收起”逻辑的作用窗口
@@ -441,7 +452,7 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
     override fun onStateChanged(state: KeyboardState) {
         when (state) {
             is KeyboardState.Idle -> updateUiIdle()
-            is KeyboardState.Listening -> updateUiListening()
+            is KeyboardState.Listening -> updateUiListening(state)
             is KeyboardState.Processing -> updateUiProcessing()
             is KeyboardState.AiProcessing -> updateUiAiProcessing()
             is KeyboardState.AiEditListening -> updateUiAiEditListening()
@@ -549,7 +560,7 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
 
         // 恢复默认状态文案
         if (asrManager.isRunning()) {
-            updateUiListening()
+            updateUiListening(actionHandler.getCurrentState() as? KeyboardState.Listening)
         } else {
             updateUiIdle()
         }
@@ -593,6 +604,11 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
         btnPunct2 = view.findViewById(R.id.btnPunct2)
         btnPunct3 = view.findViewById(R.id.btnPunct3)
         btnPunct4 = view.findViewById(R.id.btnPunct4)
+        rowTop = view.findViewById(R.id.rowTop)
+        rowOverlay = view.findViewById(R.id.rowOverlay)
+        rowRecordingGestures = view.findViewById(R.id.rowRecordingGestures)
+        btnGestureCancel = view.findViewById(R.id.btnGestureCancel)
+        btnGestureSend = view.findViewById(R.id.btnGestureSend)
         rowExtension = view.findViewById<ConstraintLayout>(R.id.rowExtension)
         btnExt1 = view.findViewById(R.id.btnExt1)
         btnExt2 = view.findViewById(R.id.btnExt2)
@@ -745,8 +761,23 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
 
         // 麦克风按钮
         btnMic?.setOnClickListener { v ->
-            if (!prefs.micTapToggleEnabled) return@setOnClickListener
+            val locked = actionHandler.isMicLockedBySwipe()
+            if (!prefs.micTapToggleEnabled && !locked) return@setOnClickListener
             performKeyHaptic(v)
+            if (locked) {
+                try {
+                    DebugLogManager.log(
+                        category = "ime",
+                        event = "mic_click_locked",
+                        data = mapOf(
+                            "state" to actionHandler.getCurrentState()::class.java.simpleName,
+                            "running" to asrManager.isRunning()
+                        )
+                    )
+                } catch (_: Throwable) { }
+                actionHandler.handleLockedMicTap()
+                return@setOnClickListener
+            }
             if (!checkAsrReady()) return@setOnClickListener
             DebugLogManager.log(
                 category = "ime",
@@ -851,12 +882,15 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
                             v.performClick()
                             return@setOnTouchListener true
                         }
+                        micDownRawX = event.rawX
                         micDownRawY = event.rawY
+                        micGestureState = MicGestureState.None
                         DebugLogManager.log(
                             category = "ime",
                             event = "mic_down",
                             data = mapOf(
                                 "tapToggle" to false,
+                                "x" to micDownRawX,
                                 "y" to micDownRawY,
                                 "state" to actionHandler.getCurrentState()::class.java.simpleName,
                                 "running" to asrManager.isRunning()
@@ -865,26 +899,59 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
                         actionHandler.handleMicPressDown()
                         true
                     }
-                    MotionEvent.ACTION_UP -> {
-                        val slop = ViewConfiguration.get(v.context).scaledTouchSlop
-                        val upY = event.rawY
-                        val dy = (micDownRawY - upY)
-                        val autoEnter = prefs.micSwipeUpAutoEnterEnabled && dy > slop
-                        DebugLogManager.log(
-                            category = "ime",
-                            event = "mic_up",
-                            data = mapOf(
-                                "tapToggle" to false,
-                                "dy" to dy,
-                                "slop" to slop,
-                                "autoEnter" to autoEnter,
-                                "state" to actionHandler.getCurrentState()::class.java.simpleName,
-                                "running" to asrManager.isRunning()
-                            )
-                        )
-                        actionHandler.handleMicPressUp(autoEnter)
-                        v.performClick()
+                    MotionEvent.ACTION_MOVE -> {
+                        val target = when {
+                            isPointInsideView(event.rawX, event.rawY, btnGestureCancel) -> MicGestureState.PendingCancel
+                            isPointInsideView(event.rawX, event.rawY, btnGestureSend) -> MicGestureState.PendingSend
+                            !prefs.micTapToggleEnabled && isPointInsideView(event.rawX, event.rawY, btnExtCenter2) -> MicGestureState.PendingLock
+                            else -> MicGestureState.None
+                        }
+                        if (target != micGestureState) {
+                            micGestureState = target
+                            updateGesturePressedState(target)
+                        }
                         true
+                    }
+                    MotionEvent.ACTION_UP -> {
+                        val state = micGestureState
+                        micGestureState = MicGestureState.None
+                        updateGesturePressedState(MicGestureState.None)
+                        when (state) {
+                            MicGestureState.PendingCancel -> {
+                                performKeyHaptic(v)
+                                actionHandler.handleMicGestureCancel()
+                                v.performClick()
+                                true
+                            }
+                            MicGestureState.PendingSend -> {
+                                performKeyHaptic(v)
+                                actionHandler.handleMicGestureSend()
+                                v.performClick()
+                                true
+                            }
+                            MicGestureState.PendingLock -> {
+                                performKeyHaptic(v)
+                                actionHandler.handleMicSwipeLock()
+                                updateUiListening(actionHandler.getCurrentState() as? KeyboardState.Listening)
+                                // 注意：不调用 v.performClick()，避免触发 onClick 导致录音被停止
+                                // 锁定后录音应继续运行，用户需再次点击麦克风才停止
+                                true
+                            }
+                            else -> {
+                                DebugLogManager.log(
+                                    category = "ime",
+                                    event = "mic_up",
+                                    data = mapOf(
+                                        "tapToggle" to false,
+                                        "state" to actionHandler.getCurrentState()::class.java.simpleName,
+                                        "running" to asrManager.isRunning()
+                                    )
+                                )
+                                actionHandler.handleMicPressUp(false)
+                                v.performClick()
+                                true
+                            }
+                        }
                     }
                     MotionEvent.ACTION_CANCEL -> {
                         DebugLogManager.log(
@@ -896,6 +963,9 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
                                 "running" to asrManager.isRunning()
                             )
                         )
+                        micGestureState = MicGestureState.None
+                        updateGesturePressedState(MicGestureState.None)
+                        // 使用默认释放路径：停止录音并处理已有内容
                         actionHandler.handleMicPressUp(false)
                         v.performClick()
                         true
@@ -1051,7 +1121,18 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
         }
         btnExtCenter2?.setOnClickListener { v ->
             performKeyHaptic(v)
-            actionHandler.commitText(currentInputConnection, " ")
+            if (actionHandler.getCurrentState() !is KeyboardState.Listening) {
+                actionHandler.commitText(currentInputConnection, " ")
+            }
+        }
+
+        btnGestureCancel?.setOnClickListener { v ->
+            performKeyHaptic(v)
+            actionHandler.handleMicGestureCancel()
+        }
+        btnGestureSend?.setOnClickListener { v ->
+            performKeyHaptic(v)
+            actionHandler.handleMicGestureSend()
         }
     }
 
@@ -1306,6 +1387,7 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
     // ========== UI 更新方法 ==========
 
     private fun updateUiIdle() {
+        hideRecordingGesturesOverlay()
         clearStatusTextStyle()
         // 显示文字，隐藏波形
         txtStatusText?.visibility = View.VISIBLE
@@ -1319,7 +1401,7 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
         currentInputConnection?.let { inputHelper.finishComposingText(it) }
     }
 
-    private fun updateUiListening() {
+    private fun updateUiListening(state: KeyboardState.Listening? = null) {
         clearStatusTextStyle()
         // 隐藏文字，显示波形动画
         txtStatusText?.visibility = View.GONE
@@ -1329,9 +1411,11 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
         btnMic?.isSelected = true
         btnMic?.setImageResource(R.drawable.microphone_fill)
         btnPromptPicker?.setImageResource(R.drawable.pencil_simple_line)
+        showRecordingGesturesOverlay(state)
     }
 
     private fun updateUiProcessing() {
+        hideRecordingGesturesOverlay()
         clearStatusTextStyle()
         // 显示文字，隐藏波形
         txtStatusText?.visibility = View.VISIBLE
@@ -1345,6 +1429,7 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
     }
 
     private fun updateUiAiProcessing() {
+        hideRecordingGesturesOverlay()
         clearStatusTextStyle()
         // 显示文字，隐藏波形
         txtStatusText?.visibility = View.VISIBLE
@@ -1358,6 +1443,7 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
     }
 
     private fun updateUiAiEditListening() {
+        hideRecordingGesturesOverlay()
         clearStatusTextStyle()
         // AI Edit 录音状态也使用文字显示（避免与普通录音混淆）
         txtStatusText?.visibility = View.VISIBLE
@@ -1371,6 +1457,7 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
     }
 
     private fun updateUiAiEditProcessing() {
+        hideRecordingGesturesOverlay()
         clearStatusTextStyle()
         // 显示文字，隐藏波形
         txtStatusText?.visibility = View.VISIBLE
@@ -1384,6 +1471,49 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
     }
 
     // ========== 辅助方法 ==========
+
+    private fun showRecordingGesturesOverlay(state: KeyboardState.Listening?) {
+        rowRecordingGestures?.visibility = View.VISIBLE
+        applyLockZoneUi(state)
+    }
+
+    private fun hideRecordingGesturesOverlay() {
+        rowRecordingGestures?.visibility = View.GONE
+        resetLockZoneUi()
+        updateGesturePressedState(MicGestureState.None)
+    }
+
+    private fun applyLockZoneUi(state: KeyboardState.Listening?) {
+        val spaceKey = btnExtCenter2 ?: return
+        if (prefs.micTapToggleEnabled || state == null) {
+            resetLockZoneUi()
+            return
+        }
+        spaceKey.isEnabled = false
+        spaceKey.text = getString(if (state.lockedBySwipe) R.string.hint_tap_to_stop_recording else R.string.hint_swipe_down_lock)
+    }
+
+    private fun resetLockZoneUi() {
+        btnExtCenter2?.isEnabled = true
+        btnExtCenter2?.text = getString(R.string.cd_space)
+    }
+
+    private fun isPointInsideView(rawX: Float, rawY: Float, target: View?): Boolean {
+        if (target == null || target.visibility != View.VISIBLE) return false
+        val loc = IntArray(2)
+        target.getLocationOnScreen(loc)
+        val left = loc[0]
+        val top = loc[1]
+        val right = left + target.width
+        val bottom = top + target.height
+        return rawX >= left && rawX <= right && rawY >= top && rawY <= bottom
+    }
+
+    private fun updateGesturePressedState(state: MicGestureState) {
+        btnGestureCancel?.isPressed = state == MicGestureState.PendingCancel
+        btnGestureSend?.isPressed = state == MicGestureState.PendingSend
+        btnExtCenter2?.isPressed = state == MicGestureState.PendingLock
+    }
 
     /**
      * 清除状态文本的粘贴板预览样式（背景遮罩、内边距、点击监听器、单行限制）
@@ -2425,12 +2555,32 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
                 }
             }
         }
+        // 手势按钮覆盖层：定位到第二排第三排按钮的位置
+        // 计算：rowExtension 高度 (50dp) 作为顶部偏移，使手势按钮与第二排顶部对齐
+        run {
+            val overlay = view.findViewById<androidx.constraintlayout.widget.ConstraintLayout>(R.id.rowRecordingGestures)
+            if (overlay != null) {
+                val lp = overlay.layoutParams as? android.widget.FrameLayout.LayoutParams
+                if (lp != null) {
+                    lp.topMargin = dp(50f * scale)
+                    lp.gravity = android.view.Gravity.TOP
+                    overlay.layoutParams = lp
+                }
+            }
+        }
 
         fun scaleSquareButton(id: Int) {
             val v = view.findViewById<View>(id) ?: return
             val lp = v.layoutParams
             lp.width = dp(40f * scale)
             lp.height = dp(40f * scale)
+            v.layoutParams = lp
+        }
+        fun scaleGestureButton(v: View?) {
+            val lp = v?.layoutParams as? androidx.constraintlayout.widget.ConstraintLayout.LayoutParams ?: return
+            val baseSize = 86f * scale
+            lp.width = dp(baseSize)
+            lp.height = dp(baseSize)
             v.layoutParams = lp
         }
         fun scaleRectButton(id: Int, widthDp: Float, heightDp: Float) {
@@ -2474,6 +2624,8 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
             R.id.clip_btnBack, R.id.clip_btnDelete
         )
         ids40.forEach { scaleSquareButton(it) }
+        scaleGestureButton(btnGestureCancel)
+        scaleGestureButton(btnGestureSend)
 
         // 缩放中央按钮（仅高度，宽度由约束控制）
         run {

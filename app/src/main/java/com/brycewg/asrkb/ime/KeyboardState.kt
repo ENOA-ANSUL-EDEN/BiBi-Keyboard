@@ -17,7 +17,8 @@ sealed class KeyboardState {
      */
     data class Listening(
         val partialText: String? = null,
-        val committedStableLen: Int = 0
+        val committedStableLen: Int = 0,
+        val lockedBySwipe: Boolean = false
     ) : KeyboardState()
 
     /**

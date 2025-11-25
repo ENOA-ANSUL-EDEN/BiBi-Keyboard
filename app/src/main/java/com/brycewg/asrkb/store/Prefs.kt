@@ -78,11 +78,6 @@ class Prefs(context: Context) {
         get() = sp.getBoolean(KEY_MIC_TAP_TOGGLE_ENABLED, false)
         set(value) = sp.edit { putBoolean(KEY_MIC_TAP_TOGGLE_ENABLED, value) }
 
-    // 长按录音：松手上滑后自动发送（仅键盘模式、未启用点按控制时有效）
-    var micSwipeUpAutoEnterEnabled: Boolean
-        get() = sp.getBoolean(KEY_MIC_SWIPE_UP_AUTO_ENTER_ENABLED, false)
-        set(value) = sp.edit { putBoolean(KEY_MIC_SWIPE_UP_AUTO_ENTER_ENABLED, value) }
-
     // 启动键盘面板时自动开始录音（默认关闭）
     var autoStartRecordingOnShow: Boolean
         get() = sp.getBoolean(KEY_AUTO_START_RECORDING_ON_SHOW, false)
@@ -1078,7 +1073,6 @@ class Prefs(context: Context) {
         private const val KEY_TRIM_FINAL_TRAILING_PUNCT = "trim_final_trailing_punct"
         private const val KEY_MIC_HAPTIC_ENABLED = "mic_haptic_enabled"
         private const val KEY_MIC_TAP_TOGGLE_ENABLED = "mic_tap_toggle_enabled"
-        private const val KEY_MIC_SWIPE_UP_AUTO_ENTER_ENABLED = "mic_swipe_up_auto_enter_enabled"
         private const val KEY_AUTO_START_RECORDING_ON_SHOW = "auto_start_recording_on_show"
         private const val KEY_DUCK_MEDIA_ON_RECORD = "duck_media_on_record"
         private const val KEY_AUTO_STOP_ON_SILENCE_ENABLED = "auto_stop_on_silence_enabled"
@@ -1313,7 +1307,6 @@ class Prefs(context: Context) {
         o.put(KEY_TRIM_FINAL_TRAILING_PUNCT, trimFinalTrailingPunct)
         o.put(KEY_MIC_HAPTIC_ENABLED, micHapticEnabled)
         o.put(KEY_MIC_TAP_TOGGLE_ENABLED, micTapToggleEnabled)
-        o.put(KEY_MIC_SWIPE_UP_AUTO_ENTER_ENABLED, micSwipeUpAutoEnterEnabled)
         o.put(KEY_AUTO_START_RECORDING_ON_SHOW, autoStartRecordingOnShow)
         o.put(KEY_DUCK_MEDIA_ON_RECORD, duckMediaOnRecordEnabled)
         o.put(KEY_AUTO_STOP_ON_SILENCE_ENABLED, autoStopOnSilenceEnabled)
@@ -1462,7 +1455,6 @@ class Prefs(context: Context) {
             optBool(KEY_TRIM_FINAL_TRAILING_PUNCT)?.let { trimFinalTrailingPunct = it }
             optBool(KEY_MIC_HAPTIC_ENABLED)?.let { micHapticEnabled = it }
             optBool(KEY_MIC_TAP_TOGGLE_ENABLED)?.let { micTapToggleEnabled = it }
-            optBool(KEY_MIC_SWIPE_UP_AUTO_ENTER_ENABLED)?.let { micSwipeUpAutoEnterEnabled = it }
             optBool(KEY_AUTO_START_RECORDING_ON_SHOW)?.let { autoStartRecordingOnShow = it }
             optBool(KEY_DUCK_MEDIA_ON_RECORD)?.let { duckMediaOnRecordEnabled = it }
             optBool(KEY_AUTO_STOP_ON_SILENCE_ENABLED)?.let { autoStopOnSilenceEnabled = it }

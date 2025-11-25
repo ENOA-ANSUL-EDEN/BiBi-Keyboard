@@ -373,6 +373,20 @@ class AsrSessionManager(
     }
 
     /**
+     * 取消录音并可选丢弃已采集的片段，避免上传识别。
+     */
+    fun cancelRecording(discardPending: Boolean) {
+        if (discardPending) {
+            try {
+                (asrEngine as? BaseFileAsrEngine)?.markDiscardOnStop()
+            } catch (t: Throwable) {
+                Log.e(TAG, "Failed to mark discard on stop", t)
+            }
+        }
+        stopRecording()
+    }
+
+    /**
      * 读取并清空最近一次会话的录音时长（毫秒）。
      */
     fun popLastAudioMsForStats(): Long {

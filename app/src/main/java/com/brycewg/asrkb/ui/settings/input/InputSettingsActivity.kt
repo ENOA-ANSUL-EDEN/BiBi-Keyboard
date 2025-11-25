@@ -33,7 +33,6 @@ class InputSettingsActivity : AppCompatActivity() {
     private var isUpdatingSwitchTrimTrailingPunct = false
     private var isUpdatingSwitchMicHaptic = false
     private var isUpdatingSwitchMicTapToggle = false
-    private var isUpdatingSwitchMicSwipeUpAutoEnter = false
     private var isUpdatingSwitchAutoStartRecordingOnShow = false
     private var isUpdatingSwitchFcitx5ReturnOnSwitcher = false
     private var isUpdatingSwitchReturnPrevImeOnHide = false
@@ -55,7 +54,6 @@ class InputSettingsActivity : AppCompatActivity() {
         val switchTrimTrailingPunct = findViewById<MaterialSwitch>(R.id.switchTrimTrailingPunct)
         val switchMicHaptic = findViewById<MaterialSwitch>(R.id.switchMicHaptic)
         val switchMicTapToggle = findViewById<MaterialSwitch>(R.id.switchMicTapToggle)
-        val switchMicSwipeUpAutoEnter = findViewById<MaterialSwitch>(R.id.switchMicSwipeUpAutoEnter)
         val switchAutoStartRecordingOnShow = findViewById<MaterialSwitch>(R.id.switchAutoStartRecordingOnShow)
         val switchFcitx5ReturnOnSwitcher = findViewById<MaterialSwitch>(R.id.switchFcitx5ReturnOnSwitcher)
         val switchReturnPrevImeOnHide = findViewById<MaterialSwitch>(R.id.switchReturnPrevImeOnHide)
@@ -103,10 +101,6 @@ class InputSettingsActivity : AppCompatActivity() {
             isUpdatingSwitchHeadsetMicPriority = false
 
             switchExternalImeAidl.isChecked = prefs.externalAidlEnabled
-
-            isUpdatingSwitchMicSwipeUpAutoEnter = true
-            switchMicSwipeUpAutoEnter.isChecked = prefs.micSwipeUpAutoEnterEnabled
-            isUpdatingSwitchMicSwipeUpAutoEnter = false
 
             isUpdatingSwitchAutoStartRecordingOnShow = true
             switchAutoStartRecordingOnShow.isChecked = prefs.autoStartRecordingOnShow
@@ -169,28 +163,6 @@ class InputSettingsActivity : AppCompatActivity() {
             preferenceKey = "mic_tap_toggle_explained",
             readPref = { prefs.micTapToggleEnabled },
             writePref = { v -> prefs.micTapToggleEnabled = v },
-            onChanged = { enabled ->
-                if (enabled && prefs.micSwipeUpAutoEnterEnabled) {
-                    prefs.micSwipeUpAutoEnterEnabled = false
-                    switchMicSwipeUpAutoEnter.isChecked = false
-                }
-            },
-            hapticFeedback = { hapticTapIfEnabled(it) }
-        )
-        switchMicSwipeUpAutoEnter.installExplainedSwitch(
-            context = this,
-            titleRes = R.string.label_mic_swipe_up_auto_enter,
-            offDescRes = R.string.feature_mic_swipe_up_auto_enter_off_desc,
-            onDescRes = R.string.feature_mic_swipe_up_auto_enter_on_desc,
-            preferenceKey = "mic_swipe_up_auto_enter_explained",
-            readPref = { prefs.micSwipeUpAutoEnterEnabled },
-            writePref = { v -> prefs.micSwipeUpAutoEnterEnabled = v },
-            onChanged = { enabled ->
-                if (enabled && prefs.micTapToggleEnabled) {
-                    prefs.micTapToggleEnabled = false
-                    switchMicTapToggle.isChecked = false
-                }
-            },
             hapticFeedback = { hapticTapIfEnabled(it) }
         )
         switchAutoStartRecordingOnShow.installExplainedSwitch(

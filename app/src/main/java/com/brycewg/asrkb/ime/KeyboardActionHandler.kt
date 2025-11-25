@@ -95,6 +95,11 @@ class KeyboardActionHandler(
      */
     fun getCurrentState(): KeyboardState = currentState
 
+    fun isMicLockedBySwipe(): Boolean {
+        val state = currentState as? KeyboardState.Listening
+        return state?.lockedBySwipe == true
+    }
+
     /**
      * 启动自动录音（键盘面板自动启动）
      * 此录音的停止方式：点按麦克风按钮或VAD自动停止
@@ -208,6 +213,44 @@ class KeyboardActionHandler(
                 try { DebugLogManager.log("ime", "mic_down_action", mapOf("action" to "ignored", "state" to currentState::class.java.simpleName)) } catch (_: Throwable) { }
             }
         }
+    }
+
+    fun handleMicSwipeLock() {
+        val state = currentState as? KeyboardState.Listening ?: return
+        if (state.lockedBySwipe) return
+        micHoldActive = false
+        autoEnterOnce = false
+        isAutoStartedRecording = false
+        val newState = state.copy(lockedBySwipe = true)
+        transitionToState(newState)
+    }
+
+    fun handleMicGestureCancel() {
+        val state = currentState as? KeyboardState.Listening ?: return
+        dropPendingFinal = true
+        micHoldActive = false
+        autoEnterOnce = false
+        isAutoStartedRecording = false
+        asrManager.cancelRecording(discardPending = true)
+        // 清除已显示的 composing text（中间结果），避免取消时被固化提交
+        val ic = getCurrentInputConnection()
+        if (ic != null && !state.partialText.isNullOrEmpty()) {
+            inputHelper.setComposingText(ic, "")
+            inputHelper.finishComposingText(ic)
+        }
+        transitionToIdle(keepMessage = true)
+        uiListener?.onStatusMessage(context.getString(R.string.status_cancelled))
+        uiListener?.onVibrate()
+    }
+
+    fun handleMicGestureSend() {
+        if (currentState !is KeyboardState.Listening) return
+        handleMicPressUp(autoEnterAfterFinal = true)
+    }
+
+    fun handleLockedMicTap() {
+        if (currentState !is KeyboardState.Listening) return
+        handleMicPressUp(autoEnterAfterFinal = false)
     }
 
     /**
@@ -1101,7 +1144,7 @@ class KeyboardActionHandler(
 
         if (prefs.postProcessEnabled && prefs.hasLlmKeys()) {
             // AI 后处理流程
-            handleDictationWithPostprocess(ic, text, seq)
+            handleDictationWithPostprocess(ic, text, state, seq)
         } else {
             // 无后处理流程
             handleDictationWithoutPostprocess(ic, text, state, seq)
@@ -1111,6 +1154,7 @@ class KeyboardActionHandler(
     private suspend fun handleDictationWithPostprocess(
         ic: InputConnection,
         text: String,
+        state: KeyboardState.Listening,
         seq: Long
     ) {
         // 若已被取消，不再更新预览
@@ -1206,10 +1250,10 @@ class KeyboardActionHandler(
 
         uiListener?.onVibrate()
 
-        // 分段录音期间保持 Listening；
+        // 分段录音期间保持 Listening（保留 lockedBySwipe 标志）；
         // 否则：若后处理失败，直接回到 Idle 并保留错误提示；成功则显示耗时后回到 Idle。
         if (asrManager.isRunning()) {
-            transitionToState(KeyboardState.Listening())
+            transitionToState(KeyboardState.Listening(lockedBySwipe = state.lockedBySwipe))
         } else {
             if (postprocFailed) {
                 // 回到 Idle 后再次设置错误提示，避免被 Idle 文案覆盖
@@ -1324,9 +1368,9 @@ class KeyboardActionHandler(
 
         uiListener?.onVibrate()
 
-        // 分段录音期间保持 Listening；否则进入 Processing 并延时返回 Idle
+        // 分段录音期间保持 Listening（保留 lockedBySwipe 标志）；否则进入 Processing 并延时返回 Idle
         if (asrManager.isRunning()) {
-            transitionToState(KeyboardState.Listening())
+            transitionToState(KeyboardState.Listening(lockedBySwipe = state.lockedBySwipe))
         } else {
             transitionToState(KeyboardState.Processing)
             scheduleProcessingTimeout()

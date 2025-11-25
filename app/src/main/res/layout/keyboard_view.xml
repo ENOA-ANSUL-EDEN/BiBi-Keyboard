@@ -401,6 +401,51 @@
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/rowRecordingGestures"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/btnGestureCancel"
+            android:layout_width="86dp"
+            android:layout_height="86dp"
+            android:background="@drawable/bg_key_rect_button"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:text="@string/label_recording_gesture_cancel"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textSize="14sp"
+            android:foreground="?attr/selectableItemBackgroundBorderless"
+            android:stateListAnimator="@null"
+            android:clipToOutline="true"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <TextView
+            android:id="@+id/btnGestureSend"
+            android:layout_width="86dp"
+            android:layout_height="86dp"
+            android:background="@drawable/bg_key_rect_button"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:text="@string/label_recording_gesture_send"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textSize="14sp"
+            android:foreground="?attr/selectableItemBackgroundBorderless"
+            android:stateListAnimator="@null"
+            android:clipToOutline="true"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
     </FrameLayout>
 
     <include
