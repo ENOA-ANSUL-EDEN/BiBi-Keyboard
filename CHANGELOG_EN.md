@@ -1,5 +1,16 @@
 # Changelog
 
+## v3.7.3 (2025-11-25)
+
+### New Features
+
+- **Recording Gesture Control**: Add gesture control functionality to the recording button, supporting canceling recording by sliding left and releasing, sending directly by sliding right, and temporarily fixing to the tap-to-record mode by sliding down.
+- **Waveform Sensitivity Adjustment**: Added audio waveform display sensitivity adjustment, allowing users to customize waveform animation sensitivity based on personal preferences
+- **DashScope Model Upgrade**: Upgraded DashScope streaming recognition engine to Qwen3-ASR-Flash-Realtime model for improved recognition speed and accuracy
+- **[Pro] Hotword Management**: Added hotword management for Qwen3-ASR-Flash-Realtime model (Pro version)
+
+---
+
 ## v3.7.2 (2025-11-23)
 
 ### New Features
