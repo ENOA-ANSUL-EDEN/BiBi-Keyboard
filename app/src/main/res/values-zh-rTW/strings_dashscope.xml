@@ -8,7 +8,7 @@
     <string name="label_dash_prompt">自定義提示詞/識別上下文（可選）</string>
     <string name="label_dash_language">識別語言（可選，已知語種可提升準確率）</string>
     <string name="label_dash_streaming">使用 DashScope 串流識別（WebSocket）</string>
-    <string name="dash_streaming_note">串流識別使用 Fun‑ASR 模型，非串流使用 Qwen‑ASR‑Flash 模型\n串流模式不支援自訂 Prompt、地域設定、識別語言設定</string>
+    <string name="dash_streaming_note">串流和非串流均使用 Qwen3‑ASR‑Flash 模型\n串流模式支援語言和語料文字設定</string>
     <string name="dash_lang_auto">自動（啟用語種識別）</string>
     <string name="label_dash_region">DashScope 地域</string>
     <string name="dash_region_cn">中國大陸（aliyuncs.com）</string>
@@ -32,6 +32,6 @@
     <!-- ============================================== -->
 
     <!-- 通義千問 - 串流識別 -->
-    <string name="feature_dash_streaming_off_desc">使用非串流識別。錄音結束後開始處理，可能有延遲。使用Qwen-ASR-Flash模型。</string>
-    <string name="feature_dash_streaming_on_desc">使用串流識別。邊說話邊即時顯示轉寫結果。使用Fun-ASR模型，效果略差。</string>
+    <string name="feature_dash_streaming_off_desc">使用非串流識別。錄音結束後開始處理，可能有延遲。使用Qwen3-ASR-Flash模型。</string>
+    <string name="feature_dash_streaming_on_desc">使用串流識別。邊說話邊即時顯示轉寫結果。使用Qwen3-ASR-Flash-Realtime模型。</string>
 </resources>

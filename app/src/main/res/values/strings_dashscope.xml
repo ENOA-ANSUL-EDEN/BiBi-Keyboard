@@ -8,7 +8,7 @@
     <string name="label_dash_prompt">Custom prompt / context (optional)</string>
     <string name="label_dash_language">Recognition language (optional; improves accuracy if known)</string>
     <string name="label_dash_streaming">Use DashScope streaming (WebSocket)</string>
-    <string name="dash_streaming_note">Streaming uses the Fun‑ASR model; non‑streaming uses the Qwen‑ASR‑Flash model\nStreaming mode does not support custom Prompt, region selection, or language setting</string>
+    <string name="dash_streaming_note">Both streaming and non‑streaming use the Qwen3‑ASR‑Flash model\nStreaming mode supports language and corpus text settings</string>
     <string name="dash_lang_auto">Auto (enable language ID)</string>
     <string name="label_dash_region">DashScope Region</string>
     <string name="dash_region_cn">Mainland China (aliyuncs.com)</string>
@@ -32,6 +32,6 @@
     <!-- ============================================== -->
 
     <!-- DashScope - Streaming -->
-    <string name="feature_dash_streaming_off_desc">Uses non-streaming recognition. Processing starts after recording ends, which may cause delays. Uses Qwen-ASR-Flash model.</string>
-    <string name="feature_dash_streaming_on_desc">Uses streaming recognition. Transcription results are displayed in real-time as you speak. Uses Fun-ASR model, slightly lower accuracy.</string>
+    <string name="feature_dash_streaming_off_desc">Uses non-streaming recognition. Processing starts after recording ends, which may cause delays. Uses Qwen3-ASR-Flash model.</string>
+    <string name="feature_dash_streaming_on_desc">Uses streaming recognition. Transcription results are displayed in real-time as you speak. Uses Qwen3-ASR-Flash-Realtime model.</string>
 </resources>
