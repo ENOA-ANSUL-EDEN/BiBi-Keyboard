@@ -26,6 +26,7 @@ class FloatingBallTouchHandler(
 ) {
     companion object {
         private const val TAG = "FloatingBallTouchHandler"
+        private const val DIRECT_MOVE_HOLD_TIMEOUT_MS = 2000L
     }
 
     interface TouchEventListener {
@@ -53,12 +54,23 @@ class FloatingBallTouchHandler(
     private var longActionFired = false
     private var longPressPosted = false
     private var dragSelecting = false
+    private var longHoldMovePosted = false
+    private var moveStarted = false
 
     private val longPressRunnable = Runnable {
         longPressPosted = false
         longActionFired = true
         hapticFeedback()
         listener.onLongPress()
+    }
+
+    private val longHoldMoveRunnable = Runnable {
+        longHoldMovePosted = false
+        if (isDragging || dragSelecting) return@Runnable
+        isDragging = true
+        moveStarted = true
+        hapticFeedback()
+        listener.onMoveStarted()
     }
 
     /** 创建触摸监听器 */
@@ -92,9 +104,21 @@ class FloatingBallTouchHandler(
         }
     }
 
+    private fun cancelLongHoldMove() {
+        if (longHoldMovePosted) {
+            try {
+                handler.removeCallbacks(longHoldMoveRunnable)
+            } catch (e: Throwable) {
+                Log.w(TAG, "Failed to remove long hold move callback", e)
+            }
+            longHoldMovePosted = false
+        }
+    }
+
     /** 清理资源 */
     fun cleanup() {
         cancelLongPress()
+        cancelLongHoldMove()
     }
 
     // ==================== 私有处理方法 ====================
@@ -108,6 +132,7 @@ class FloatingBallTouchHandler(
         isDragging = isMoveMode
         longActionFired = false
         dragSelecting = false
+        moveStarted = false
         downX = e.rawX
         downY = e.rawY
         startX = lp.x
@@ -118,6 +143,8 @@ class FloatingBallTouchHandler(
             try {
                 handler.postDelayed(longPressRunnable, longPressTimeout)
                 longPressPosted = true
+                handler.postDelayed(longHoldMoveRunnable, DIRECT_MOVE_HOLD_TIMEOUT_MS)
+                longHoldMovePosted = true
             } catch (e: Throwable) {
                 Log.e(TAG, "Failed to post long press callback", e)
             }
@@ -145,6 +172,7 @@ class FloatingBallTouchHandler(
                     // 要求初次“向左右方向”滑动超过阈值才进入拖拽选中
                     if (absDx > touchSlop && absDx >= absDy) {
                         dragSelecting = true
+                        cancelLongHoldMove()
                         listener.onLongPressDragStart(e.rawX, e.rawY)
                     }
                 } else {
@@ -153,19 +181,26 @@ class FloatingBallTouchHandler(
                 return true
             } else {
                 // 移动超过阈值，取消未触发的长按
-                if (moved && longPressPosted) {
-                    try {
-                        handler.removeCallbacks(longPressRunnable)
-                    } catch (ex: Throwable) {
-                        Log.w(TAG, "Failed to remove long press callback", ex)
+                if (moved) {
+                    if (longPressPosted) {
+                        try {
+                            handler.removeCallbacks(longPressRunnable)
+                        } catch (ex: Throwable) {
+                            Log.w(TAG, "Failed to remove long press callback", ex)
+                        }
+                        longPressPosted = false
                     }
-                    longPressPosted = false
+                    cancelLongHoldMove()
                 }
                 return true
             }
         }
 
         // 拖动中：更新位置
+        if (!moveStarted) {
+            moveStarted = true
+            listener.onMoveStarted()
+        }
         val (screenW, screenH) = getUsableScreenSize()
         val root = viewManager.getBallView() ?: v
         val vw = if (root.width > 0) root.width else lp.width
@@ -180,29 +215,25 @@ class FloatingBallTouchHandler(
 
     private fun handleActionUp(v: View, e: MotionEvent): Boolean {
         cancelLongPress()
+        cancelLongHoldMove()
 
         if (dragSelecting) {
             // 拖拽选择释放
             listener.onLongPressDragRelease(e.rawX, e.rawY)
+        } else if (isDragging) {
+            val targetView = viewManager.getBallView() ?: v
+            try {
+                viewManager.animateSnapToEdge(targetView) {
+                    listener.onMoveEnded()
+                }
+            } catch (ex: Throwable) {
+                Log.e(TAG, "Failed to animate snap to edge, falling back to instant snap", ex)
+                viewManager.snapToEdge(targetView)
+                listener.onMoveEnded()
+            }
         } else if (longActionFired) {
             // 已触发长按但未进入拖拽选择：通知取消以清理可见性保护
             listener.onDragCancelled()
-        } else if (isDragging) {
-            // 移动模式下：若未移动则视为点击（用于退出移动模式）；若已移动则吸附
-            if (!moved) {
-                hapticFeedback()
-                listener.onSingleTap()
-            } else {
-                try {
-                    viewManager.animateSnapToEdge(v) {
-                        listener.onMoveEnded()
-                    }
-                } catch (e: Throwable) {
-                    Log.e(TAG, "Failed to animate snap to edge, falling back to instant snap", e)
-                    viewManager.snapToEdge(v)
-                    listener.onMoveEnded()
-                }
-            }
         } else if (!moved) {
             // 非移动模式的点按
             hapticFeedback()
@@ -213,18 +244,23 @@ class FloatingBallTouchHandler(
         isDragging = false
         longActionFired = false
         dragSelecting = false
+        moveStarted = false
         return true
     }
 
     private fun handleActionCancel(): Boolean {
         cancelLongPress()
-        if (dragSelecting) {
+        cancelLongHoldMove()
+        if (isDragging) {
+            listener.onMoveEnded()
+        } else if (dragSelecting) {
             listener.onDragCancelled()
         }
         moved = false
         isDragging = false
         longActionFired = false
         dragSelecting = false
+        moveStarted = false
         return true
     }
 

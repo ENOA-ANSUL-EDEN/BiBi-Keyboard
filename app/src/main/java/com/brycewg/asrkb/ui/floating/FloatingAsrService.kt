@@ -711,13 +711,31 @@ class FloatingAsrService : Service(),
 
     override fun onMoveStarted() {
         touchActiveGuard = true
+        try {
+            viewManager.animateRevealFromEdgeIfNeeded()
+        } catch (e: Throwable) {
+            Log.w(TAG, "Failed to reveal on move start", e)
+        }
+        updateVisibilityByPref()
     }
 
     override fun onMoveEnded() {
         touchActiveGuard = false
-        // 移动结束：仍处在“移动模式”时不要自动半隐，等待退出移动后再恢复
+        if (stateMachine.isMoveMode) {
+            stateMachine.transitionTo(FloatingBallState.Idle)
+            try {
+                viewManager.updateStateVisual(FloatingBallState.Idle)
+            } catch (e: Throwable) {
+                Log.w(TAG, "Failed to update state visual after move end", e)
+            }
+        }
+        // 移动结束：若非录音/处理态，自动半隐
         try {
-            if (!stateMachine.isMoveMode && !prefs.floatingSwitcherOnlyWhenImeVisible) {
+            if (!stateMachine.isMoveMode &&
+                !stateMachine.isRecording &&
+                !stateMachine.isProcessing &&
+                !prefs.floatingSwitcherOnlyWhenImeVisible
+            ) {
                 // 仅当未开启“仅在键盘显示时显示悬浮球”时执行半隐
                 viewManager.animateHideToEdgePartialIfNeeded()
             }
