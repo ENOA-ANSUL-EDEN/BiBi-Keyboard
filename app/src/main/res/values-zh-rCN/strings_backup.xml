@@ -18,6 +18,7 @@
     <string name="toast_webdav_upload_failed">上传失败：%1$s</string>
     <string name="toast_webdav_download_success">已从 WebDAV 导入并应用</string>
     <string name="toast_webdav_download_failed">下载/导入失败：%1$s</string>
+    <string name="toast_webdav_backup_not_found">服务器上未找到 WebDAV 备份文件</string>
     <string name="toast_webdav_url_required">请先填写 WebDAV 服务器基础URL</string>
     <string name="toast_webdav_directory_created">已创建 LexiSharp 目录</string>
 

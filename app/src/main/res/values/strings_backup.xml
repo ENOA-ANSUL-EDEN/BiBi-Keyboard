@@ -18,6 +18,7 @@
     <string name="toast_webdav_upload_failed">Upload failed: %1$s</string>
     <string name="toast_webdav_download_success">Imported from WebDAV</string>
     <string name="toast_webdav_download_failed">Download/Import failed: %1$s</string>
+    <string name="toast_webdav_backup_not_found">No backup file found on WebDAV server</string>
     <string name="toast_webdav_url_required">Please enter the WebDAV base URL</string>
     <string name="toast_webdav_directory_created">LexiSharp directory created</string>
 

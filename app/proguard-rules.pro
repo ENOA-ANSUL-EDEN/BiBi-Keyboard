@@ -95,6 +95,14 @@
 -keep class okhttp3.** { *; }
 -keep interface okhttp3.** { *; }
 
+# Sardine WebDAV (SimpleXml)
+-dontwarn org.simpleframework.**
+-keep class org.simpleframework.** { *; }
+-keepclassmembers class * {
+    @org.simpleframework.xml.* *;
+}
+-keep class com.thegrizzlylabs.sardineandroid.** { *; }
+
 # Kotlin 协程/元数据
 -keepclassmembers class kotlinx.coroutines.** {
     volatile <fields>;

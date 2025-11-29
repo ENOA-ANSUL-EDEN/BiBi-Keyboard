@@ -125,6 +125,7 @@ dependencies {
     implementation("org.apache.commons:commons-compress:1.28.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.0")
     implementation("com.alibaba:dashscope-sdk-java:2.21.15")
+    implementation("com.github.thegrizzlylabs:sardine-android:0.9")
 
     // AAR 占位：sherpa-onnx Kotlin API AAR 放在 app/libs/ 会自动识别
     implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar", "*.aar"))))

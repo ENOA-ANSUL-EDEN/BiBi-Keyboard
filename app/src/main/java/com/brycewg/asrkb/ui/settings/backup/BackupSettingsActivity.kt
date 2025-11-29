@@ -150,12 +150,14 @@ class BackupSettingsActivity : AppCompatActivity() {
         }
 
         lifecycleScope.launch(Dispatchers.IO) {
-            val ok = WebDavBackupHelper.uploadSettings(this@BackupSettingsActivity, prefs)
+            val result = WebDavBackupHelper.uploadSettingsWithStatus(this@BackupSettingsActivity, prefs)
             withContext(Dispatchers.Main) {
-                if (ok) {
+                if (result is WebDavBackupHelper.UploadResult.Success) {
                     Toast.makeText(this@BackupSettingsActivity, getString(R.string.toast_webdav_upload_success), Toast.LENGTH_SHORT).show()
                 } else {
-                    Toast.makeText(this@BackupSettingsActivity, getString(R.string.toast_webdav_upload_failed, "HTTP"), Toast.LENGTH_SHORT).show()
+                    val error = (result as? WebDavBackupHelper.UploadResult.Error)
+                    val reason = buildWebdavErrorReason(error?.statusCode, error?.responsePhrase)
+                    Toast.makeText(this@BackupSettingsActivity, getString(R.string.toast_webdav_upload_failed, reason), Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -169,17 +171,44 @@ class BackupSettingsActivity : AppCompatActivity() {
         }
 
         lifecycleScope.launch(Dispatchers.IO) {
-            val text = WebDavBackupHelper.downloadSettings(prefs)
-            val ok = text != null && prefs.importJsonString(text)
+            val result = WebDavBackupHelper.downloadSettingsWithStatus(prefs)
+            var imported = false
+            var errorReason: String? = null
+
+            when (result) {
+                is WebDavBackupHelper.DownloadResult.Success -> {
+                    imported = prefs.importJsonString(result.json)
+                    if (!imported) {
+                        errorReason = getString(R.string.toast_import_failed)
+                    }
+                }
+                is WebDavBackupHelper.DownloadResult.NotFound -> {
+                    errorReason = getString(R.string.toast_webdav_backup_not_found)
+                }
+                is WebDavBackupHelper.DownloadResult.Error -> {
+                    errorReason = buildWebdavErrorReason(result.statusCode, result.responsePhrase)
+                }
+            }
+
             withContext(Dispatchers.Main) {
-                if (ok) {
+                if (imported) {
                     try { sendBroadcast(android.content.Intent(com.brycewg.asrkb.ime.AsrKeyboardService.ACTION_REFRESH_IME_UI)) } catch (e: Exception) { Log.e(TAG, "Failed to send refresh broadcast", e) }
                     Toast.makeText(this@BackupSettingsActivity, getString(R.string.toast_webdav_download_success), Toast.LENGTH_SHORT).show()
                 } else {
-                    Toast.makeText(this@BackupSettingsActivity, getString(R.string.toast_webdav_download_failed, getString(R.string.toast_import_failed)), Toast.LENGTH_SHORT).show()
+                    val reasonText = errorReason ?: getString(R.string.toast_import_failed)
+                    Toast.makeText(this@BackupSettingsActivity, getString(R.string.toast_webdav_download_failed, reasonText), Toast.LENGTH_SHORT).show()
                 }
             }
         }
+    }
+}
+
+private fun BackupSettingsActivity.buildWebdavErrorReason(statusCode: Int?, responsePhrase: String?): String {
+    return when {
+        statusCode != null && !responsePhrase.isNullOrBlank() -> "$statusCode $responsePhrase"
+        statusCode != null -> statusCode.toString()
+        !responsePhrase.isNullOrBlank() -> responsePhrase
+        else -> "HTTP"
     }
 }
 
