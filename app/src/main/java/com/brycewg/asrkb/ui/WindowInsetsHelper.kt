@@ -1,9 +1,12 @@
 package com.brycewg.asrkb.ui
 
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.res.Configuration
 import android.view.View
 import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
 import kotlin.math.max
@@ -34,8 +37,10 @@ object WindowInsetsHelper {
         )
 
         ViewCompat.setOnApplyWindowInsetsListener(rootView) { v, windowInsets ->
-            ViewCompat.getWindowInsetsController(v)?.isAppearanceLightStatusBars =
-                !isNightMode(v.context)
+            findActivity(v.context)?.window?.let { window ->
+                WindowCompat.getInsetsController(window, v).isAppearanceLightStatusBars =
+                    !isNightMode(v.context)
+            }
 
             val sysBars = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
             val ime = windowInsets.getInsets(WindowInsetsCompat.Type.ime())
@@ -99,6 +104,15 @@ object WindowInsetsHelper {
     private fun isNightMode(context: Context): Boolean {
         val nightMode = context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
         return nightMode == Configuration.UI_MODE_NIGHT_YES
+    }
+
+    private fun findActivity(context: Context): Activity? {
+        var ctx = context
+        while (ctx is ContextWrapper) {
+            if (ctx is Activity) return ctx
+            ctx = ctx.baseContext
+        }
+        return null
     }
 
     private data class Rect(
