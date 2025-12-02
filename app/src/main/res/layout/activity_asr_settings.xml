@@ -643,7 +643,8 @@
             android:stepSize="1" />
 
           <LinearLayout
-            style="@style/SettingsButtonRow.MarginTop12">
+            style="@style/SettingsButtonRow.MarginTop12"
+            android:baselineAligned="false">
 
             <com.google.android.material.button.MaterialButton
               android:id="@+id/btnSvDownloadModel"
@@ -664,6 +665,11 @@
             android:layout_marginTop="8dp"
             app:shapeAppearanceOverlay="@style/AsrkbShapeOverlayCapsule"
             android:text="@string/btn_sv_clear_model" />
+
+          <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnSvGuide"
+            style="@style/SettingsTonalButton"
+            android:text="@string/btn_local_model_guide" />
 
           <TextView
             android:id="@+id/tvSvDownloadStatus"
@@ -732,7 +738,8 @@
             android:text="@string/label_ts_pseudo_stream" />
 
           <LinearLayout
-            style="@style/SettingsButtonRow.MarginTop12">
+            style="@style/SettingsButtonRow.MarginTop12"
+            android:baselineAligned="false">
 
             <com.google.android.material.button.MaterialButton
               android:id="@+id/btnTsDownloadModel"
@@ -753,6 +760,11 @@
             android:layout_marginTop="8dp"
             app:shapeAppearanceOverlay="@style/AsrkbShapeOverlayCapsule"
             android:text="@string/btn_ts_clear_model" />
+
+          <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnTsGuide"
+            style="@style/SettingsTonalButton"
+            android:text="@string/btn_local_model_guide" />
 
           <TextView
             android:id="@+id/tvTsDownloadStatus"
@@ -810,7 +822,8 @@
             android:text="@string/sv_keep_alive_always" />
 
           <LinearLayout
-            style="@style/SettingsButtonRow.MarginTop12">
+            style="@style/SettingsButtonRow.MarginTop12"
+            android:baselineAligned="false">
 
             <com.google.android.material.button.MaterialButton
               android:id="@+id/btnPfDownloadModel"
@@ -831,6 +844,11 @@
             android:layout_marginTop="8dp"
             app:shapeAppearanceOverlay="@style/AsrkbShapeOverlayCapsule"
             android:text="@string/btn_pf_clear_model" />
+
+          <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnPfGuide"
+            style="@style/SettingsTonalButton"
+            android:text="@string/btn_local_model_guide" />
 
           <TextView
             android:id="@+id/tvPfDownloadStatus"
@@ -893,7 +911,8 @@
             android:text="@string/sv_keep_alive_always" />
 
           <LinearLayout
-            style="@style/SettingsButtonRow.MarginTop12">
+            style="@style/SettingsButtonRow.MarginTop12"
+            android:baselineAligned="false">
 
             <com.google.android.material.button.MaterialButton
               android:id="@+id/btnZfDownloadModel"
@@ -914,6 +933,11 @@
             android:layout_marginTop="8dp"
             app:shapeAppearanceOverlay="@style/AsrkbShapeOverlayCapsule"
             android:text="@string/btn_zf_clear_model" />
+
+          <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnZfGuide"
+            style="@style/SettingsTonalButton"
+            android:text="@string/btn_local_model_guide" />
 
           <TextView
             android:id="@+id/tvZfDownloadStatus"

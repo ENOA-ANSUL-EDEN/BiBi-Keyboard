@@ -144,6 +144,7 @@
   <string name="toast_setup_enable_keyboard_first">Enable the keyboard in system settings, then come back</string>
   <string name="toast_setup_choose_keyboard">Please select "LexiSharp Keyboard" as the current input method</string>
   <string name="btn_get_api_key_guide">View Configuration Guide</string>
+  <string name="btn_local_model_guide">View Configuration Guide</string>
 
   <!-- ============================================== -->
   <!-- Silence Auto-stop Settings -->

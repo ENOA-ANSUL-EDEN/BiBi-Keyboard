@@ -145,6 +145,7 @@
   <string name="toast_setup_enable_keyboard_first">システム設定でキーボードを有効にしてから戻ってください</string>
   <string name="toast_setup_choose_keyboard">現在の入力メソッドとして「LexiSharpキーボード」を選択してください</string>
   <string name="btn_get_api_key_guide">設定ガイドを表示</string>
+  <string name="btn_local_model_guide">設定ガイドを表示</string>
 
   <!-- ============================================== -->
   <!-- 录音判停设置 -->

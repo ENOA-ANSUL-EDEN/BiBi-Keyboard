@@ -144,6 +144,7 @@
   <string name="toast_setup_enable_keyboard_first">请在系统设置中启用键盘后返回</string>
   <string name="toast_setup_choose_keyboard">请选择"言犀键盘"为当前输入法</string>
   <string name="btn_get_api_key_guide">去查看配置教程</string>
+  <string name="btn_local_model_guide">去查看配置教程</string>
 
   <!-- ============================================== -->
   <!-- 录音判停设置 -->
