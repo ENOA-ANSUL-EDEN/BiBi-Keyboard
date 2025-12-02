@@ -199,6 +199,7 @@
   <string name="dialog_disable_usage_stats_title">利用統計を無効にしますか？</string>
   <string name="dialog_disable_usage_stats_message">統計データ（総文字数と集計）を削除し、新しい統計を記録しなくなります。この機能を無効にしてもよろしいですか？</string>
   <string name="btn_confirm">確認</string>
+  <string name="btn_skip_guide">今はスキップ、後で設定</string>
   <string name="toast_cleared_history">履歴を削除しました</string>
   <string name="toast_cleared_stats">統計を削除しました</string>
 

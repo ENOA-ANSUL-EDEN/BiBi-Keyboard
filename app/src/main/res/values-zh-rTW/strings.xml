@@ -198,6 +198,7 @@
   <string name="dialog_disable_usage_stats_title">確認關閉資料統計？</string>
   <string name="dialog_disable_usage_stats_message">關閉後將清除統計資料（總字數與使用統計），且不再記錄新的統計。是否確認關閉該功能？</string>
   <string name="btn_confirm">確認</string>
+  <string name="btn_skip_guide">暫時跳過，稍後設定</string>
   <string name="toast_cleared_history">已清除識別歷史</string>
   <string name="toast_cleared_stats">已清除統計資料</string>
 

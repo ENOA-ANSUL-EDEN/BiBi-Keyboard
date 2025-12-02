@@ -198,6 +198,7 @@
   <string name="dialog_disable_usage_stats_title">Disable usage statistics?</string>
   <string name="dialog_disable_usage_stats_message">This will clear statistics (total characters and aggregated stats) and stop recording new stats. Are you sure to disable this feature?</string>
   <string name="btn_confirm">Confirm</string>
+  <string name="btn_skip_guide">Skip for now, I\'ll configure later</string>
   <string name="toast_cleared_history">History cleared</string>
   <string name="toast_cleared_stats">Statistics cleared</string>
 

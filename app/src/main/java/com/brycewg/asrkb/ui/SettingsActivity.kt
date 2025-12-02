@@ -1016,7 +1016,16 @@ class SettingsActivity : AppCompatActivity() {
             cardOnline.isChecked = true
         }
 
-        val dialog = MaterialAlertDialogBuilder(this)
+        // 将 dialog 声明为 lateinit，以便跳过按钮能访问
+        lateinit var dialog: AlertDialog
+
+        // 跳过按钮点击事件
+        val btnSkip = dialogView.findViewById<com.google.android.material.button.MaterialButton>(R.id.btnSkipGuide)
+        btnSkip.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        dialog = MaterialAlertDialogBuilder(this)
             .setTitle(R.string.model_guide_title)
             .setMessage(R.string.model_guide_message)
             .setView(dialogView)
