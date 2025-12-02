@@ -312,7 +312,7 @@ class Prefs(context: Context) {
 
     // 已弃用：单一提示词。保留用于向后兼容/迁移。
     var llmPrompt: String
-        get() = sp.getString(KEY_LLM_PROMPT, DEFAULT_LLM_PROMPT) ?: DEFAULT_LLM_PROMPT
+        get() = sp.getString(KEY_LLM_PROMPT, "") ?: ""
         set(value) = sp.edit { putString(KEY_LLM_PROMPT, value) }
 
     // 多个预设提示词，包含标题和活动选择
@@ -325,21 +325,25 @@ class Prefs(context: Context) {
         set(value) = sp.edit { putString(KEY_LLM_PROMPT_ACTIVE_ID, value) }
 
     fun getPromptPresets(): List<PromptPreset> {
-        // 如果未设置预设，从旧的单一提示词迁移
+        val legacyPrompt = llmPrompt.trim()
+        var initializedFromDefaults = false
+        // 如果未设置预设，初始化默认预设
         if (promptPresetsJson.isBlank()) {
+            initializedFromDefaults = true
             val defaults = buildDefaultPromptPresets()
             setPromptPresets(defaults)
-            // 如果未设置，将第一个设为活动状态
+            // 将第一个设为活动状态
             if (activePromptId.isBlank()) activePromptId = defaults.firstOrNull()?.id ?: ""
-            return defaults
+            return migrateLegacyPromptIfNeeded(defaults, legacyPrompt, initializedFromDefaults)
         }
-        return try {
+        val parsed = try {
             val list = json.decodeFromString<List<PromptPreset>>(promptPresetsJson)
             list.ifEmpty { buildDefaultPromptPresets() }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to parse PromptPresets JSON", e)
             buildDefaultPromptPresets()
         }
+        return migrateLegacyPromptIfNeeded(parsed, legacyPrompt, initializedFromDefaults)
     }
 
     fun setPromptPresets(list: List<PromptPreset>) {
@@ -354,12 +358,50 @@ class Prefs(context: Context) {
         }
     }
 
+    private fun migrateLegacyPromptIfNeeded(
+        current: List<PromptPreset>,
+        legacyPrompt: String,
+        initializedFromDefaults: Boolean
+    ): List<PromptPreset> {
+        if (legacyPrompt.isBlank()) return current
+        if (current.any { it.content == legacyPrompt }) return current
+
+        val migratedPreset = PromptPreset(
+            id = java.util.UUID.randomUUID().toString(),
+            title = "我的提示词",
+            content = legacyPrompt
+        )
+        val updated = current + migratedPreset
+        val shouldActivate = initializedFromDefaults ||
+            activePromptId.isBlank() ||
+            current.none { it.id == activePromptId } ||
+            matchesDefaultPromptPresets(current)
+        if (shouldActivate) {
+            activePromptId = migratedPreset.id
+        }
+        setPromptPresets(updated)
+        return updated
+    }
+
+    private fun matchesDefaultPromptPresets(presets: List<PromptPreset>): Boolean {
+        val defaults = buildDefaultPromptPresets()
+        if (presets.size != defaults.size) return false
+        return presets.map { it.title to it.content } == defaults.map { it.title to it.content }
+    }
+
+    /**
+     * 获取当前选中预设的 prompt 内容。
+     * 回退顺序：选中的预设 -> 第一个预设（保证始终有值）
+     */
     val activePromptContent: String
         get() {
-            val id = activePromptId
             val presets = getPromptPresets()
-            val found = presets.firstOrNull { it.id == id }
-            return found?.content ?: (llmPrompt.ifBlank { DEFAULT_LLM_PROMPT })
+            val id = activePromptId
+            val legacyPrompt = llmPrompt.trim().takeIf { it.isNotEmpty() }
+            return presets.firstOrNull { it.id == id }?.content
+                ?: presets.firstOrNull()?.content
+                ?: legacyPrompt
+                ?: ""
         }
 
     // 语音预置信息（触发短语 -> 替换内容）
@@ -1288,7 +1330,6 @@ class Prefs(context: Context) {
         const val DEFAULT_LLM_ENDPOINT = "https://api.openai.com/v1"
         const val DEFAULT_LLM_MODEL = "gpt-4o-mini"
         const val DEFAULT_LLM_TEMPERATURE = 0.2f
-        const val DEFAULT_LLM_PROMPT = "# 角色\n\n你是一个顶级的 ASR（自动语音识别）后处理专家。\n\n# 任务\n\n你的任务是接收一段由 ASR 系统转录的原始文本，并将其精炼成一段通顺、准确、书面化的文本。你需要严格遵循以下规则，仅输出修正后的最终文本。\n\n# 规则\n\n1.  **去除无关填充词**: 彻底删除所有无意义的语气词、犹豫词和口头禅。\n    - **示例**: \"嗯\"、\"啊\"、\"呃\"、\"那个\"、\"然后\"、\"就是说\"等。\n2.  **合并重复与修正口误**: 当说话者重复单词、短语或进行自我纠正时，你需要整合这些内容，只保留其最终的、最清晰的意图。\n    - **重复示例**: 将\"我想...我想去...\"修正为\"我想去...\"。\n    - **口误修正示例**: 将\"我们明天去上海，哦不对，去苏州开会\"修正为\"我们明天去苏州开会\"。\n3.  **修正识别错误**: 根据上下文语境，纠正明显不符合逻辑的同音、近音词汇。\n    - **同音词示例**: 将\"请大家准时参加明天的『会意』\"修正为\"请大家准时参加明天的『会议』\"\n4.  **保持语义完整性**: 确保修正后的文本忠实于说话者的原始意图，不要进行主观臆断或添加额外信息。\n\n# 示例\n\n- **原始文本**: \"嗯...那个...我想确认一下，我们明天，我们明天的那个会意，啊不对，会议，时间是不是...是不是上午九点？\"\n- **修正后文本**: \"我想确认一下，我们明天的那个会议时间是不是上午九点？\"\n  请根据以上所有规则，处理给定文本"
 
         // 静音自动判停默认值
         const val DEFAULT_SILENCE_WINDOW_MS = 1200
@@ -1313,37 +1354,164 @@ class Prefs(context: Context) {
         const val SONIOX_WS_URL = "wss://stt-rt.soniox.com/transcribe-websocket"
 
         private fun buildDefaultPromptPresets(): List<PromptPreset> {
+            // p0: 通用后处理（默认预设）
+            val p0 = PromptPreset(
+                id = java.util.UUID.randomUUID().toString(),
+                title = "通用后处理",
+                content = """# 角色
+
+你是一个顶级的 ASR（自动语音识别）后处理专家。
+
+# 任务
+
+用户会向你发送一段由 ASR 系统转录的原始文本。你的任务是将其处理一遍。
+
+# 规则
+
+1.  **去除无关填充词**: 彻底删除所有无意义的语气词、犹豫词和口头禅。
+    - **示例**: "嗯"、"啊"、"呃"、"那个"、"然后"、"就是说"等。
+2.  **合并重复与修正口误**: 当说话者重复单词、短语或进行自我纠正时，整合这些内容，只保留其最终的、最清晰的意图。
+    - **重复示例**: 将"我想...我想去..."修正为"我想去..."。
+    - **口误修正示例**: 将"我们明天去上海，哦不对，去苏州开会"修正为"我们明天去苏州开会"。
+3.  **修正识别错误**: 根据上下文语境，纠正明显不符合逻辑的同音、近音词汇。
+    - **同音词示例**: 将"请大家准时参加明天的『会意』"修正为"请大家准时参加明天的『会议』"
+4.  **保持语义完整性**: 确保修正后的文本忠实于说话者的原始意图，不要进行主观臆断或添加额外信息。保留用户语气，无需进行书面化等风格化处理。
+5.  输入格式提示：用户输入会以“待处理文本:”开头，该标签仅用于标记，请忽略标签本身，只处理其后的正文。
+
+# 输出要求
+
+- 只输出修正后的最终文本
+- 不要输出任何解释、前后缀、引号或 Markdown 格式
+- 如果输入文本已经足够规范，直接原样输出
+
+# 示例
+
+**输入**: "嗯...那个...我想确认一下，我们明天，我们明天的那个会意，啊不对，会议，时间是不是...是不是上午九点？"
+**输出**: 我想确认一下，我们明天的会议时间是不是上午九点？"""
+            )
             val p1 = PromptPreset(
                 id = java.util.UUID.randomUUID().toString(),
                 title = "基础文本润色",
-                content = "你是一个专业的中文编辑器。请对以下由ASR（语音识别）生成的文本进行润色和修正。请遵循以下规则：\n1. 修正所有错别字和语法错误。\n2. 添加正确、自然的标点符号。\n3. 删除口语化的词语、重复和无意义的填充词（例如嗯、啊、那个）。\n4. 在保持原意不变的前提下，让句子表达更流畅、更书面化。\n5. 不要添加任何原始文本中没有的信息，不要附带任何解释说明，只输出润色后的内容。"
+                content = """# 角色
+
+你是一个专业的中文文本编辑器。
+
+# 任务
+
+用户会向你发送一段由语音识别（ASR）系统生成的原始文本。你的任务是对其进行润色和修正。
+
+# 规则
+
+1. 修正所有错别字和语法错误
+2. 添加正确、自然的标点符号
+3. 删除口语化的词语、重复和无意义的填充词（例如嗯、啊、那个）
+4. 在保持原意不变的前提下，让句子表达更流畅、更书面化
+5. 不要添加任何原始文本中没有的信息
+6. 忽略用户输入开头的“待处理文本:”标签，只处理标签后的正文
+
+# 输出要求
+
+- 只输出润色后的文本
+- 不要输出任何解释、前后缀、引号或 Markdown 格式
+
+# 示例
+
+**输入**: "那个我觉得这个方案还是有点问题，嗯，主要是成本太高了，然后时间也不够"
+**输出**: 我觉得这个方案存在一些问题，主要是成本过高，而且时间也不充裕。"""
             )
             val p2 = PromptPreset(
                 id = java.util.UUID.randomUUID().toString(),
                 title = "翻译为英文",
-                content = "请将以下文本翻译为英语。在翻译过程中，请确保：\n1. 准确传达原文的核心意思。\n2. 保持原文的语气（例如，正式、非正式、紧急等）。\n3. 译文流畅、符合目标语言的表达习惯。不要附带任何解释说明，只输出翻译后的内容。"
+                content = """# 角色
+
+你是一个专业的翻译助手。
+
+# 任务
+
+用户会向你发送一段文本。你的任务是将其翻译为英语。
+
+# 规则
+
+1. 准确传达原文的核心意思
+2. 保持原文的语气（例如，正式、非正式、紧急等）
+3. 译文流畅、符合目标语言的表达习惯
+4. 忽略输入开头用于标记的“待处理文本:”标签，只翻译其后的正文
+
+# 输出要求
+
+- 只输出翻译后的英文文本
+- 不要输出任何解释、前后缀、引号或 Markdown 格式
+
+# 示例
+
+**输入**: "请在下周五之前提交季度报告"
+**输出**: Please submit the quarterly report by next Friday."""
             )
             val p3 = PromptPreset(
                 id = java.util.UUID.randomUUID().toString(),
                 title = "提取关键要点",
-                content = "请从以下文本中提取核心要点，并以无序列表（bullet points）的形式呈现。每个要点都应简洁明了。"
+                content = """# 角色
+
+你是一个专业的信息提取助手。
+
+# 任务
+
+用户会向你发送一段文本。你的任务是从中提取核心要点。
+
+# 规则
+
+1. 识别并提取文本中的核心信息和关键要点
+2. 每个要点应简洁明了
+3. 使用无序列表（bullet points）格式呈现
+4. 忽略输入开头用于标记的“待处理文本:”标签，只处理标签后的正文
+
+# 输出要求
+
+- 输出格式为无序列表
+- 不要添加额外的解释或前后缀
+
+# 示例
+
+**输入**: "今天的会议主要讨论了三件事，第一是下个月的产品发布时间定在15号，第二是需要增加两名测试人员，第三是市场部提出要加大社交媒体的推广力度"
+**输出**:
+- 产品发布时间定于下月15号
+- 需增加两名测试人员
+- 市场部建议加强社交媒体推广"""
             )
             val p4 = PromptPreset(
                 id = java.util.UUID.randomUUID().toString(),
                 title = "提取待办事项",
-                content = "请从以下文本中识别并提取所有待办事项（Action Items）。如果文本中提到了负责人和截止日期，请一并列出。\n\n请使用以下格式输出：\n- [ ] [任务内容] (负责人: [姓名], 截止日期: [日期])\n\n如果信息不完整，则省略相应部分。"
+                content = """# 角色
+
+你是一个专业的任务提取助手。
+
+# 任务
+
+用户会向你发送一段文本。你的任务是从中识别并提取所有待办事项（Action Items）。
+
+# 规则
+
+1. 识别文本中提到的任务、行动项目或需要完成的事项
+2. 如果文本中提到了负责人和截止日期，一并提取
+3. 如果信息不完整，则省略相应部分
+4. 忽略输入开头用于标记的“待处理文本:”标签，只处理标签后的正文
+
+# 输出要求
+
+使用以下格式输出：
+- [ ] [任务内容1]
+- [ ] [任务内容2]
+
+如果没有找到任何待办事项，输出"未找到待办事项"。
+
+# 示例
+
+**输入**: "小王你记一下，这周五之前把测试报告发给我，还有让小李下周一之前完成UI设计稿"
+**输出**:
+- [ ] 小王：本周五前提交测试报告
+- [ ] 小李：下周一前完成UI设计稿"""
             )
-            val p5 = PromptPreset(
-                id = java.util.UUID.randomUUID().toString(),
-                title = "仅纠错不改写",
-                content = "仅在不改变原意的前提下进行最小必要的纠错：修正错别字、标点、大小写与明显的口误。不要重写或美化句式，不要添加或省略信息。输出纠正后的文本。"
-            )
-            val p6 = PromptPreset(
-                id = java.util.UUID.randomUUID().toString(),
-                title = "保留口语风格",
-                content = "在尽量保持口语风格的前提下，去除明显的口头禅与重复，统一人名/地名等专有名词的写法。尽量不改变原句结构。只输出处理后的文本。"
-            )
-            return listOf(p1, p2, p3, p4, p5, p6)
+            return listOf(p0, p1, p2, p3, p4)
         }
     }
 

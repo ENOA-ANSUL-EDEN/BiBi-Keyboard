@@ -362,8 +362,7 @@ class AiPostSettingsActivity : AppCompatActivity() {
 
         tvPromptPresets.text = (preset?.title ?: "").ifBlank { getString(R.string.untitled_preset) }
         etLlmPromptTitle.setTextIfDifferent(preset?.title ?: "")
-        etLlmPrompt.setTextIfDifferent(preset?.content ?: Prefs.DEFAULT_LLM_PROMPT)
-
+        etLlmPrompt.setTextIfDifferent(preset?.content ?: "")
         isUpdatingProgrammatically = false
     }
 
@@ -499,7 +498,7 @@ class AiPostSettingsActivity : AppCompatActivity() {
      */
     private fun handleAddPromptPreset() {
         val defaultTitle = getString(R.string.untitled_preset)
-        val defaultContent = Prefs.DEFAULT_LLM_PROMPT
+        val defaultContent = ""
         if (viewModel.addPromptPreset(prefs, defaultTitle, defaultContent)) {
             Toast.makeText(
                 this,

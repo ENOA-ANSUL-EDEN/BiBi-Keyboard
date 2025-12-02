@@ -65,6 +65,12 @@ class LlmPostProcessor(private val client: OkHttpClient? = null) {
   companion object {
     private const val TAG = "LlmPostProcessor"
     private const val DEFAULT_TIMEOUT_SECONDS = 30L
+
+    /**
+     * 用于包装用户输入文本的前缀。
+     * System prompt 应该已经独立完整，这个包装仅用于明确标识待处理内容。
+     */
+    private const val USER_INPUT_PREFIX = "待处理文本:\n"
   }
 
   /**
@@ -297,8 +303,11 @@ class LlmPostProcessor(private val client: OkHttpClient? = null) {
     }
   }
 
-    /**
+  /**
    * 与 process 等价，但返回是否成功及错误信息，便于 UI 反馈。
+   *
+   * 用户选择的 prompt 直接作为完整的 system prompt 使用，
+   * 待处理的文本统一放在 user prompt 中，使用简洁的包装格式。
    */
   suspend fun processWithStatus(
     input: String,
@@ -311,16 +320,17 @@ class LlmPostProcessor(private val client: OkHttpClient? = null) {
     }
 
     val config = getActiveConfig(prefs)
-    val prompt = (promptOverride ?: prefs.activePromptContent).ifBlank { Prefs.DEFAULT_LLM_PROMPT }
+    val systemPrompt = (promptOverride ?: prefs.activePromptContent)
+    val userContent = "$USER_INPUT_PREFIX$input"
 
     val messages = JSONArray().apply {
       put(JSONObject().apply {
         put("role", "system")
-        put("content", prompt)
+        put("content", systemPrompt)
       })
       put(JSONObject().apply {
         put("role", "user")
-        put("content", input)
+        put("content", userContent)
       })
     }
 
