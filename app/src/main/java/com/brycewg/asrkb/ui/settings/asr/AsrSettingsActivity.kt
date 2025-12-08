@@ -80,6 +80,7 @@ class AsrSettingsActivity : AppCompatActivity() {
     private lateinit var groupDash: View
     private lateinit var groupGemini: View
     private lateinit var groupSoniox: View
+    private lateinit var groupZhipu: View
     private lateinit var groupSenseVoice: View
     private lateinit var groupTelespeech: View
     private lateinit var groupParaformer: View
@@ -140,6 +141,7 @@ class AsrSettingsActivity : AppCompatActivity() {
         groupDash = findViewById(R.id.groupDashScope)
         groupGemini = findViewById(R.id.groupGemini)
         groupSoniox = findViewById(R.id.groupSoniox)
+        groupZhipu = findViewById(R.id.groupZhipu)
         groupSenseVoice = findViewById(R.id.groupSenseVoice)
         groupTelespeech = findViewById(R.id.groupTelespeech)
         groupParaformer = findViewById(R.id.groupParaformer)
@@ -219,6 +221,7 @@ class AsrSettingsActivity : AppCompatActivity() {
         setupDashScopeSettings()
         setupGeminiSettings()
         setupSonioxSettings()
+        setupZhipuSettings()
         setupSenseVoiceSettings()
         setupTelespeechSettings()
         setupParaformerSettings()
@@ -851,6 +854,28 @@ class AsrSettingsActivity : AppCompatActivity() {
                 }
                 .setNegativeButton(R.string.btn_cancel, null)
             builder.show()
+        }
+    }
+
+    private fun setupZhipuSettings() {
+        findViewById<EditText>(R.id.etZhipuApiKey).apply {
+            setText(prefs.zhipuApiKey)
+            bindString { prefs.zhipuApiKey = it }
+        }
+
+        findViewById<Slider>(R.id.sliderZhipuTemperature).apply {
+            value = prefs.zhipuTemperature.coerceIn(0f, 1f)
+            addOnChangeListener { _, value, fromUser ->
+                if (fromUser) {
+                    prefs.zhipuTemperature = value.coerceIn(0f, 1f)
+                }
+            }
+        }
+
+        // Key guide link
+        findViewById<com.google.android.material.button.MaterialButton>(R.id.btnZhipuGetKey).setOnClickListener { v ->
+            hapticTapIfEnabled(v)
+            openUrlSafely("https://bigmodel.cn/usercenter/proj-mgmt/apikeys")
         }
     }
 
@@ -1899,6 +1924,7 @@ class AsrSettingsActivity : AppCompatActivity() {
             AsrVendor.DashScope to groupDash,
             AsrVendor.Gemini to groupGemini,
             AsrVendor.Soniox to groupSoniox,
+            AsrVendor.Zhipu to groupZhipu,
             AsrVendor.SenseVoice to groupSenseVoice,
             AsrVendor.Telespeech to groupTelespeech,
             AsrVendor.Paraformer to groupParaformer,

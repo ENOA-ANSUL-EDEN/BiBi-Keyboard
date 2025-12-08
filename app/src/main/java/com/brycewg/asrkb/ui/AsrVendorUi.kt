@@ -17,6 +17,7 @@ object AsrVendorUi {
     AsrVendor.DashScope,
     AsrVendor.Gemini,
     AsrVendor.Soniox,
+    AsrVendor.Zhipu,
     AsrVendor.SenseVoice,
     AsrVendor.Telespeech,
     AsrVendor.Paraformer,
@@ -32,6 +33,7 @@ object AsrVendorUi {
     AsrVendor.DashScope -> context.getString(R.string.vendor_dashscope)
     AsrVendor.Gemini -> context.getString(R.string.vendor_gemini)
     AsrVendor.Soniox -> context.getString(R.string.vendor_soniox)
+    AsrVendor.Zhipu -> context.getString(R.string.vendor_zhipu)
     AsrVendor.SenseVoice -> context.getString(R.string.vendor_sensevoice)
     AsrVendor.Telespeech -> context.getString(R.string.vendor_telespeech)
     AsrVendor.Paraformer -> context.getString(R.string.vendor_paraformer)

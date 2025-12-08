@@ -178,6 +178,10 @@ class AsrSessionManager(
                 }
             } else null
 
+            AsrVendor.Zhipu -> if (prefs.hasZhipuKeys()) {
+                ZhipuFileAsrEngine(context, scope, prefs, this, ::onRequestDuration)
+            } else null
+
             AsrVendor.SenseVoice -> {
                 if (prefs.svPseudoStreamEnabled) {
                     // 本地 SenseVoice：伪流式模式（VAD 分片预览 + 整段离线识别）
@@ -239,6 +243,8 @@ class AsrSessionManager(
                 is SonioxStreamAsrEngine -> if (prefs.sonioxStreamingEnabled) current else null
                 else -> null
             }
+
+            AsrVendor.Zhipu -> if (current is ZhipuFileAsrEngine) current else null
 
             AsrVendor.SenseVoice -> when (current) {
                 is SenseVoicePseudoStreamAsrEngine -> if (prefs.svPseudoStreamEnabled) current else null

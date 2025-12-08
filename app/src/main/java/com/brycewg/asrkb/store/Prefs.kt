@@ -731,6 +731,14 @@ class Prefs(context: Context) {
     // Soniox：多语言提示（JSON 数组字符串），优先于单一字段
     var sonioxLanguagesJson: String by stringPref(KEY_SONIOX_LANGUAGES, "")
 
+    // 智谱 GLM ASR
+    var zhipuApiKey: String by stringPref(KEY_ZHIPU_API_KEY, "")
+
+    // 智谱 GLM：temperature 参数（0.0-1.0，默认 0.95）
+    var zhipuTemperature: Float
+        get() = sp.getFloat(KEY_ZHIPU_TEMPERATURE, DEFAULT_ZHIPU_TEMPERATURE).coerceIn(0f, 1f)
+        set(value) = sp.edit { putFloat(KEY_ZHIPU_TEMPERATURE, value.coerceIn(0f, 1f)) }
+
     fun getSonioxLanguages(): List<String> {
         val raw = sonioxLanguagesJson.trim()
         if (raw.isBlank()) {
@@ -955,6 +963,9 @@ class Prefs(context: Context) {
         AsrVendor.Soniox to listOf(
             VendorField(KEY_SONIOX_API_KEY, required = true)
         ),
+        AsrVendor.Zhipu to listOf(
+            VendorField(KEY_ZHIPU_API_KEY, required = true)
+        ),
         // 本地 SenseVoice（sherpa-onnx）无需鉴权
         AsrVendor.SenseVoice to emptyList(),
         // 本地 TeleSpeech（sherpa-onnx）无需鉴权
@@ -979,6 +990,7 @@ class Prefs(context: Context) {
     fun hasOpenAiKeys(): Boolean = hasVendorKeys(AsrVendor.OpenAI)
     fun hasGeminiKeys(): Boolean = hasVendorKeys(AsrVendor.Gemini)
     fun hasSonioxKeys(): Boolean = hasVendorKeys(AsrVendor.Soniox)
+    fun hasZhipuKeys(): Boolean = hasVendorKeys(AsrVendor.Zhipu)
     fun hasAsrKeys(): Boolean = hasVendorKeys(asrVendor)
     fun hasLlmKeys(): Boolean {
         // 使用新的 getEffectiveLlmConfig 检查配置有效性
@@ -1364,6 +1376,9 @@ class Prefs(context: Context) {
         private const val KEY_GEM_MODEL = "gem_model"
         private const val KEY_GEM_PROMPT = "gem_prompt"
         private const val KEY_GEMINI_DISABLE_THINKING = "gemini_disable_thinking"
+        // Zhipu GLM ASR
+        private const val KEY_ZHIPU_API_KEY = "zhipu_api_key"
+        private const val KEY_ZHIPU_TEMPERATURE = "zhipu_temperature"
         private const val KEY_VOLC_STREAMING_ENABLED = "volc_streaming_enabled"
         private const val KEY_VOLC_BIDI_STREAMING_ENABLED = "volc_bidi_streaming_enabled"
         private const val KEY_DASH_STREAMING_ENABLED = "dash_streaming_enabled"
@@ -1484,6 +1499,9 @@ class Prefs(context: Context) {
         // Gemini 默认
         const val DEFAULT_GEM_MODEL = "gemini-2.5-flash"
         const val DEFAULT_GEM_PROMPT = "请将以下音频逐字转写为文本，不要输出解释或前后缀。"
+
+        // Zhipu GLM ASR 默认
+        const val DEFAULT_ZHIPU_TEMPERATURE = 0.95f
 
         // 合理的OpenAI格式默认值
         const val DEFAULT_LLM_ENDPOINT = "https://api.openai.com/v1"

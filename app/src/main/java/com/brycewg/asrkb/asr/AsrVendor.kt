@@ -8,6 +8,7 @@ enum class AsrVendor(val id: String) {
     DashScope("dashscope"),
     Gemini("gemini"),
     Soniox("soniox"),
+    Zhipu("zhipu"),
     SenseVoice("sensevoice"),
     Telespeech("telespeech"),
     Paraformer("paraformer"),
@@ -21,6 +22,7 @@ enum class AsrVendor(val id: String) {
             DashScope.id -> DashScope
             Gemini.id -> Gemini
             Soniox.id -> Soniox
+            Zhipu.id -> Zhipu
             SenseVoice.id -> SenseVoice
             Telespeech.id -> Telespeech
             Paraformer.id -> Paraformer

@@ -471,6 +471,9 @@ class AsrSessionManager(
                     SonioxFileAsrEngine(context, serviceScope, prefs, this, onRequestDuration = ::onRequestDuration)
                 }
             } else null
+            AsrVendor.Zhipu -> if (prefs.hasZhipuKeys()) {
+                ZhipuFileAsrEngine(context, serviceScope, prefs, this, onRequestDuration = ::onRequestDuration)
+            } else null
             AsrVendor.SenseVoice -> {
                 if (prefs.svPseudoStreamEnabled) {
                     SenseVoicePseudoStreamAsrEngine(context, serviceScope, prefs, this, onRequestDuration = ::onRequestDuration)
