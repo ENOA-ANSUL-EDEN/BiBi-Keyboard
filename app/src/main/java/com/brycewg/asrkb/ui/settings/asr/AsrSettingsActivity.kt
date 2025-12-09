@@ -16,6 +16,7 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
+import com.brycewg.asrkb.ui.BaseActivity
 import androidx.lifecycle.lifecycleScope
 import com.brycewg.asrkb.R
 import com.brycewg.asrkb.asr.AsrVendor
@@ -43,7 +44,7 @@ import java.io.FileOutputStream
  * 4. Added proper logging to all catch blocks
  * 5. Vendor-specific settings organized in separate methods
  */
-class AsrSettingsActivity : AppCompatActivity() {
+class AsrSettingsActivity : BaseActivity() {
 
     private lateinit var viewModel: AsrSettingsViewModel
     private lateinit var prefs: Prefs

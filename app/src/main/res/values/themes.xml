@@ -3,8 +3,6 @@
     <style name="Theme.ASRKeyboard" parent="Theme.Material3.DayNight.NoActionBar">
         <!-- 确保键盘弹出时界面按键盘高度调整（避免输入框被遮挡） -->
         <item name="android:windowSoftInputMode">adjustResize</item>
-        <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:navigationBarColor">?attr/colorSurface</item>
         <!-- Android 12+ splash: explicit background + icon without Monet/dynamic tint -->
         <item name="android:windowSplashScreenBackground">@color/splash_background</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/logo_foreground</item>
@@ -12,8 +10,6 @@
     </style>
 
     <style name="Theme.ASRKeyboard.Ime" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="android:navigationBarColor">?attr/colorSurface</item>
-        <item name="android:statusBarColor">@android:color/transparent</item>
     </style>
 
     <style name="Theme.ASRKeyboard.Transparent" parent="Theme.Material3.DayNight.NoActionBar">

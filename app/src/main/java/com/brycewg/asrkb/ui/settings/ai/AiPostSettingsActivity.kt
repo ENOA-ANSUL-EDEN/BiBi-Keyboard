@@ -15,6 +15,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
+import com.brycewg.asrkb.ui.BaseActivity
 import androidx.lifecycle.lifecycleScope
 import com.brycewg.asrkb.R
 import com.brycewg.asrkb.asr.LlmPostProcessor
@@ -32,7 +33,7 @@ import kotlinx.coroutines.launch
  * Activity for configuring AI post-processing settings
  * Manages LLM vendors, providers and prompt presets with reactive UI updates
  */
-class AiPostSettingsActivity : AppCompatActivity() {
+class AiPostSettingsActivity : BaseActivity() {
 
     private lateinit var prefs: Prefs
     private lateinit var viewModel: AiPostSettingsViewModel

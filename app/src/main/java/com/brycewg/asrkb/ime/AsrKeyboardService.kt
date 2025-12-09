@@ -2752,6 +2752,8 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
     private fun syncSystemBarsToKeyboardBackground(anchorView: View? = null) {
         val w = window?.window ?: return
         val color = resolveKeyboardSurfaceColor(anchorView)
+        // IME 窗口需要显式设置导航栏颜色以匹配键盘背景
+        // 虽然 Android 15 弃用了此 API，但 IME 场景仍需使用以确保视觉一致性
         w.navigationBarColor = color
         val isLight = ColorUtils.calculateLuminance(color) > 0.5
         val controller = WindowInsetsControllerCompat(w, anchorView ?: w.decorView)

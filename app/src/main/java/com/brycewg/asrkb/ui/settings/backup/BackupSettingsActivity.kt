@@ -7,6 +7,7 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import com.brycewg.asrkb.ui.BaseActivity
 import com.brycewg.asrkb.R
 import com.brycewg.asrkb.store.Prefs
 import com.google.android.material.appbar.MaterialToolbar
@@ -24,7 +25,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-class BackupSettingsActivity : AppCompatActivity() {
+class BackupSettingsActivity : BaseActivity() {
     companion object {
         private const val TAG = "BackupSettingsActivity"
     }

@@ -61,7 +61,7 @@ import androidx.core.content.FileProvider
  * - 子设置页导航
  * - 测试输入体验
  */
-class SettingsActivity : AppCompatActivity() {
+class SettingsActivity : BaseActivity() {
     companion object {
         private const val TAG = "SettingsActivity"
         const val EXTRA_AUTO_SHOW_IME_PICKER = "extra_auto_show_ime_picker"

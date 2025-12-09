@@ -6,6 +6,7 @@ import android.provider.Settings
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.net.toUri
+import com.brycewg.asrkb.ui.BaseActivity
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import com.brycewg.asrkb.R
@@ -24,7 +25,7 @@ import android.view.View
 import android.util.Log
 import kotlinx.coroutines.launch
 
-class FloatingSettingsActivity : AppCompatActivity() {
+class FloatingSettingsActivity : BaseActivity() {
 
     companion object {
         private const val TAG = "FloatingSettingsActivity"

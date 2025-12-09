@@ -12,6 +12,7 @@ import android.widget.Toast
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import com.brycewg.asrkb.ui.BaseActivity
 import com.brycewg.asrkb.R
 import com.brycewg.asrkb.store.Prefs
 import com.brycewg.asrkb.ui.installExplainedSwitch
@@ -22,7 +23,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class OtherSettingsActivity : AppCompatActivity() {
+class OtherSettingsActivity : BaseActivity() {
 
     companion object {
         private const val TAG = "OtherSettingsActivity"

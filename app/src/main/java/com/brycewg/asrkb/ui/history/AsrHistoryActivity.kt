@@ -18,6 +18,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.DiffUtil
+import com.brycewg.asrkb.ui.BaseActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.brycewg.asrkb.R
@@ -41,7 +42,7 @@ import java.util.Locale
  * - 单条一键复制
  * - 分组：2小时内/今天/近一周/近一个月/更早
  */
-class AsrHistoryActivity : AppCompatActivity() {
+class AsrHistoryActivity : BaseActivity() {
   companion object {
     private const val TAG = "AsrHistoryActivity"
   }
