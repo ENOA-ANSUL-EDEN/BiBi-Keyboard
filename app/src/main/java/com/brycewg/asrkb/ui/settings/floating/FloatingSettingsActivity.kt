@@ -35,6 +35,10 @@ class FloatingSettingsActivity : BaseActivity() {
     private lateinit var serviceManager: FloatingServiceManager
     private lateinit var prefs: Prefs
 
+    // 用户在缺少权限时尝试开启 ASR 悬浮球的“待处理”状态
+    private var pendingAsrEnable: Boolean = false
+    private var pendingAsrPermission: FloatingSettingsViewModel.PermissionRequest? = null
+
     // UI 组件
     private lateinit var switchFloatingOnlyWhenImeVisible: MaterialSwitch
     private lateinit var sliderFloatingAlpha: Slider
@@ -77,6 +81,11 @@ class FloatingSettingsActivity : BaseActivity() {
 
         // 设置监听器
         setupListeners()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        syncAsrToggleAfterPermissions()
     }
 
     /**
@@ -233,16 +242,24 @@ class FloatingSettingsActivity : BaseActivity() {
                 val permissionRequest = viewModel.handleAsrToggle(this, target, serviceManager)
                 when (permissionRequest) {
                     FloatingSettingsViewModel.PermissionRequest.OVERLAY -> {
+                        pendingAsrEnable = true
+                        pendingAsrPermission = permissionRequest
                         showOverlayPermissionToast()
                         requestOverlayPermission()
                         false // 阻止切换
                     }
                     FloatingSettingsViewModel.PermissionRequest.ACCESSIBILITY -> {
+                        pendingAsrEnable = true
+                        pendingAsrPermission = permissionRequest
                         showAccessibilityPermissionToast()
                         requestAccessibilityPermission()
                         false // 阻止切换
                     }
-                    null -> true // 权限已授予，允许切换
+                    null -> {
+                        pendingAsrEnable = false
+                        pendingAsrPermission = null
+                        true // 权限已授予，允许切换
+                    }
                 }
             },
             onChanged = { enabled ->
@@ -368,6 +385,44 @@ class FloatingSettingsActivity : BaseActivity() {
             startActivity(intent)
         } catch (e: Throwable) {
             Log.e(TAG, "Failed to request accessibility permission", e)
+        }
+    }
+
+    /**
+     * 从权限页返回后：
+     * 1) 若用户之前尝试开启 ASR 悬浮球，则在权限齐全时自动完成开启；
+     * 2) 若开关显示开启但权限被撤销，则自动回退为关闭，避免 UI/真实状态不一致。
+     */
+    private fun syncAsrToggleAfterPermissions() {
+        if (pendingAsrEnable) {
+            val hasOverlay = Settings.canDrawOverlays(this)
+            val hasA11y = viewModel.isAccessibilityServiceEnabled(this)
+
+            if (hasOverlay && hasA11y) {
+                pendingAsrEnable = false
+                pendingAsrPermission = null
+                viewModel.handleAsrToggle(this, true, serviceManager)
+                return
+            }
+
+            // overlay 已授予且之前是 overlay 阶段触发的请求，则自动进入无障碍授权
+            if (hasOverlay && !hasA11y &&
+                pendingAsrPermission == FloatingSettingsViewModel.PermissionRequest.OVERLAY) {
+                pendingAsrPermission = FloatingSettingsViewModel.PermissionRequest.ACCESSIBILITY
+                showAccessibilityPermissionToast()
+                requestAccessibilityPermission()
+            }
+            return
+        }
+
+        // 同步现有开关状态与权限：权限不足时自动关闭
+        val desiredEnabled = prefs.floatingAsrEnabled
+        if (desiredEnabled) {
+            val hasOverlay = Settings.canDrawOverlays(this)
+            val hasA11y = viewModel.isAccessibilityServiceEnabled(this)
+            if (!hasOverlay || !hasA11y) {
+                viewModel.handleAsrToggle(this, false, serviceManager)
+            }
         }
     }
 

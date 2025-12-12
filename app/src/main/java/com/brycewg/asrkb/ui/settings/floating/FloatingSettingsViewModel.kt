@@ -68,21 +68,21 @@ class FloatingSettingsViewModel : ViewModel() {
         try {
             val prefs = Prefs(context)
 
-            // 检查悬浮窗权限
-            if (enabled && !Settings.canDrawOverlays(context)) {
-                Log.w(TAG, "ASR toggle: missing overlay permission")
-                _asrEnabled.value = false
-                prefs.floatingAsrEnabled = false
-                return PermissionRequest.OVERLAY
+            if (enabled) {
+                // 检查悬浮窗权限
+                if (!Settings.canDrawOverlays(context)) {
+                    Log.w(TAG, "ASR toggle: missing overlay permission")
+                    return PermissionRequest.OVERLAY
+                }
+
+                // 检查无障碍权限
+                if (!isAccessibilityServiceEnabled(context)) {
+                    Log.w(TAG, "ASR toggle: missing accessibility permission")
+                    return PermissionRequest.ACCESSIBILITY
+                }
             }
 
-            // 检查无障碍权限
-            if (enabled && !isAccessibilityServiceEnabled(context)) {
-                Log.w(TAG, "ASR toggle: missing accessibility permission")
-                return PermissionRequest.ACCESSIBILITY
-            }
-
-            // 更新状态
+            // 权限齐全（或正在关闭）后再更新状态，避免 preCheck 阶段产生副作用
             _asrEnabled.value = enabled
             prefs.floatingAsrEnabled = enabled
 
@@ -111,14 +111,14 @@ class FloatingSettingsViewModel : ViewModel() {
     ): PermissionRequest? {
         try {
             val prefs = Prefs(context)
-            _onlyWhenImeVisible.value = enabled
-            prefs.floatingSwitcherOnlyWhenImeVisible = enabled
-
-            // 如果启用且缺少无障碍权限，需要提示
+            // 启用该策略时需要无障碍权限；缺失时只返回请求，不修改状态
             if (enabled && !isAccessibilityServiceEnabled(context)) {
                 Log.w(TAG, "OnlyWhenImeVisible enabled but accessibility not granted")
                 return PermissionRequest.ACCESSIBILITY
             }
+
+            _onlyWhenImeVisible.value = enabled
+            prefs.floatingSwitcherOnlyWhenImeVisible = enabled
 
             // 刷新服务显示状态
             serviceManager.refreshAsrService(_asrEnabled.value)
@@ -256,7 +256,7 @@ class FloatingSettingsViewModel : ViewModel() {
     /**
      * 检查无障碍服务是否已启用
      */
-    private fun isAccessibilityServiceEnabled(context: Context): Boolean {
+    fun isAccessibilityServiceEnabled(context: Context): Boolean {
         val expectedComponentName = "${context.packageName}/com.brycewg.asrkb.ui.AsrAccessibilityService"
         val enabledServicesSetting = try {
             Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
