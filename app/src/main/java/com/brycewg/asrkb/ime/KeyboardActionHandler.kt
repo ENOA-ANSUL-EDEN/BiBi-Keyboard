@@ -9,6 +9,7 @@ import com.brycewg.asrkb.asr.LlmPostProcessor
 import com.brycewg.asrkb.asr.AsrTimeoutCalculator
 import com.brycewg.asrkb.util.TextSanitizer
 import com.brycewg.asrkb.store.Prefs
+import com.brycewg.asrkb.analytics.AnalyticsManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
@@ -1217,15 +1218,26 @@ class KeyboardActionHandler(
 
         // 统计字数 & 记录使用统计/历史（尊重“关闭识别历史/统计”开关）
         try {
+            val chars = TextSanitizer.countEffectiveChars(finalOut)
             if (!prefs.disableUsageStats) {
-                prefs.addAsrChars(TextSanitizer.countEffectiveChars(finalOut))
+                prefs.addAsrChars(chars)
             }
             // 记录使用统计（IME）
             try {
                 val audioMs = asrManager.popLastAudioMsForStats()
                 val procMs = asrManager.getLastRequestDuration() ?: 0L
+                val aiUsed = (res.usedAi && res.ok)
+                AnalyticsManager.recordAsrEvent(
+                    context = context,
+                    vendorId = prefs.asrVendor.id,
+                    audioMs = audioMs,
+                    procMs = procMs,
+                    source = "ime",
+                    aiProcessed = aiUsed,
+                    charCount = chars
+                )
                 if (!prefs.disableUsageStats) {
-                    prefs.recordUsageCommit("ime", prefs.asrVendor, audioMs, TextSanitizer.countEffectiveChars(finalOut), procMs)
+                    prefs.recordUsageCommit("ime", prefs.asrVendor, audioMs, chars, procMs)
                 }
                 // 写入历史记录（AI 后处理：以实际“是否使用 AI 输出”记录）
                 if (!prefs.disableAsrHistory) {
@@ -1239,8 +1251,8 @@ class KeyboardActionHandler(
                                 audioMs = audioMs,
                                 procMs = procMs,
                                 source = "ime",
-                                aiProcessed = (res.usedAi && res.ok),
-                                charCount = TextSanitizer.countEffectiveChars(finalOut)
+                                aiProcessed = aiUsed,
+                                charCount = chars
                             )
                         )
                     } catch (e: Exception) {
@@ -1342,8 +1354,18 @@ class KeyboardActionHandler(
             try {
                 val audioMs = asrManager.popLastAudioMsForStats()
                 val procMs = asrManager.getLastRequestDuration() ?: 0L
+                val chars = TextSanitizer.countEffectiveChars(finalToCommit)
+                AnalyticsManager.recordAsrEvent(
+                    context = context,
+                    vendorId = prefs.asrVendor.id,
+                    audioMs = audioMs,
+                    procMs = procMs,
+                    source = "ime",
+                    aiProcessed = false,
+                    charCount = chars
+                )
                 if (!prefs.disableUsageStats) {
-                    prefs.recordUsageCommit("ime", prefs.asrVendor, audioMs, TextSanitizer.countEffectiveChars(finalToCommit), procMs)
+                    prefs.recordUsageCommit("ime", prefs.asrVendor, audioMs, chars, procMs)
                 }
                 // 写入历史记录（无 AI 后处理）
                 if (!prefs.disableAsrHistory) {
@@ -1358,7 +1380,7 @@ class KeyboardActionHandler(
                                 procMs = procMs,
                                 source = "ime",
                                 aiProcessed = false,
-                                charCount = TextSanitizer.countEffectiveChars(finalToCommit)
+                                charCount = chars
                             )
                         )
                     } catch (e: Exception) {

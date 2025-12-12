@@ -194,6 +194,7 @@
   <string name="section_data_retention">記錄留痕</string>
   <string name="label_disable_asr_history">關閉識別歷史記錄</string>
   <string name="label_disable_usage_stats">關閉資料統計記錄</string>
+  <string name="label_data_collection">匿名使用資料收集</string>
   <string name="dialog_disable_asr_history_title">確認關閉識別歷史？</string>
   <string name="dialog_disable_asr_history_message">關閉後將清除歷史記錄，且不再保存新的識別歷史。是否確認關閉該功能？</string>
   <string name="dialog_disable_usage_stats_title">確認關閉資料統計？</string>
@@ -270,6 +271,16 @@
   <!-- 關閉資料統計 -->
   <string name="feature_disable_usage_stats_off_desc">使用統計（總字元數和彙總資料）將被收集以供你參考。</string>
   <string name="feature_disable_usage_stats_on_desc">使用統計將不會被收集。啟用此選項將清除所有現有統計資料。用於保護你的隱私。</string>
+
+  <!-- 匿名使用資料收集 -->
+  <string name="feature_data_collection_off_desc">不會上傳任何匿名使用資料。</string>
+  <string name="feature_data_collection_on_desc">會每天隨機一次上傳匿名使用資料（應用版本、安裝渠道、初次使用時間、Android 版本（SDK）、裝置型號、識別事件中繼資料、介面語言、啟動次數等），不包含識別文字或任何個人內容。</string>
+
+  <!-- 匿名資料收集同意彈窗 -->
+  <string name="title_data_collection_consent">匿名資料收集說明</string>
+  <string name="msg_data_collection_consent">為了改進說點啥的體驗，我們希望收集少量匿名使用資料，包括：應用版本、安裝渠道、初次使用時間、Android 版本（SDK）、裝置型號、語音識別事件中繼資料（供應商、音訊時長、處理耗時、字數、來源渠道、是否使用 AI 後處理）、應用介面語言，以及應用啟動次數。不會上傳識別文字或任何個人資訊。相關收集與上報程式碼已開源。是否同意開啟？</string>
+  <string name="btn_agree">同意</string>
+  <string name="btn_disagree">暫不</string>
 
   <!-- ============================================== -->
   <!-- Pro 版宣傳 -->

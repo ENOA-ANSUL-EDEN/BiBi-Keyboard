@@ -15,6 +15,7 @@ import androidx.lifecycle.lifecycleScope
 import com.brycewg.asrkb.ui.BaseActivity
 import com.brycewg.asrkb.R
 import com.brycewg.asrkb.store.Prefs
+import com.brycewg.asrkb.analytics.AnalyticsManager
 import com.brycewg.asrkb.ui.installExplainedSwitch
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.materialswitch.MaterialSwitch
@@ -66,10 +67,12 @@ class OtherSettingsActivity : BaseActivity() {
     private fun setupPrivacyToggles() {
         val swDisableHistory = findViewById<MaterialSwitch>(R.id.switchDisableAsrHistory)
         val swDisableStats = findViewById<MaterialSwitch>(R.id.switchDisableUsageStats)
+        val swDataCollection = findViewById<MaterialSwitch>(R.id.switchDataCollection)
 
         // 初始化状态
         swDisableHistory.isChecked = prefs.disableAsrHistory
         swDisableStats.isChecked = prefs.disableUsageStats
+        swDataCollection.isChecked = prefs.dataCollectionEnabled
 
         // 关闭识别历史记录
         swDisableHistory.installExplainedSwitch(
@@ -127,6 +130,32 @@ class OtherSettingsActivity : BaseActivity() {
                         Toast.makeText(this, R.string.toast_cleared_stats, Toast.LENGTH_SHORT).show()
                     } catch (e: Throwable) {
                         Log.e(TAG, "Failed to reset usage stats", e)
+                    }
+                }
+            },
+            hapticFeedback = { hapticTapIfEnabled(it) }
+        )
+
+        // 匿名使用数据采集（PocketBase）
+        swDataCollection.installExplainedSwitch(
+            context = this,
+            titleRes = R.string.label_data_collection,
+            offDescRes = R.string.feature_data_collection_off_desc,
+            onDescRes = R.string.feature_data_collection_on_desc,
+            preferenceKey = "data_collection_explained",
+            readPref = { prefs.dataCollectionEnabled },
+            writePref = { v -> prefs.dataCollectionEnabled = v },
+            onChanged = { enabled ->
+                try {
+                    AnalyticsManager.sendConsentChoice(this, enabled)
+                } catch (t: Throwable) {
+                    Log.w(TAG, "Failed to send consent choice from settings", t)
+                }
+                if (enabled) {
+                    try {
+                        AnalyticsManager.init(this)
+                    } catch (t: Throwable) {
+                        Log.w(TAG, "Failed to init analytics after enabling", t)
                     }
                 }
             },

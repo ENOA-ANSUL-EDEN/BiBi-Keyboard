@@ -12,6 +12,7 @@ import android.util.Log
 import androidx.core.content.ContextCompat
 import com.brycewg.asrkb.aidl.SpeechConfig
 import com.brycewg.asrkb.asr.*
+import com.brycewg.asrkb.analytics.AnalyticsManager
 import com.brycewg.asrkb.store.Prefs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -498,6 +499,15 @@ class ExternalSpeechService : Service() {
                         val audioMs = lastAudioMsForStats
                         val procMs = lastRequestDurationMs ?: 0L
                         val chars = try { com.brycewg.asrkb.util.TextSanitizer.countEffectiveChars(out) } catch (_: Throwable) { out.length }
+                        AnalyticsManager.recordAsrEvent(
+                            context = context,
+                            vendorId = prefs.asrVendor.id,
+                            audioMs = audioMs,
+                            procMs = procMs,
+                            source = "ime",
+                            aiProcessed = usedAi,
+                            charCount = chars
+                        )
                         if (!prefs.disableUsageStats) {
                             prefs.recordUsageCommit("ime", prefs.asrVendor, audioMs, chars, procMs)
                         }
@@ -536,6 +546,15 @@ class ExternalSpeechService : Service() {
                     val audioMs = lastAudioMsForStats
                     val procMs = lastRequestDurationMs ?: 0L
                     val chars = try { com.brycewg.asrkb.util.TextSanitizer.countEffectiveChars(out) } catch (_: Throwable) { out.length }
+                    AnalyticsManager.recordAsrEvent(
+                        context = context,
+                        vendorId = prefs.asrVendor.id,
+                        audioMs = audioMs,
+                        procMs = procMs,
+                        source = "ime",
+                        aiProcessed = false,
+                        charCount = chars
+                    )
                     if (!prefs.disableUsageStats) {
                         prefs.recordUsageCommit("ime", prefs.asrVendor, audioMs, chars, procMs)
                     }

@@ -6,12 +6,14 @@ import android.app.ActivityManager
 import android.os.Bundle
 import android.content.Intent
 import android.provider.Settings
+import android.util.Log
 import com.google.android.material.color.DynamicColors
 import com.brycewg.asrkb.store.Prefs
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import com.brycewg.asrkb.ui.floating.FloatingAsrService
 import com.brycewg.asrkb.asr.VadDetector
+import com.brycewg.asrkb.analytics.AnalyticsManager
 
 class App : Application() {
     override fun onCreate() {
@@ -30,7 +32,16 @@ class App : Application() {
             if (normalized != tag) prefs.appLanguageTag = normalized
             val locales = if (normalized.isBlank()) LocaleListCompat.getEmptyLocaleList() else LocaleListCompat.forLanguageTags(normalized)
             AppCompatDelegate.setApplicationLocales(locales)
-        } catch (_: Throwable) { }
+        } catch (t: Throwable) {
+            Log.w("App", "Failed to apply app locales", t)
+        }
+
+        // 初始化匿名统计（不影响正常识别流程）
+        try {
+            AnalyticsManager.init(this)
+        } catch (t: Throwable) {
+            Log.w("App", "Analytics init failed", t)
+        }
 
         // 若用户在设置中启用了悬浮球且已授予悬浮窗权限，则启动悬浮球服务
         try {
@@ -44,7 +55,9 @@ class App : Application() {
                 }
                 startService(intent)
             }
-        } catch (_: Throwable) { }
+        } catch (t: Throwable) {
+            Log.w("App", "Failed to start overlay services", t)
+        }
 
         // 预加载 VAD：仅当已开启“静音自动停止”时，避免首次录音时的模型加载延迟
         try {
@@ -52,7 +65,9 @@ class App : Application() {
             if (prefs.autoStopOnSilenceEnabled) {
                 VadDetector.preload(this, 16000, prefs.autoStopSilenceSensitivity)
             }
-        } catch (_: Throwable) { }
+        } catch (t: Throwable) {
+            Log.w("App", "Failed to preload VAD", t)
+        }
 
 
         // 根据设置将任务从最近任务中排除/恢复
@@ -70,7 +85,9 @@ class App : Application() {
                 override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
                 override fun onActivityDestroyed(activity: Activity) {}
             })
-        } catch (_: Throwable) { }
+        } catch (t: Throwable) {
+            Log.w("App", "Failed to register lifecycle callbacks", t)
+        }
     }
 
     private fun applyExcludeFromRecents(activity: Activity) {
@@ -78,6 +95,8 @@ class App : Application() {
             val enabled = Prefs(activity).hideRecentTaskCard
             val am = activity.getSystemService(ACTIVITY_SERVICE) as ActivityManager
             am.appTasks?.forEach { it.setExcludeFromRecents(enabled) }
-        } catch (_: Throwable) { }
+        } catch (t: Throwable) {
+            Log.w("App", "Failed to apply exclude from recents", t)
+        }
     }
 }

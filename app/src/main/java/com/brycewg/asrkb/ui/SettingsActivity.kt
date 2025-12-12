@@ -39,6 +39,7 @@ import com.brycewg.asrkb.ui.settings.ai.AiPostSettingsActivity
 import com.brycewg.asrkb.ui.settings.other.OtherSettingsActivity
 import com.brycewg.asrkb.ui.settings.floating.FloatingSettingsActivity
 import com.brycewg.asrkb.ui.settings.backup.BackupSettingsActivity
+import com.brycewg.asrkb.analytics.AnalyticsManager
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
@@ -142,6 +143,9 @@ class SettingsActivity : BaseActivity() {
 
         // 版本升级后显示 Pro 版宣传弹窗（仅显示一次，且不与其他引导弹窗冲突）
         maybeShowProPromoOnUpgrade()
+
+        // 版本升级后首次进入设置，显示匿名数据采集同意弹窗（仅一次）
+        maybeShowDataCollectionConsentOnUpgrade()
     }
 
     /**
@@ -1039,6 +1043,64 @@ class SettingsActivity : BaseActivity() {
         } catch (t: Throwable) {
             Log.w(TAG, "Failed to check Pro promo", t)
         }
+    }
+
+    /**
+     * 版本升级后首次进入设置时显示匿名数据采集同意弹窗（仅显示一次）。
+     */
+    private fun maybeShowDataCollectionConsentOnUpgrade() {
+        try {
+            val prefs = Prefs(this)
+            if (prefs.dataCollectionConsentShown) return
+            if (!prefs.hasShownQuickGuideOnce || !prefs.hasShownModelGuideOnce) return
+
+            handler.postDelayed({
+                try {
+                    showDataCollectionConsentDialog()
+                } catch (t: Throwable) {
+                    Log.w(TAG, "Failed to show data collection consent dialog", t)
+                }
+            }, 700L)
+        } catch (t: Throwable) {
+            Log.w(TAG, "Failed to maybe show data collection consent", t)
+        }
+    }
+
+    private fun showDataCollectionConsentDialog() {
+        val prefs = Prefs(this)
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.title_data_collection_consent)
+            .setMessage(R.string.msg_data_collection_consent)
+            .setPositiveButton(R.string.btn_agree) { d, _ ->
+                prefs.dataCollectionConsentShown = true
+                prefs.dataCollectionEnabled = true
+                try {
+                    AnalyticsManager.init(this)
+                } catch (t: Throwable) {
+                    Log.w(TAG, "Failed to init analytics after consent", t)
+                }
+                try {
+                    AnalyticsManager.sendConsentChoice(this, true)
+                } catch (t: Throwable) {
+                    Log.w(TAG, "Failed to send consent choice (agree)", t)
+                }
+                d.dismiss()
+            }
+            .setNegativeButton(R.string.btn_disagree) { d, _ ->
+                prefs.dataCollectionConsentShown = true
+                prefs.dataCollectionEnabled = false
+                try {
+                    AnalyticsManager.sendConsentChoice(this, false)
+                } catch (t: Throwable) {
+                    Log.w(TAG, "Failed to send consent choice (disagree)", t)
+                }
+                d.dismiss()
+            }
+            .setCancelable(false)
+            .create()
+
+        dialog.setCanceledOnTouchOutside(false)
+        dialog.show()
     }
 
     /**

@@ -22,6 +22,10 @@ android {
 
         // 从环境变量注入免费服务内置 API Key（GitHub Secrets）
         buildConfigField("String", "SF_FREE_API_KEY", "\"${System.getenv("SF_FREE_API_KEY") ?: ""}\"")
+
+        // 从环境变量注入 PocketBase 地址
+        val pbBaseUrl = System.getenv("POCKETBASE_BASE_URL") ?: ""
+        resValue("string", "pocketbase_base_url", pbBaseUrl)
     }
 
     signingConfigs {

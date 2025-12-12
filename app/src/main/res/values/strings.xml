@@ -3,6 +3,8 @@
   <!-- Basic Information -->
   <!-- ============================================== -->
   <string name="app_name">BiBi Keyboard</string>
+  <!-- PocketBase 统计服务地址（渠道可覆盖）；为空则不上报 -->
+  <string name="pocketbase_base_url" translatable="false"></string>
 
   <!-- ============================================== -->
   <!-- Keyboard Status Information -->
@@ -194,6 +196,7 @@
   <string name="section_data_retention">Data Retention</string>
   <string name="label_disable_asr_history">Disable ASR history</string>
   <string name="label_disable_usage_stats">Disable usage statistics</string>
+  <string name="label_data_collection">Anonymous data collection</string>
   <string name="dialog_disable_asr_history_title">Disable ASR history?</string>
   <string name="dialog_disable_asr_history_message">This will clear existing history and stop saving new ASR history. Are you sure to disable this feature?</string>
   <string name="dialog_disable_usage_stats_title">Disable usage statistics?</string>
@@ -270,6 +273,16 @@
   <!-- Disable usage statistics -->
   <string name="feature_disable_usage_stats_off_desc">Usage statistics (total characters and aggregated data) will be collected for your reference.</string>
   <string name="feature_disable_usage_stats_on_desc">Usage statistics will not be collected. Enabling this will clear all existing statistics. Use this to protect your privacy.</string>
+
+  <!-- Anonymous data collection -->
+  <string name="feature_data_collection_off_desc">Anonymous usage data will not be uploaded.</string>
+  <string name="feature_data_collection_on_desc">Anonymous usage data (app version, install channel, first seen date, Android version (SDK), device model, ASR event metadata, app language, app starts) will be uploaded once per day. No recognition text or personal content is included.</string>
+
+  <!-- Data collection consent dialog -->
+  <string name="title_data_collection_consent">Anonymous Data Collection</string>
+  <string name="msg_data_collection_consent">To help improve BiBi Keyboard, we would like to collect anonymous usage statistics. This includes: app version, install channel, first seen date, Android version (SDK), device model, ASR event metadata (provider, audio duration, processing time, character count, source channel, whether AI post-processing was used), app language, and app start events. No recognition text or personal content will be uploaded. The collection code is open-source. Do you agree to enable this?</string>
+  <string name="btn_agree">Agree</string>
+  <string name="btn_disagree">Not now</string>
 
   <!-- ============================================== -->
   <!-- Pro Version Promo -->

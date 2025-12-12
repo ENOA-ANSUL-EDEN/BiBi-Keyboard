@@ -1098,6 +1098,36 @@ class Prefs(context: Context) {
         get() = sp.getBoolean(KEY_DISABLE_USAGE_STATS, false)
         set(value) = sp.edit { putBoolean(KEY_DISABLE_USAGE_STATS, value) }
 
+    // 隐私：匿名数据采集（PocketBase）开关
+    var dataCollectionEnabled: Boolean
+        get() = sp.getBoolean(KEY_DATA_COLLECTION_ENABLED, false)
+        set(value) = sp.edit { putBoolean(KEY_DATA_COLLECTION_ENABLED, value) }
+
+    // 匿名数据采集首次同意弹窗是否已展示
+    var dataCollectionConsentShown: Boolean
+        get() = sp.getBoolean(KEY_DATA_COLLECTION_CONSENT_SHOWN, false)
+        set(value) = sp.edit { putBoolean(KEY_DATA_COLLECTION_CONSENT_SHOWN, value) }
+
+    // 匿名统计用户标识（随机生成）
+    var analyticsUserId: String
+        get() = sp.getString(KEY_ANALYTICS_USER_ID, "").orEmpty()
+        set(value) = sp.edit { putString(KEY_ANALYTICS_USER_ID, value) }
+
+    // 每日随机上报时间（分钟，0..1439）
+    var analyticsReportMinuteOfDay: Int
+        get() = sp.getInt(KEY_ANALYTICS_REPORT_MINUTE, -1)
+        set(value) = sp.edit { putInt(KEY_ANALYTICS_REPORT_MINUTE, value.coerceIn(0, 1439)) }
+
+    // 上次成功上报的本地日期（epochDay）
+    var analyticsLastUploadEpochDay: Long
+        get() = sp.getLong(KEY_ANALYTICS_LAST_UPLOAD_EPOCH_DAY, -1L)
+        set(value) = sp.edit { putLong(KEY_ANALYTICS_LAST_UPLOAD_EPOCH_DAY, value) }
+
+    // 上次尝试上报的本地日期（epochDay，用于失败后当天不再重复触发）
+    var analyticsLastAttemptEpochDay: Long
+        get() = sp.getLong(KEY_ANALYTICS_LAST_ATTEMPT_EPOCH_DAY, -1L)
+        set(value) = sp.edit { putLong(KEY_ANALYTICS_LAST_ATTEMPT_EPOCH_DAY, value) }
+
     fun addAsrChars(delta: Int) {
         if (delta <= 0) return
         val cur = totalAsrChars
@@ -1468,6 +1498,12 @@ class Prefs(context: Context) {
         // 隐私：关闭识别历史与使用统计记录
         private const val KEY_DISABLE_ASR_HISTORY = "disable_asr_history"
         private const val KEY_DISABLE_USAGE_STATS = "disable_usage_stats"
+        private const val KEY_DATA_COLLECTION_ENABLED = "data_collection_enabled"
+        private const val KEY_DATA_COLLECTION_CONSENT_SHOWN = "data_collection_consent_shown"
+        private const val KEY_ANALYTICS_USER_ID = "analytics_user_id"
+        private const val KEY_ANALYTICS_REPORT_MINUTE = "analytics_report_minute"
+        private const val KEY_ANALYTICS_LAST_UPLOAD_EPOCH_DAY = "analytics_last_upload_epoch_day"
+        private const val KEY_ANALYTICS_LAST_ATTEMPT_EPOCH_DAY = "analytics_last_attempt_epoch_day"
 
         // SyncClipboard keys
         private const val KEY_SC_ENABLED = "syncclip_enabled"
@@ -1862,6 +1898,7 @@ class Prefs(context: Context) {
         // 隐私开关
         try { o.put(KEY_DISABLE_ASR_HISTORY, disableAsrHistory) } catch (_: Throwable) {}
         try { o.put(KEY_DISABLE_USAGE_STATS, disableUsageStats) } catch (_: Throwable) {}
+        try { o.put(KEY_DATA_COLLECTION_ENABLED, dataCollectionEnabled) } catch (t: Throwable) { Log.w(TAG, "Failed to export data collection enabled", t) }
         // AI 后处理：少于字数跳过
         try { o.put(KEY_POSTPROC_SKIP_UNDER_CHARS, postprocSkipUnderChars) } catch (_: Throwable) {}
         // LLM 供应商选择（新架构）
@@ -2053,6 +2090,7 @@ class Prefs(context: Context) {
             // 隐私开关
             optBool(KEY_DISABLE_ASR_HISTORY)?.let { disableAsrHistory = it }
             optBool(KEY_DISABLE_USAGE_STATS)?.let { disableUsageStats = it }
+            optBool(KEY_DATA_COLLECTION_ENABLED)?.let { dataCollectionEnabled = it }
             // WebDAV 备份
             optString(KEY_WD_URL)?.let { webdavUrl = it }
             optString(KEY_WD_USERNAME)?.let { webdavUsername = it }

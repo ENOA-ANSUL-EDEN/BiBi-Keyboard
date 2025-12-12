@@ -19,6 +19,7 @@ import com.brycewg.asrkb.R
 import com.brycewg.asrkb.asr.BluetoothRouteManager
 import com.brycewg.asrkb.asr.AsrVendor
 import com.brycewg.asrkb.store.Prefs
+import com.brycewg.asrkb.analytics.AnalyticsManager
 import com.brycewg.asrkb.ui.floatingball.*
 import com.brycewg.asrkb.ui.floating.FloatingImeHints
 import com.brycewg.asrkb.ui.AsrAccessibilityService
@@ -438,12 +439,23 @@ class FloatingAsrService : Service(),
                 try {
                     val audioMs = asrSessionManager.popLastAudioMsForStats()
                     val procMs = asrSessionManager.getLastRequestDuration() ?: 0L
+                    val chars = com.brycewg.asrkb.util.TextSanitizer.countEffectiveChars(text)
+                    val ai = try { asrSessionManager.wasLastAiUsed() } catch (_: Throwable) { false }
+                    AnalyticsManager.recordAsrEvent(
+                        context = this@FloatingAsrService,
+                        vendorId = prefs.asrVendor.id,
+                        audioMs = audioMs,
+                        procMs = procMs,
+                        source = "floating",
+                        aiProcessed = ai,
+                        charCount = chars
+                    )
                     if (!prefs.disableUsageStats) {
                         prefs.recordUsageCommit(
                             "floating",
                             prefs.asrVendor,
                             audioMs,
-                            com.brycewg.asrkb.util.TextSanitizer.countEffectiveChars(text),
+                            chars,
                             procMs
                         )
                     }
@@ -451,7 +463,6 @@ class FloatingAsrService : Service(),
                     if (!prefs.disableAsrHistory) {
                         try {
                             val store = com.brycewg.asrkb.store.AsrHistoryStore(this@FloatingAsrService)
-                            val ai = try { asrSessionManager.wasLastAiUsed() } catch (_: Throwable) { false }
                             store.add(
                                 com.brycewg.asrkb.store.AsrHistoryStore.AsrHistoryRecord(
                                     timestamp = System.currentTimeMillis(),
@@ -461,7 +472,7 @@ class FloatingAsrService : Service(),
                                     procMs = procMs,
                                     source = "floating",
                                     aiProcessed = ai,
-                                    charCount = com.brycewg.asrkb.util.TextSanitizer.countEffectiveChars(text)
+                                    charCount = chars
                                 )
                             )
                         } catch (e: Exception) {

@@ -195,6 +195,7 @@
   <string name="section_data_retention">データ保持</string>
   <string name="label_disable_asr_history">ASR履歴を無効化</string>
   <string name="label_disable_usage_stats">利用統計を無効化</string>
+  <string name="label_data_collection">匿名データ収集</string>
   <string name="dialog_disable_asr_history_title">ASR履歴を無効にしますか？</string>
   <string name="dialog_disable_asr_history_message">既存の履歴を削除し、新しいASR履歴を保存しなくなります。この機能を無効にしてもよろしいですか？</string>
   <string name="dialog_disable_usage_stats_title">利用統計を無効にしますか？</string>
@@ -271,6 +272,16 @@
   <!-- 使用統計を無効化 -->
   <string name="feature_disable_usage_stats_off_desc">使用統計（総文字数と集計データ）が参考用に収集されます。</string>
   <string name="feature_disable_usage_stats_on_desc">使用統計は収集されません。有効にすると既存の統計データがすべて削除されます。プライバシー保護に使用します。</string>
+
+  <!-- Anonymous data collection -->
+  <string name="feature_data_collection_off_desc">匿名の利用データはアップロードされません。</string>
+  <string name="feature_data_collection_on_desc">匿名の利用データ（アプリ版、インストール元チャネル、初回利用日、Android バージョン（SDK）、端末モデル、ASRイベントのメタ情報、アプリ言語、起動回数）を1日1回アップロードします。認識テキストや個人内容は含みません。</string>
+
+  <!-- Data collection consent dialog -->
+  <string name="title_data_collection_consent">匿名データ収集について</string>
+  <string name="msg_data_collection_consent">BiBi Keyboardの改善のため、匿名の利用統計を収集したいと考えています。収集内容は、アプリのバージョン、インストール元チャネル、初回利用日、Android バージョン（SDK）、端末モデル、ASRイベントのメタ情報（プロバイダー、音声長、処理時間、文字数、使用元、AI後処理の有無）、アプリの表示言語、アプリ起動イベントです。認識テキストや個人情報はアップロードされません。収集コードはオープンソースです。同意しますか？</string>
+  <string name="btn_agree">同意する</string>
+  <string name="btn_disagree">今はしない</string>
 
   <!-- ============================================== -->
   <!-- Pro版プロモーション -->

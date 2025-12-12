@@ -43,6 +43,12 @@
           android:layout_marginTop="4dp"
           android:text="@string/label_disable_usage_stats" />
 
+        <com.google.android.material.materialswitch.MaterialSwitch
+          android:id="@+id/switchDataCollection"
+          style="@style/SettingsSwitch"
+          android:layout_marginTop="4dp"
+          android:text="@string/label_data_collection" />
+
       </LinearLayout>
 
       <!-- 自定义标点 -->
