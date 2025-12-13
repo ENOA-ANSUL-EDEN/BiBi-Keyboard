@@ -3,6 +3,7 @@ package com.brycewg.asrkb.api
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.SystemClock
 import android.speech.RecognitionService
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -12,8 +13,10 @@ import com.brycewg.asrkb.asr.*
 import com.brycewg.asrkb.store.Prefs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -240,7 +243,15 @@ class AsrRecognitionService : RecognitionService() {
         @Volatile
         private var canceled: Boolean = false
 
+        @Volatile
+        private var finished: Boolean = false
+
         private var speechDetected = false
+        private var endOfSpeechDelivered = false
+
+        private var sessionStartUptimeMs: Long = 0L
+        private var lastAudioMsForTimeout: Long = 0L
+        private var processingTimeoutJob: Job? = null
 
         fun setEngine(engine: StreamingAsrEngine) {
             this.engine = engine
@@ -248,18 +259,30 @@ class AsrRecognitionService : RecognitionService() {
 
         fun start() {
             isActive = true
+            canceled = false
+            finished = false
+            speechDetected = false
+            endOfSpeechDelivered = false
+            sessionStartUptimeMs = SystemClock.uptimeMillis()
+            lastAudioMsForTimeout = 0L
+            cancelProcessingTimeout()
             engine?.start()
         }
 
         fun stop() {
             // 停止录音阶段时标记会话为非活动，避免异常情况下卡在 BUSY 状态
             isActive = false
+            snapshotAudioMsForTimeoutIfNeeded()
+            deliverEndOfSpeechIfNeeded()
+            scheduleProcessingTimeoutIfNeeded()
             engine?.stop()
         }
 
         fun cancel() {
             isActive = false
             canceled = true
+            finished = true
+            cancelProcessingTimeout()
             try {
                 engine?.stop()
             } catch (t: Throwable) {
@@ -268,9 +291,11 @@ class AsrRecognitionService : RecognitionService() {
         }
 
         override fun onFinal(text: String) {
-            if (canceled) return
+            if (canceled || finished) return
             Log.d(TAG, "onFinal: $text")
             isActive = false
+            finished = true
+            cancelProcessingTimeout()
 
             // 应用后处理
             val processedText = try {
@@ -310,7 +335,7 @@ class AsrRecognitionService : RecognitionService() {
         }
 
         override fun onPartial(text: String) {
-            if (canceled) return
+            if (canceled || finished) return
             if (text.isEmpty()) return
             Log.d(TAG, "onPartial: $text")
 
@@ -341,9 +366,11 @@ class AsrRecognitionService : RecognitionService() {
         }
 
         override fun onError(message: String) {
-            if (canceled) return
+            if (canceled || finished) return
             Log.e(TAG, "onError: $message")
             isActive = false
+            finished = true
+            cancelProcessingTimeout()
 
             val errorCode = mapToSpeechRecognizerError(message)
             try {
@@ -359,10 +386,37 @@ class AsrRecognitionService : RecognitionService() {
         }
 
         override fun onStopped() {
-            if (canceled) return
+            if (canceled || finished) return
             Log.d(TAG, "onStopped")
             // 保底将会话标记为非活动，避免仅收到 onStopped 时长期占用 BUSY 状态
             isActive = false
+            snapshotAudioMsForTimeoutIfNeeded()
+            deliverEndOfSpeechIfNeeded()
+            scheduleProcessingTimeoutIfNeeded()
+        }
+
+        override fun onAmplitude(amplitude: Float) {
+            if (canceled || finished) return
+            // 将 0.0-1.0 映射到 Android 惯例的 RMS 范围 (-2.0 to 10.0)
+            val rms = -2f + amplitude * 12f
+            try {
+                callback.rmsChanged(rms)
+            } catch (t: Throwable) {
+                // RMS 回调失败通常不需要记录
+            }
+        }
+
+        private fun snapshotAudioMsForTimeoutIfNeeded() {
+            if (lastAudioMsForTimeout != 0L) return
+            val t0 = sessionStartUptimeMs
+            if (t0 <= 0L) return
+            lastAudioMsForTimeout = (SystemClock.uptimeMillis() - t0).coerceAtLeast(0L)
+            sessionStartUptimeMs = 0L
+        }
+
+        private fun deliverEndOfSpeechIfNeeded() {
+            if (endOfSpeechDelivered) return
+            endOfSpeechDelivered = true
             try {
                 callback.endOfSpeech()
             } catch (t: Throwable) {
@@ -370,14 +424,43 @@ class AsrRecognitionService : RecognitionService() {
             }
         }
 
-        override fun onAmplitude(amplitude: Float) {
-            if (canceled) return
-            // 将 0.0-1.0 映射到 Android 惯例的 RMS 范围 (-2.0 to 10.0)
-            val rms = -2f + amplitude * 12f
+        private fun cancelProcessingTimeout() {
             try {
-                callback.rmsChanged(rms)
+                processingTimeoutJob?.cancel()
             } catch (t: Throwable) {
-                // RMS 回调失败通常不需要记录
+                Log.w(TAG, "Cancel processing timeout failed", t)
+            } finally {
+                processingTimeoutJob = null
+            }
+        }
+
+        private fun scheduleProcessingTimeoutIfNeeded() {
+            // stop->processing 后必须最终回调 results/error；否则会卡住 currentSession，导致后续 startListening 永久 BUSY。
+            cancelProcessingTimeout()
+            val audioMs = lastAudioMsForTimeout
+            val timeoutMs = com.brycewg.asrkb.asr.AsrTimeoutCalculator.calculateTimeoutMs(audioMs)
+            processingTimeoutJob = serviceScope.launch {
+                delay(timeoutMs)
+                if (canceled || finished) return@launch
+                if (currentSession !== this@RecognitionSession) return@launch
+
+                Log.w(TAG, "Processing timeout fired (audioMs=$audioMs, timeoutMs=$timeoutMs), forcing session end")
+                finished = true
+                try {
+                    engine?.stop()
+                } catch (t: Throwable) {
+                    Log.w(TAG, "Engine stop failed on processing timeout", t)
+                }
+                try {
+                    // 兜底：以标准错误结束会话，避免客户端永久等待。
+                    callback.error(SpeechRecognizer.ERROR_NETWORK_TIMEOUT)
+                } catch (t: Throwable) {
+                    Log.w(TAG, "error callback failed on processing timeout", t)
+                } finally {
+                    if (currentSession === this@RecognitionSession) {
+                        currentSession = null
+                    }
+                }
             }
         }
     }
