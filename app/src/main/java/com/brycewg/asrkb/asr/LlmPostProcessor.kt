@@ -217,6 +217,30 @@ class LlmPostProcessor(private val client: OkHttpClient? = null) {
         }
         return
       }
+      LlmVendor.FIREWORKS -> {
+        // Fireworks 模型有不同的推理控制行为:
+        // - DeepSeek V3.1/V3.2: 二进制开关，默认关闭
+        // - GLM 4.5/4.6: 二进制开关，默认开启
+        // - GPT-OSS: 只支持 low/medium/high，不支持 none
+        val modelLower = config.model.lowercase()
+        when {
+          modelLower.contains("deepseek") -> {
+            // DeepSeek: 开启发送 medium，关闭发送 none
+            body.put("reasoning_effort", if (config.enableReasoning) "medium" else "none")
+          }
+          modelLower.contains("glm") -> {
+            // GLM: 默认开启，仅关闭时发送 none
+            if (!config.enableReasoning) {
+              body.put("reasoning_effort", "none")
+            }
+          }
+          modelLower.contains("gpt-oss") -> {
+            // GPT-OSS: 不支持 none，开启用 medium，关闭用 low
+            body.put("reasoning_effort", if (config.enableReasoning) "medium" else "low")
+          }
+        }
+        return
+      }
       else -> {
         // fall through to generic handling
       }

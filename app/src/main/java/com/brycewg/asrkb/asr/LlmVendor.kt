@@ -270,6 +270,42 @@ enum class LlmVendor(
         )
     ),
 
+    /** Fireworks AI - fast inference with multiple models */
+    FIREWORKS(
+        id = "fireworks",
+        displayNameResId = R.string.llm_vendor_fireworks,
+        endpoint = "https://api.fireworks.ai/inference/v1",
+        defaultModel = "accounts/fireworks/models/deepseek-v3-0324",
+        models = listOf(
+            // DeepSeek models
+            "accounts/fireworks/models/deepseek-v3p2",
+            "accounts/fireworks/models/deepseek-v3p1-terminus",
+            // Kimi models
+            "accounts/fireworks/models/kimi-k2-instruct-0905",
+            "accounts/fireworks/models/kimi-k2-thinking",
+            // GPT-OSS models (Harmony)
+            "accounts/fireworks/models/gpt-oss-120b",
+            "accounts/fireworks/models/gpt-oss-20b",
+            // GLM models
+            "accounts/fireworks/models/glm-4p6"
+        ),
+        registerUrl = "https://fireworks.ai/login",
+        guideUrl = "https://docs.fireworks.ai/",
+        temperatureMin = 0f,
+        temperatureMax = 2f,
+        reasoningMode = ReasoningMode.REASONING_EFFORT,
+        reasoningModels = setOf(
+            // DeepSeek V3.1/V3.2: binary on/off, default off
+            "accounts/fireworks/models/deepseek-v3p1-terminus",
+            "accounts/fireworks/models/deepseek-v3p2",
+            // GLM 4.5/4.6: binary on/off, default on
+            "accounts/fireworks/models/glm-4p6",
+            // GPT-OSS: only low/medium/high, no 'none' support
+            "accounts/fireworks/models/gpt-oss-120b",
+            "accounts/fireworks/models/gpt-oss-20b"
+        )
+    ),
+
     /** Custom - user-defined OpenAI-compatible API */
     CUSTOM(
         id = "custom",
@@ -310,6 +346,7 @@ enum class LlmVendor(
             GROQ.id -> GROQ
             CEREBRAS.id -> CEREBRAS
             OHMYGPT.id -> OHMYGPT
+            FIREWORKS.id -> FIREWORKS
             CUSTOM.id -> CUSTOM
             else -> SF_FREE
         }
@@ -328,8 +365,9 @@ enum class LlmVendor(
             GEMINI,       // 7. International
             GROQ,         // 8. International - free tier
             CEREBRAS,     // 9. International - free tier
-            OHMYGPT,      // 10. Relay platform
-            CUSTOM        // 11. Custom
+            FIREWORKS,    // 10. International - fast inference
+            OHMYGPT,      // 11. Relay platform
+            CUSTOM        // 12. Custom
         )
 
         /** Get built-in vendors (excluding custom) */
