@@ -54,6 +54,22 @@
         android:text="@string/about_open_github" />
 
       <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnOpenWebsite"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        style="@style/Widget.Material3.Button.TonalButton"
+        android:text="@string/about_open_website" />
+
+      <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnOpenDocs"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        style="@style/Widget.Material3.Button.TonalButton"
+        android:text="@string/about_open_docs" />
+
+      <com.google.android.material.button.MaterialButton
         android:id="@+id/btnLearnPro"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

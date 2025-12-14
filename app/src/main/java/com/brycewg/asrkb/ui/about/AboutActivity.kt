@@ -73,6 +73,34 @@ class AboutActivity : BaseActivity() {
       }
     }
 
+    // 查看项目官网按钮
+    findViewById<Button>(R.id.btnOpenWebsite)?.setOnClickListener {
+      try {
+        val url = getString(R.string.about_website_url)
+        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+      } catch (e: ActivityNotFoundException) {
+        Log.e(TAG, "Failed to open website URL: No browser found", e)
+        Toast.makeText(this, R.string.error_open_browser, Toast.LENGTH_SHORT).show()
+      } catch (e: Throwable) {
+        Log.e(TAG, "Failed to open website URL", e)
+        Toast.makeText(this, R.string.error_open_browser, Toast.LENGTH_SHORT).show()
+      }
+    }
+
+    // 查看项目文档按钮
+    findViewById<Button>(R.id.btnOpenDocs)?.setOnClickListener {
+      try {
+        val url = getString(R.string.about_docs_url)
+        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+      } catch (e: ActivityNotFoundException) {
+        Log.e(TAG, "Failed to open docs URL: No browser found", e)
+        Toast.makeText(this, R.string.error_open_browser, Toast.LENGTH_SHORT).show()
+      } catch (e: Throwable) {
+        Log.e(TAG, "Failed to open docs URL", e)
+        Toast.makeText(this, R.string.error_open_browser, Toast.LENGTH_SHORT).show()
+      }
+    }
+
     // 了解 Pro 按钮
     findViewById<Button>(R.id.btnLearnPro)?.setOnClickListener {
       try {
