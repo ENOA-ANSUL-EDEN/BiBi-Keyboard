@@ -20,6 +20,7 @@ import kotlinx.coroutines.sync.withLock
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * 基于 sherpa-onnx OnlineRecognizer 的本地 Paraformer 流式识别引擎。
@@ -42,9 +43,11 @@ class ParaformerStreamAsrEngine(
 
     private val running = AtomicBoolean(false)
     private val closing = AtomicBoolean(false)
+    private val finalizeOnce = AtomicBoolean(false)
+    private val closeSilently = AtomicBoolean(false)
     private var audioJob: Job? = null
     private val mgr = ParaformerOnnxManager.getInstance()
-    private var currentStream: Any? = null
+    @Volatile private var currentStream: Any? = null
     private val streamMutex = Mutex()
 
     private val sampleRate = 16000
@@ -66,6 +69,8 @@ class ParaformerStreamAsrEngine(
     override fun start() {
         if (running.get()) return
         closing.set(false)
+        finalizeOnce.set(false)
+        closeSilently.set(false)
         // 外部推流模式下不检查录音权限
         if (!externalPcmMode) {
             val hasPermission = ContextCompat.checkSelfPermission(
@@ -143,12 +148,18 @@ class ParaformerStreamAsrEngine(
             drainPrebufferTo(stream)
 
             // 若在准备期间已调用 stop()，此处直接做最终解码
-            if (closing.get()) {
-                finalizeAndEmit(stream)
-                mgr.releaseStream(stream)
-                currentStream = null
+            if (closing.get() && finalizeOnce.compareAndSet(false, true)) {
+                if (closeSilently.get()) {
+                    try { releaseStreamSilently(stream) } catch (t: Throwable) { Log.e(TAG, "releaseStreamSilently failed", t) }
+                } else {
+                    val finalText = try { finalizeAndRelease(stream) } catch (t: Throwable) {
+                        Log.e(TAG, "finalizeAndRelease failed", t); ""
+                    }
+                    try { listener.onFinal(finalText) } catch (t: Throwable) { Log.e(TAG, "notify final failed", t) }
+                }
                 closing.set(false)
                 running.set(false)
+                closeSilently.set(false)
             }
         }
     }
@@ -174,18 +185,18 @@ class ParaformerStreamAsrEngine(
             audioJob = null
             return
         }
-        if (!running.get()) return
         running.set(false)
         closing.set(true)
         audioJob?.cancel()
         audioJob = null
 
         val s = currentStream
-        if (s != null) {
+        if (s != null && finalizeOnce.compareAndSet(false, true)) {
             scope.launch(Dispatchers.Default) {
-                try { finalizeAndEmit(s) } catch (t: Throwable) { Log.e(TAG, "finalizeAndEmit failed", t) }
-                try { mgr.releaseStream(s) } catch (t: Throwable) { Log.e(TAG, "releaseStream failed", t) }
-                currentStream = null
+                val finalText = try { finalizeAndRelease(s) } catch (t: Throwable) {
+                    Log.e(TAG, "finalizeAndRelease failed", t); ""
+                }
+                try { listener.onFinal(finalText) } catch (t: Throwable) { Log.e(TAG, "notify final failed", t) }
                 closing.set(false)
             }
         }
@@ -252,10 +263,52 @@ class ParaformerStreamAsrEngine(
                     Log.d(TAG, "Audio streaming cancelled: ${t.message}")
                 } else {
                     Log.e(TAG, "Audio streaming failed: ${t.message}", t)
-                    listener.onError(context.getString(R.string.error_audio_error, t.message ?: ""))
+                    val msg = if (isLikelyMicInUseError(t)) {
+                        context.getString(R.string.asr_error_mic_in_use)
+                    } else {
+                        context.getString(R.string.error_audio_error, t.message ?: "")
+                    }
+                    try { listener.onError(msg) } catch (err: Throwable) { Log.e(TAG, "notify error failed", err) }
+
+                    // 录音被系统中断：静默释放（不再回调 onFinal），避免后续 stop() 触发 JNI 竞态
+                    closeSilently.set(true)
+                    running.set(false)
+                    closing.set(true)
+                    val s = currentStream
+                    if (s != null && finalizeOnce.compareAndSet(false, true)) {
+                        scope.launch(Dispatchers.Default) {
+                            try { releaseStreamSilently(s) } catch (releaseErr: Throwable) {
+                                Log.e(TAG, "releaseStreamSilently failed", releaseErr)
+                            } finally {
+                                closeSilently.set(false)
+                                closing.set(false)
+                            }
+                        }
+                    }
                 }
             }
         }
+    }
+
+    private fun isLikelyMicInUseError(t: Throwable): Boolean {
+        fun matchOne(msg: String?): Boolean {
+            val m = msg?.lowercase() ?: return false
+            if (m.contains("audiorecord read error")) {
+                val code = m.substringAfter("audiorecord read error:", "").trim().toIntOrNull()
+                return code == -3 || code == -6 || code == -2
+            }
+            if (m.contains("failed to start recording") || m.contains("startrecording")) return true
+            if (m.contains("error reading audio data") || m.contains("audiorecord")) return true
+            return false
+        }
+        var cur: Throwable? = t
+        var depth = 0
+        while (cur != null && depth < 6) {
+            if (matchOne(cur.message)) return true
+            cur = cur.cause
+            depth++
+        }
+        return false
     }
 
     private suspend fun deliverChunk(stream: Any, bytes: ByteArray, len: Int) {
@@ -289,26 +342,37 @@ class ParaformerStreamAsrEngine(
         }
     }
 
-    private suspend fun finalizeAndEmit(stream: Any) {
-        try {
-            // 尾部静音 + 完成标记
+    private suspend fun finalizeAndRelease(stream: Any): String {
+        var text: String? = null
+        streamMutex.withLock {
+            if (currentStream !== stream) return@withLock
             val tailSamples = ((sampleRate * 0.6).toInt()).coerceAtLeast(1)
             val tail = FloatArray(tailSamples)
             mgr.acceptWaveform(stream, tail, sampleRate)
             mgr.inputFinished(stream)
 
-            // 解码直到不再就绪
             var loops = 0
             while (mgr.isReady(stream) && loops < 64) {
-                mgr.decode(stream)
+                try {
+                    mgr.decode(stream)
+                } catch (decodeErr: Throwable) {
+                    Log.e(TAG, "decode failed during finalize", decodeErr)
+                    break
+                }
                 loops++
             }
+            text = mgr.getResultText(stream)
+            try { mgr.releaseStream(stream) } catch (t: Throwable) { Log.e(TAG, "releaseStream failed", t) }
+            currentStream = null
+        }
+        return text?.trim().orEmpty()
+    }
 
-            val text = mgr.getResultText(stream)
-            listener.onFinal(text?.trim().orEmpty())
-        } catch (t: Throwable) {
-            Log.e(TAG, "finalizeAndEmit outer failed", t)
-            try { listener.onFinal("") } catch (_: Throwable) { }
+    private suspend fun releaseStreamSilently(stream: Any) {
+        streamMutex.withLock {
+            if (currentStream !== stream) return
+            try { mgr.releaseStream(stream) } catch (t: Throwable) { Log.e(TAG, "releaseStream failed", t) }
+            currentStream = null
         }
     }
 
@@ -467,6 +531,7 @@ class ParaformerOnnxManager private constructor() {
 
     private val scope = CoroutineScope(SupervisorJob())
     private val mutex = Mutex()
+    private val runtimeLock = Any()
 
     @Volatile private var cachedConfig: RecognizerConfig? = null
     @Volatile private var cachedRecognizer: ReflectiveOnlineRecognizer? = null
@@ -480,7 +545,8 @@ class ParaformerOnnxManager private constructor() {
     // 最近一次配置与流计数：用于保留/卸载
     @Volatile private var lastKeepAliveMs: Long = 0L
     @Volatile private var lastAlwaysKeep: Boolean = false
-    @Volatile private var activeStreams: Int = 0
+    private val activeStreams = AtomicInteger(0)
+    @Volatile private var pendingUnload: Boolean = false
 
     fun isOnnxAvailable(): Boolean {
         return try {
@@ -492,16 +558,31 @@ class ParaformerOnnxManager private constructor() {
     }
 
     fun unload() {
+        pendingUnload = true
         scope.launch {
-            mutex.withLock {
-                cachedRecognizer?.release()
-                cachedRecognizer = null
-                cachedConfig = null
-            }
+            tryUnloadIfIdle()
         }
     }
 
     fun isPrepared(): Boolean = cachedRecognizer != null
+
+    private suspend fun tryUnloadIfIdle() {
+        mutex.withLock {
+            if (!pendingUnload) return@withLock
+            if (activeStreams.get() > 0) return@withLock
+            try {
+                synchronized(runtimeLock) {
+                    cachedRecognizer?.release()
+                }
+            } catch (t: Throwable) {
+                Log.e(TAG, "unload failed", t)
+            } finally {
+                cachedRecognizer = null
+                cachedConfig = null
+                pendingUnload = false
+            }
+        }
+    }
 
     private fun scheduleAutoUnload(keepAliveMs: Long, alwaysKeep: Boolean) {
         unloadJob?.cancel()
@@ -616,14 +697,23 @@ class ParaformerOnnxManager private constructor() {
         onLoadDone: (() -> Unit)? = null,
     ): Boolean = mutex.withLock {
         try {
+            pendingUnload = false
+            unloadJob?.cancel()
+            unloadJob = null
             initClasses()
             val config = RecognizerConfig(tokens, encoder, decoder, ruleFsts, numThreads)
             val same = (cachedConfig == config)
             if (!same || cachedRecognizer == null) {
+                if (!same && cachedRecognizer != null && activeStreams.get() > 0) {
+                    Log.w(TAG, "prepare skipped: ${activeStreams.get()} active streams")
+                    lastKeepAliveMs = keepAliveMs
+                    lastAlwaysKeep = alwaysKeep
+                    return@withLock true
+                }
                 try { onLoadStart?.invoke() } catch (t: Throwable) { Log.e(TAG, "onLoadStart failed", t) }
                 val recConfig = buildRecognizerConfig(config)
-                val inst = createRecognizer(recConfig)
-                cachedRecognizer?.release()
+                val inst = synchronized(runtimeLock) { createRecognizer(recConfig) }
+                synchronized(runtimeLock) { cachedRecognizer?.release() }
                 cachedRecognizer = ReflectiveOnlineRecognizer(inst, clsOnlineRecognizer!!)
                 cachedConfig = config
                 try { onLoadDone?.invoke() } catch (t: Throwable) { Log.e(TAG, "onLoadDone failed", t) }
@@ -638,9 +728,12 @@ class ParaformerOnnxManager private constructor() {
 
     suspend fun createStreamOrNull(): Any? = mutex.withLock {
         try {
+            pendingUnload = false
+            unloadJob?.cancel()
+            unloadJob = null
             val r = cachedRecognizer ?: return@withLock null
-            val s = r.createStream()
-            activeStreams++
+            val s = synchronized(runtimeLock) { r.createStream() }
+            activeStreams.incrementAndGet()
             s
         } catch (t: Throwable) {
             Log.e(TAG, "createStream failed", t); null
@@ -648,21 +741,31 @@ class ParaformerOnnxManager private constructor() {
     }
 
     fun acceptWaveform(stream: Any, samples: FloatArray, sampleRate: Int) {
-        try { if (stream is ReflectiveOnlineStream) stream.acceptWaveform(samples, sampleRate) } catch (t: Throwable) {
+        try {
+            synchronized(runtimeLock) {
+                if (stream is ReflectiveOnlineStream) stream.acceptWaveform(samples, sampleRate)
+            }
+        } catch (t: Throwable) {
             Log.e(TAG, "acceptWaveform failed", t)
         }
     }
 
     fun inputFinished(stream: Any) {
-        try { if (stream is ReflectiveOnlineStream) stream.inputFinished() } catch (t: Throwable) {
+        try {
+            synchronized(runtimeLock) {
+                if (stream is ReflectiveOnlineStream) stream.inputFinished()
+            }
+        } catch (t: Throwable) {
             Log.e(TAG, "inputFinished failed", t)
         }
     }
 
     fun isReady(stream: Any): Boolean {
         return try {
-            val r = cachedRecognizer ?: return false
-            if (stream is ReflectiveOnlineStream) r.isReady(stream) else false
+            synchronized(runtimeLock) {
+                val r = cachedRecognizer
+                if (r != null && stream is ReflectiveOnlineStream) r.isReady(stream) else false
+            }
         } catch (t: Throwable) {
             Log.e(TAG, "isReady failed", t); false
         }
@@ -670,8 +773,10 @@ class ParaformerOnnxManager private constructor() {
 
     fun decode(stream: Any) {
         try {
-            val r = cachedRecognizer ?: return
-            if (stream is ReflectiveOnlineStream) r.decode(stream)
+            synchronized(runtimeLock) {
+                val r = cachedRecognizer
+                if (r != null && stream is ReflectiveOnlineStream) r.decode(stream)
+            }
         } catch (t: Throwable) {
             Log.e(TAG, "decode failed", t)
         }
@@ -679,8 +784,10 @@ class ParaformerOnnxManager private constructor() {
 
     fun getResultText(stream: Any): String? {
         return try {
-            val r = cachedRecognizer ?: return null
-            if (stream is ReflectiveOnlineStream) r.getResultText(stream) else null
+            synchronized(runtimeLock) {
+                val r = cachedRecognizer
+                if (r != null && stream is ReflectiveOnlineStream) r.getResultText(stream) else null
+            }
         } catch (t: Throwable) {
             Log.e(TAG, "getResultText failed", t); null
         }
@@ -689,8 +796,10 @@ class ParaformerOnnxManager private constructor() {
     fun releaseStream(stream: Any?) {
         if (stream == null) return
         try {
-            if (stream is ReflectiveOnlineStream) stream.release()
-            if (activeStreams > 0) activeStreams--
+            synchronized(runtimeLock) {
+                if (stream is ReflectiveOnlineStream) stream.release()
+            }
+            activeStreams.updateAndGet { if (it > 0) it - 1 else 0 }
             scheduleUnloadIfIdle()
         } catch (t: Throwable) {
             Log.e(TAG, "releaseStream failed", t)
@@ -698,8 +807,12 @@ class ParaformerOnnxManager private constructor() {
     }
 
     fun scheduleUnloadIfIdle() {
-        if (activeStreams <= 0) {
-            scheduleAutoUnload(lastKeepAliveMs, lastAlwaysKeep)
+        if (activeStreams.get() <= 0) {
+            if (pendingUnload) {
+                scope.launch { tryUnloadIfIdle() }
+            } else {
+                scheduleAutoUnload(lastKeepAliveMs, lastAlwaysKeep)
+            }
         }
     }
 }
