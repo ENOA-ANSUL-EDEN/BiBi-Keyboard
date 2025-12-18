@@ -533,23 +533,14 @@ class SenseVoiceOnnxManager private constructor() {
 
     /**
      * 构建 SenseVoice 模型配置
+     * sherpa-onnx 1.12.20+: useItn 已重命名为 useInverseTextNormalization
      */
     private fun buildSenseVoiceConfig(model: String, language: String, useItn: Boolean): Any {
-        try {
-            // 优先使用完整构造函数
-            return clsOfflineSenseVoiceModelConfig!!
-                .getDeclaredConstructor(String::class.java, String::class.java, Boolean::class.javaPrimitiveType)
-                .newInstance(model, language, useItn)
-        } catch (t: Throwable) {
-            Log.d(TAG, "Failed to use 3-param constructor, falling back to 1-param", t)
-            // 回退：仅模型路径构造 + 反射设置属性
-            val inst = clsOfflineSenseVoiceModelConfig!!
-                .getDeclaredConstructor(String::class.java)
-                .newInstance(model)
-            trySetField(inst, "language", language)
-            trySetField(inst, "useItn", useItn)
-            return inst
-        }
+        val inst = clsOfflineSenseVoiceModelConfig!!.getDeclaredConstructor().newInstance()
+        trySetField(inst, "model", model)
+        trySetField(inst, "language", language)
+        trySetField(inst, "useInverseTextNormalization", useItn)
+        return inst
     }
 
     /**
