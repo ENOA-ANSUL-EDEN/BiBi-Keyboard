@@ -718,6 +718,11 @@ class Prefs(context: Context) {
         get() = sp.getBoolean(KEY_DASH_FUNASR_ENABLED, false)
         set(value) = sp.edit { putBoolean(KEY_DASH_FUNASR_ENABLED, value) }
 
+    // DashScope: Fun-ASR 使用语义断句（开启时关闭 VAD 断句）
+    var dashFunAsrSemanticPunctEnabled: Boolean
+        get() = sp.getBoolean(KEY_DASH_FUNASR_SEMANTIC_PUNCT_ENABLED, true)
+        set(value) = sp.edit { putBoolean(KEY_DASH_FUNASR_SEMANTIC_PUNCT_ENABLED, value) }
+
     // ElevenLabs凭证
     var elevenApiKey: String by stringPref(KEY_ELEVEN_API_KEY, "")
 
@@ -1481,6 +1486,7 @@ class Prefs(context: Context) {
         private const val KEY_DASH_STREAMING_ENABLED = "dash_streaming_enabled"
         private const val KEY_DASH_FUNASR_ENABLED = "dash_funasr_enabled"
         private const val KEY_DASH_ASR_MODEL = "dash_asr_model"
+        private const val KEY_DASH_FUNASR_SEMANTIC_PUNCT_ENABLED = "dash_funasr_semantic_punct_enabled"
         private const val KEY_VOLC_DDC_ENABLED = "volc_ddc_enabled"
         private const val KEY_VOLC_VAD_ENABLED = "volc_vad_enabled"
         private const val KEY_VOLC_NONSTREAM_ENABLED = "volc_nonstream_enabled"
@@ -1858,6 +1864,7 @@ class Prefs(context: Context) {
         o.put(KEY_DASH_REGION, dashRegion)
         o.put(KEY_DASH_FUNASR_ENABLED, dashFunAsrEnabled)
         o.put(KEY_DASH_ASR_MODEL, dashAsrModel)
+        o.put(KEY_DASH_FUNASR_SEMANTIC_PUNCT_ENABLED, dashFunAsrSemanticPunctEnabled)
         // Volcano extras
         o.put(KEY_VOLC_DDC_ENABLED, volcDdcEnabled)
         o.put(KEY_VOLC_VAD_ENABLED, volcVadEnabled)
@@ -2061,6 +2068,7 @@ class Prefs(context: Context) {
                 }
             }
             optString(KEY_DASH_REGION)?.let { dashRegion = it }
+            optBool(KEY_DASH_FUNASR_SEMANTIC_PUNCT_ENABLED)?.let { dashFunAsrSemanticPunctEnabled = it }
             optBool(KEY_VOLC_DDC_ENABLED)?.let { volcDdcEnabled = it }
             optBool(KEY_VOLC_VAD_ENABLED)?.let { volcVadEnabled = it }
             optBool(KEY_VOLC_NONSTREAM_ENABLED)?.let { volcNonstreamEnabled = it }

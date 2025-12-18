@@ -14,6 +14,7 @@
     <string name="label_dash_streaming">使用 DashScope 串流識別（WebSocket）</string>
     <string name="dash_streaming_note">模型選擇決定是否串流。Qwen3 模型支援自訂提示詞/上下文；Fun-ASR-Realtime 不支援。</string>
     <string name="label_dash_fun_asr">使用 Fun-ASR 模型進行識別（fun-asr-realtime）</string>
+    <string name="label_dash_funasr_semantic_punct">使用語義斷句（Fun-ASR）</string>
     <string name="dash_lang_auto">自動（啟用語種識別）</string>
     <string name="label_dash_region">DashScope 地域</string>
     <string name="dash_region_cn">中國大陸（aliyuncs.com）</string>
@@ -43,4 +44,8 @@
     <!-- Fun-ASR 模型（僅串流） -->
     <string name="feature_dash_fun_asr_off_desc">串流識別使用 Qwen3-ASR-Flash-Realtime（預設）。</string>
     <string name="feature_dash_fun_asr_on_desc">串流識別使用 Fun-ASR-Realtime。</string>
+
+    <!-- Fun-ASR 語義斷句 -->
+    <string name="feature_dash_funasr_semantic_punct_off_desc">使用 VAD（語音活動偵測）斷句。延遲較低。</string>
+    <string name="feature_dash_funasr_semantic_punct_on_desc">使用 LLM 語義斷句。準確性更高。</string>
 </resources>

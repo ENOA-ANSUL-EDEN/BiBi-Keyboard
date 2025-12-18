@@ -662,6 +662,21 @@ class AsrSettingsActivity : BaseActivity() {
             bindString { prefs.dashPrompt = it }
         }
 
+        // Fun-ASR 语义断句开关
+        findViewById<MaterialSwitch>(R.id.switchDashFunAsrSemanticPunct).apply {
+            isChecked = prefs.dashFunAsrSemanticPunctEnabled
+            installExplainedSwitch(
+                context = this@AsrSettingsActivity,
+                titleRes = R.string.label_dash_funasr_semantic_punct,
+                offDescRes = R.string.feature_dash_funasr_semantic_punct_off_desc,
+                onDescRes = R.string.feature_dash_funasr_semantic_punct_on_desc,
+                preferenceKey = "dash_funasr_semantic_punct_explained",
+                readPref = { prefs.dashFunAsrSemanticPunctEnabled },
+                writePref = { v -> prefs.dashFunAsrSemanticPunctEnabled = v },
+                hapticFeedback = { hapticTapIfEnabled(it) }
+            )
+        }
+
         setupDashModelSelection()
         setupDashLanguageSelection()
         setupDashRegionSelection()
@@ -711,10 +726,17 @@ class AsrSettingsActivity : BaseActivity() {
     }
 
     private fun updateDashPromptVisibility(model: String = prefs.dashAsrModel) {
+        val isFunAsr = model.startsWith("fun-asr", ignoreCase = true)
+
+        // Prompt 输入框：仅非 Fun-ASR 模型显示
         val til = findViewById<View>(R.id.tilDashPrompt)
-        val supported = !model.startsWith("fun-asr", ignoreCase = true)
-        val vis = if (supported) View.VISIBLE else View.GONE
-        if (til.visibility != vis) til.visibility = vis
+        val promptVis = if (!isFunAsr) View.VISIBLE else View.GONE
+        if (til.visibility != promptVis) til.visibility = promptVis
+
+        // 语义断句开关：仅 Fun-ASR 模型显示
+        val switchSemanticPunct = findViewById<View>(R.id.switchDashFunAsrSemanticPunct)
+        val semanticVis = if (isFunAsr) View.VISIBLE else View.GONE
+        if (switchSemanticPunct.visibility != semanticVis) switchSemanticPunct.visibility = semanticVis
     }
 
     private fun setupDashLanguageSelection() {

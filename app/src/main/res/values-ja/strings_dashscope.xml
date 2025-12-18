@@ -14,6 +14,7 @@
     <string name="label_dash_streaming">DashScope ストリーミングを使用（WebSocket）</string>
     <string name="dash_streaming_note">モデル選択でストリーミング動作が決まります。Qwen3 モデルはカスタムプロンプト/コンテキストに対応し、Fun-ASR-Realtime は非対応です。</string>
     <string name="label_dash_fun_asr">Fun-ASR モデルを使用（fun-asr-realtime）</string>
+    <string name="label_dash_funasr_semantic_punct">セマンティック区切りを使用（Fun-ASR）</string>
     <string name="dash_lang_auto">自動（言語識別を有効化）</string>
     <string name="label_dash_region">DashScope リージョン</string>
     <string name="dash_region_cn">中国本土（aliyuncs.com）</string>
@@ -43,4 +44,8 @@
     <!-- Fun-ASR モデル（ストリーミングのみ） -->
     <string name="feature_dash_fun_asr_off_desc">ストリーミングは Qwen3-ASR-Flash-Realtime（既定）を使用します。</string>
     <string name="feature_dash_fun_asr_on_desc">ストリーミングは Fun-ASR-Realtime を使用し。</string>
+
+    <!-- Fun-ASR セマンティック区切り -->
+    <string name="feature_dash_funasr_semantic_punct_off_desc">VAD（音声アクティビティ検出）による区切りを使用します。遅延が少なく。</string>
+    <string name="feature_dash_funasr_semantic_punct_on_desc">LLMベースのセマンティック区切りを使用します。精度が高く。</string>
 </resources>

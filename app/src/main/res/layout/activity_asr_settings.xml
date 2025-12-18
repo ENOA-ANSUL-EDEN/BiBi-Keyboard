@@ -453,6 +453,13 @@
             style="@style/SettingsClickableValue.Dropdown"
             android:text="@string/dash_region_cn" />
 
+          <!-- Fun-ASR 语义断句开关（仅 Fun-ASR 模型可见） -->
+          <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/switchDashFunAsrSemanticPunct"
+            style="@style/SettingsSwitch"
+            android:text="@string/label_dash_funasr_semantic_punct"
+            android:visibility="gone" />
+
           <TextView
             android:id="@+id/tvDashStreamingNote"
             style="@style/SettingsHint"

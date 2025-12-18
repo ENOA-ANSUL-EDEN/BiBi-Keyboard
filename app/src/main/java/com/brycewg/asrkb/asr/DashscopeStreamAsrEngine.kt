@@ -235,6 +235,13 @@ class DashscopeStreamAsrEngine(
       }
     }
 
+    // 语义断句：开启时使用 LLM 语义断句，关闭时使用 VAD 断句
+    try {
+      builder.parameter("semantic_punctuation_enabled", prefs.dashFunAsrSemanticPunctEnabled)
+    } catch (t: Throwable) {
+      Log.w(TAG, "Failed to set semantic_punctuation_enabled", t)
+    }
+
     val param = builder.build()
     val rec = Recognition()
     recognizer = rec
