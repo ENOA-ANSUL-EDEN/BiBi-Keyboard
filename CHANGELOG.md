@@ -1,5 +1,22 @@
 # 更新日志 / Changelog
 
+## v3.10.0 (2025-12-18)
+
+### 新增功能
+
+- **本地 ASR 引擎标点功能**: 在多个本地 ASR 引擎（FunASR Nano、TeleSpeech、Paraformer、Zipformer）中增加标点功能，提升离线识别的可用性
+- **FunASR Nano 模型支持**: 添加 FunASR Nano 模型支持
+- **通用标点模型管理**: 新增通用标点模型管理系统，支持标点模型的统一管理和版本控制
+- **Soniox 语言严格限制模式**: 为 Soniox ASR 引擎添加语言严格限制模式选项，提升多语言环境下的识别准确性
+- **Dashscope Fun-ASR 语义断句**: 为 DashScope Fun-ASR 添加语义断句选项，替代 VAD 断句
+
+### 改进优化
+
+- **sherpa-onnx 升级**: 升级 sherpa-onnx 至 1.12.20 版本
+- **SenseVoice 模型版本调用**: 优化 SenseVoice Small 模型的版本调用逻辑，确保模型加载的准确性
+
+---
+
 ## v3.9.4 (2025-12-16)
 
 ### 新增功能

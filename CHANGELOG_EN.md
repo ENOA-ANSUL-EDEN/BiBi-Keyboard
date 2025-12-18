@@ -1,5 +1,22 @@
 # Changelog
 
+## v3.10.0 (2025-12-18)
+
+### New Features
+
+- **Local ASR Engine Punctuation Support**: Added punctuation functionality to multiple local ASR engines (FunASR Nano, TeleSpeech, Paraformer, Zipformer) to improve offline recognition readability
+- **FunASR Nano Model Support**: Added FunASR Nano model support
+- **Universal Punctuation Model Management**: Added universal punctuation model management system with unified management and version control for punctuation models
+- **Soniox Language Strict Restriction Mode**: Added language strict restriction mode option for Soniox ASR engine to improve recognition accuracy in multilingual environments
+- **Dashscope Fun-ASR Semantic Segmentation**: Added semantic segmentation option for DashScope Fun-ASR
+
+### Improvements
+
+- **sherpa-onnx Upgrade**: Upgraded sherpa-onnx to version 1.12.20
+- **SenseVoice Model Version Calling**: Optimized SenseVoice Small model version calling logic to ensure accurate model loading
+
+---
+
 ## v3.9.4 (2025-12-16)
 
 ### New Features
