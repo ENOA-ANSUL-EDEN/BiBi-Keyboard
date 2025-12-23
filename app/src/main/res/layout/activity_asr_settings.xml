@@ -481,6 +481,16 @@
 
           <com.google.android.material.textfield.TextInputLayout
             style="@style/SettingsTextInputLayout"
+            android:hint="@string/label_gemini_endpoint">
+
+            <com.google.android.material.textfield.TextInputEditText
+              android:id="@+id/etGeminiEndpoint"
+              style="@style/SettingsTextInput"
+              android:inputType="textUri" />
+          </com.google.android.material.textfield.TextInputLayout>
+
+          <com.google.android.material.textfield.TextInputLayout
+            style="@style/SettingsTextInputLayout"
             android:hint="@string/label_gemini_api_key">
 
             <com.google.android.material.textfield.TextInputEditText

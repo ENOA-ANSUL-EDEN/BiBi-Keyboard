@@ -27,7 +27,6 @@ class GeminiFileAsrEngine(
 
     companion object {
         private const val TAG = "GeminiFileAsrEngine"
-        private const val GEM_BASE = "https://generativelanguage.googleapis.com/v1beta"
         private const val DEFAULT_GEM_PROMPT = "请将以下音频逐字转写为文本，不要输出解释或前后缀。输入语言可能是中文、英文或其他语言"
     }
 
@@ -53,13 +52,14 @@ class GeminiFileAsrEngine(
             val b64 = Base64.encodeToString(wav, Base64.NO_WRAP)
             val apiKeys = prefs.getGeminiApiKeys()
             val apiKey = apiKeys.random()
+            val endpoint = prefs.gemEndpoint
             val model = prefs.gemModel.ifBlank { Prefs.DEFAULT_GEM_MODEL }
             val basePrompt = prefs.gemPrompt.ifBlank { DEFAULT_GEM_PROMPT }
             val prompt = basePrompt
 
             val body = buildGeminiRequestBody(b64, prompt, model)
             val req = Request.Builder()
-                .url("${GEM_BASE}/models/${model}:generateContent?key=${apiKey}")
+                .url(buildGeminiRequestUrl(endpoint, model, apiKey))
                 .addHeader("Content-Type", "application/json; charset=utf-8")
                 .post(body.toRequestBody("application/json; charset=utf-8".toMediaType()))
                 .build()
@@ -132,6 +132,25 @@ class GeminiFileAsrEngine(
                 }
             })
         }.toString()
+    }
+
+    private fun buildGeminiRequestUrl(endpoint: String, model: String, apiKey: String): String {
+        val trimmed = endpoint.trim()
+        val (basePart, queryPart) = trimmed.split("?", limit = 2).let {
+            it[0] to it.getOrNull(1)
+        }
+        val normalizedBase = normalizeGeminiEndpointBase(basePart)
+        val baseWithPath = "$normalizedBase/models/$model:generateContent"
+        val withQuery = if (!queryPart.isNullOrBlank()) "$baseWithPath?$queryPart" else baseWithPath
+        val separator = if (withQuery.contains("?")) "&" else "?"
+        return "$withQuery${separator}key=$apiKey"
+    }
+
+    private fun normalizeGeminiEndpointBase(raw: String): String {
+        val cleaned = raw.trim().trimEnd('/')
+        if (cleaned.isBlank()) return Prefs.DEFAULT_GEM_ENDPOINT
+        val versionPattern = Regex("/v\\d+(beta)?(/|$)", RegexOption.IGNORE_CASE)
+        return if (versionPattern.containsMatchIn(cleaned)) cleaned else "$cleaned/v1beta"
     }
 
     /**

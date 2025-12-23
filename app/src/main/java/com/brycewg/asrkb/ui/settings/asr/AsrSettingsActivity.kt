@@ -799,6 +799,10 @@ class AsrSettingsActivity : BaseActivity() {
     }
 
     private fun setupGeminiSettings() {
+        findViewById<EditText>(R.id.etGeminiEndpoint).apply {
+            setText(prefs.gemEndpoint)
+            bindString { prefs.gemEndpoint = it }
+        }
         findViewById<EditText>(R.id.etGeminiApiKey).apply {
             setText(prefs.gemApiKey)
             bindString { prefs.gemApiKey = it }

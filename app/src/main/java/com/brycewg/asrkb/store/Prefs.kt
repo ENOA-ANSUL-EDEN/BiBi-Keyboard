@@ -752,6 +752,8 @@ class Prefs(context: Context) {
         set(value) = sp.edit { putString(KEY_OA_ASR_LANGUAGE, value.trim()) }
 
     // Google Gemini 语音理解（通过提示词转写）
+    var gemEndpoint: String by stringPref(KEY_GEM_ENDPOINT, DEFAULT_GEM_ENDPOINT)
+
     var gemApiKey: String by stringPref(KEY_GEM_API_KEY, "")
 
     fun getGeminiApiKeys(): List<String> {
@@ -1022,6 +1024,7 @@ class Prefs(context: Context) {
             VendorField(KEY_DASH_LANGUAGE, default = "")
         ),
         AsrVendor.Gemini to listOf(
+            VendorField(KEY_GEM_ENDPOINT, required = true, default = DEFAULT_GEM_ENDPOINT),
             VendorField(KEY_GEM_API_KEY, required = true),
             VendorField(KEY_GEM_MODEL, required = true, default = DEFAULT_GEM_MODEL),
             VendorField(KEY_GEM_PROMPT, default = DEFAULT_GEM_PROMPT)
@@ -1478,6 +1481,7 @@ class Prefs(context: Context) {
         private const val KEY_OA_ASR_PROMPT = "oa_asr_prompt"
         private const val KEY_OA_ASR_LANGUAGE = "oa_asr_language"
         private const val KEY_NUMPAD_CN_PUNCT = "numpad_cn_punct"
+        private const val KEY_GEM_ENDPOINT = "gem_endpoint"
         private const val KEY_GEM_API_KEY = "gem_api_key"
         private const val KEY_GEM_MODEL = "gem_model"
         private const val KEY_GEM_PROMPT = "gem_prompt"
@@ -1619,6 +1623,7 @@ class Prefs(context: Context) {
         const val DASH_MODEL_QWEN3_REALTIME = "qwen3-asr-flash-realtime"
         const val DASH_MODEL_FUN_ASR_REALTIME = "fun-asr-realtime"
         // Gemini 默认
+        const val DEFAULT_GEM_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta"
         const val DEFAULT_GEM_MODEL = "gemini-2.5-flash"
         const val DEFAULT_GEM_PROMPT = "请将以下音频逐字转写为文本，不要输出解释或前后缀。"
 
