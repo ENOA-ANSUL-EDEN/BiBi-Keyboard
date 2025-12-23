@@ -157,7 +157,13 @@ abstract class PushPcmPseudoStreamAsrEngine(
 
     scope.launch(Dispatchers.IO) {
       try {
-        onSessionFinished(fullPcm)
+        val denoised = OfflineSpeechDenoiserManager.denoiseIfEnabled(
+          context = context,
+          prefs = prefs,
+          pcm = fullPcm,
+          sampleRate = sampleRate
+        )
+        onSessionFinished(denoised)
       } catch (t: Throwable) {
         if (t is CancellationException) {
           Log.d(TAG, "final recognition cancelled: ${t.message}")

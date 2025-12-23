@@ -238,8 +238,14 @@ abstract class LocalModelPseudoStreamAsrEngine(
 
                 if (hasRecordedAudio) {
                     val fullPcm = sessionBuffer.toByteArray()
+                    val denoised = OfflineSpeechDenoiserManager.denoiseIfEnabled(
+                        context = context,
+                        prefs = prefs,
+                        pcm = fullPcm,
+                        sampleRate = sampleRate
+                    )
                     try {
-                        onSessionFinished(fullPcm)
+                        onSessionFinished(denoised)
                     } catch (t: Throwable) {
                         Log.e(TAG, "onSessionFinished failed", t)
                         try {

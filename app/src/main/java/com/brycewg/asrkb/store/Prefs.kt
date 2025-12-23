@@ -89,6 +89,11 @@ class Prefs(context: Context) {
         get() = sp.getBoolean(KEY_DUCK_MEDIA_ON_RECORD, true)
         set(value) = sp.edit { putBoolean(KEY_DUCK_MEDIA_ON_RECORD, value) }
 
+    // 非流式音频降噪（上传前/本地离线识别前），默认开启
+    var offlineDenoiseEnabled: Boolean
+        get() = sp.getBoolean(KEY_OFFLINE_DENOISE_ENABLED, true)
+        set(value) = sp.edit { putBoolean(KEY_OFFLINE_DENOISE_ENABLED, value) }
+
     // AI 编辑默认范围：无选区时优先使用"上次识别结果"
     var aiEditDefaultToLastAsr: Boolean
         get() = sp.getBoolean(KEY_AI_EDIT_DEFAULT_TO_LAST_ASR, false)
@@ -1423,6 +1428,7 @@ class Prefs(context: Context) {
         private const val KEY_MIC_TAP_TOGGLE_ENABLED = "mic_tap_toggle_enabled"
         private const val KEY_AUTO_START_RECORDING_ON_SHOW = "auto_start_recording_on_show"
         private const val KEY_DUCK_MEDIA_ON_RECORD = "duck_media_on_record"
+        private const val KEY_OFFLINE_DENOISE_ENABLED = "offline_denoise_enabled"
         private const val KEY_AUTO_STOP_ON_SILENCE_ENABLED = "auto_stop_on_silence_enabled"
         private const val KEY_AUTO_STOP_SILENCE_WINDOW_MS = "auto_stop_silence_window_ms"
         private const val KEY_AUTO_STOP_SILENCE_SENSITIVITY = "auto_stop_silence_sensitivity"
@@ -1830,6 +1836,7 @@ class Prefs(context: Context) {
         o.put(KEY_MIC_TAP_TOGGLE_ENABLED, micTapToggleEnabled)
         o.put(KEY_AUTO_START_RECORDING_ON_SHOW, autoStartRecordingOnShow)
         o.put(KEY_DUCK_MEDIA_ON_RECORD, duckMediaOnRecordEnabled)
+        o.put(KEY_OFFLINE_DENOISE_ENABLED, offlineDenoiseEnabled)
         o.put(KEY_AUTO_STOP_ON_SILENCE_ENABLED, autoStopOnSilenceEnabled)
         o.put(KEY_AUTO_STOP_SILENCE_WINDOW_MS, autoStopSilenceWindowMs)
         o.put(KEY_AUTO_STOP_SILENCE_SENSITIVITY, autoStopSilenceSensitivity)
@@ -2019,6 +2026,7 @@ class Prefs(context: Context) {
             optBool(KEY_MIC_TAP_TOGGLE_ENABLED)?.let { micTapToggleEnabled = it }
             optBool(KEY_AUTO_START_RECORDING_ON_SHOW)?.let { autoStartRecordingOnShow = it }
             optBool(KEY_DUCK_MEDIA_ON_RECORD)?.let { duckMediaOnRecordEnabled = it }
+            optBool(KEY_OFFLINE_DENOISE_ENABLED)?.let { offlineDenoiseEnabled = it }
             optBool(KEY_AUTO_STOP_ON_SILENCE_ENABLED)?.let { autoStopOnSilenceEnabled = it }
             optInt(KEY_AUTO_STOP_SILENCE_WINDOW_MS)?.let { autoStopSilenceWindowMs = it }
             optInt(KEY_AUTO_STOP_SILENCE_SENSITIVITY)?.let { autoStopSilenceSensitivity = it }

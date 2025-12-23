@@ -160,6 +160,7 @@
   <!-- Other General Settings -->
   <!-- ============================================== -->
   <string name="label_audio_ducking_on_record">Audio ducking during recording</string>
+  <string name="label_offline_denoise">Offline denoise for non-streaming ASR</string>
   <string name="label_headset_mic_priority">Prefer headset microphone (experimental)</string>
   <!-- External IME linking (AIDL) -->
   <string name="label_external_ime_link_aidl">Allow external IME linking (AIDL)</string>
@@ -258,6 +259,10 @@
   <!-- Duck media on record -->
   <string name="feature_duck_media_on_record_off_desc">Media playback volume remains unchanged during recording.</string>
   <string name="feature_duck_media_on_record_on_desc">Automatically pauses media playback during recording to reduce interference and improve recognition accuracy.</string>
+
+  <!-- Offline denoise -->
+  <string name="feature_offline_denoise_off_desc">Raw audio is used without model-based denoise.</string>
+  <string name="feature_offline_denoise_on_desc">Applies model-based denoise before non-streaming upload or offline recognition. Limited improvement for low-volume speech.</string>
 
   <!-- Headset mic priority -->
   <string name="feature_headset_mic_priority_off_desc">Uses the device\'s built-in microphone for recording.</string>

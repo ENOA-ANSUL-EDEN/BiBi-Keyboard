@@ -158,6 +158,7 @@
   <!-- 其他通用設定 -->
   <!-- ============================================== -->
   <string name="label_audio_ducking_on_record">錄音時音訊避讓</string>
+  <string name="label_offline_denoise">非串流辨識降噪</string>
   <string name="label_headset_mic_priority">優先嘗試使用耳機的麥克風（實驗性）</string>
   <!-- 外部輸入法聯動（AIDL） -->
   <string name="label_external_ime_link_aidl">允許外部輸入法聯動（AIDL）</string>
@@ -256,6 +257,10 @@
   <!-- 錄音時音訊避讓 -->
   <string name="feature_duck_media_on_record_off_desc">錄音時媒體播放音量保持不變。</string>
   <string name="feature_duck_media_on_record_on_desc">錄音時自動暫停媒體播放，減少干擾提高識別準確率。</string>
+
+  <!-- 非串流降噪 -->
+  <string name="feature_offline_denoise_off_desc">非串流上傳或離線辨識前不進行模型降噪。</string>
+  <string name="feature_offline_denoise_on_desc">在非串流上傳或離線辨識前進行模型降噪，對低聲說話改善有限。</string>
 
   <!-- 耳機麥克風優先 -->
   <string name="feature_headset_mic_priority_off_desc">使用裝置內建麥克風進行錄音。</string>

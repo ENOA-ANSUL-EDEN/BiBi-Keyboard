@@ -53,7 +53,13 @@ class GenericPushFileAsrAdapter(
         }
         scope.launch(Dispatchers.IO) {
             try {
-                recognizer.recognizeFromPcm(data)
+                val denoised = OfflineSpeechDenoiserManager.denoiseIfEnabled(
+                    context = context,
+                    prefs = prefs,
+                    pcm = data,
+                    sampleRate = 16000
+                )
+                recognizer.recognizeFromPcm(denoised)
             } catch (t: Throwable) {
                 Log.e(TAG, "recognizeFromPcm failed", t)
                 try {
@@ -73,4 +79,3 @@ class GenericPushFileAsrAdapter(
         try { bos.write(pcm) } catch (t: Throwable) { Log.e(TAG, "buffer write failed", t) }
     }
 }
-

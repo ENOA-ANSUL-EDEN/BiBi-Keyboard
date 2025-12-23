@@ -40,6 +40,7 @@ class InputSettingsActivity : BaseActivity() {
     private var isUpdatingSwitchReturnPrevImeOnHide = false
     private var isUpdatingSwitchHideRecentTasks = false
     private var isUpdatingSwitchDuckMediaOnRecord = false
+    private var isUpdatingSwitchOfflineDenoise = false
     private var isUpdatingSwitchHeadsetMicPriority = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -61,6 +62,7 @@ class InputSettingsActivity : BaseActivity() {
         val switchReturnPrevImeOnHide = findViewById<MaterialSwitch>(R.id.switchReturnPrevImeOnHide)
         val switchHideRecentTasks = findViewById<MaterialSwitch>(R.id.switchHideRecentTasks)
         val switchDuckMediaOnRecord = findViewById<MaterialSwitch>(R.id.switchDuckMediaOnRecord)
+        val switchOfflineDenoise = findViewById<MaterialSwitch>(R.id.switchOfflineDenoise)
         val switchHeadsetMicPriority = findViewById<MaterialSwitch>(R.id.switchHeadsetMicPriority)
         val switchExternalImeAidl = findViewById<MaterialSwitch>(R.id.switchExternalImeAidl)
         val toggleKeyboardHeight = findViewById<MaterialButtonToggleGroup>(R.id.toggleKeyboardHeight)
@@ -99,6 +101,10 @@ class InputSettingsActivity : BaseActivity() {
             isUpdatingSwitchDuckMediaOnRecord = true
             switchDuckMediaOnRecord.isChecked = prefs.duckMediaOnRecordEnabled
             isUpdatingSwitchDuckMediaOnRecord = false
+
+            isUpdatingSwitchOfflineDenoise = true
+            switchOfflineDenoise.isChecked = prefs.offlineDenoiseEnabled
+            isUpdatingSwitchOfflineDenoise = false
 
             isUpdatingSwitchHeadsetMicPriority = true
             switchHeadsetMicPriority.isChecked = prefs.headsetMicPriorityEnabled
@@ -221,6 +227,16 @@ class InputSettingsActivity : BaseActivity() {
             preferenceKey = "duck_media_on_record_explained",
             readPref = { prefs.duckMediaOnRecordEnabled },
             writePref = { v -> prefs.duckMediaOnRecordEnabled = v },
+            hapticFeedback = { hapticTapIfEnabled(it) }
+        )
+        switchOfflineDenoise.installExplainedSwitch(
+            context = this,
+            titleRes = R.string.label_offline_denoise,
+            offDescRes = R.string.feature_offline_denoise_off_desc,
+            onDescRes = R.string.feature_offline_denoise_on_desc,
+            preferenceKey = "offline_denoise_explained",
+            readPref = { prefs.offlineDenoiseEnabled },
+            writePref = { v -> prefs.offlineDenoiseEnabled = v },
             hapticFeedback = { hapticTapIfEnabled(it) }
         )
         switchHeadsetMicPriority.installExplainedSwitch(

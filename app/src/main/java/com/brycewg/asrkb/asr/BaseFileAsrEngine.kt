@@ -80,7 +80,13 @@ abstract class BaseFileAsrEngine(
                         }
                         // 记录最近一次用于识别的片段，供“重试”功能使用
                         lastSegmentForRetry = seg
-                        recognize(seg)
+                        val denoised = OfflineSpeechDenoiserManager.denoiseIfEnabled(
+                            context = context,
+                            prefs = prefs,
+                            pcm = seg,
+                            sampleRate = sampleRate
+                        )
+                        recognize(denoised)
                     } catch (t: Throwable) {
                         Log.e(TAG, "Recognition failed for segment", t)
                         try {
@@ -416,7 +422,13 @@ abstract class BaseFileAsrEngine(
         }
         scope.launch(Dispatchers.IO) {
             try {
-                recognize(data)
+                val denoised = OfflineSpeechDenoiserManager.denoiseIfEnabled(
+                    context = context,
+                    prefs = prefs,
+                    pcm = data,
+                    sampleRate = sampleRate
+                )
+                recognize(denoised)
             } catch (t: Throwable) {
                 Log.e(TAG, "retryLastSegment recognize failed", t)
                 try {
