@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * 本地模型伪流式基础引擎：
- * - 统一封装麦克风采集、基于 VAD 的“停顿分片”逻辑；
+ * - 统一封装麦克风采集、定时分片（预览用）+ VAD 静音过滤 + 可选静音判停；
  * - 子类通过 onSegmentBoundary / onSessionFinished 实现片段预览与整段识别。
  */
 abstract class LocalModelPseudoStreamAsrEngine(
@@ -28,6 +28,7 @@ abstract class LocalModelPseudoStreamAsrEngine(
 
     companion object {
         private const val TAG = "LocalPseudoStreamEngine"
+        private const val PREVIEW_SEGMENT_MS = 800
     }
 
     protected open val sampleRate: Int = 16000
@@ -76,6 +77,8 @@ abstract class LocalModelPseudoStreamAsrEngine(
             var hasRecordedAudio = false
             var segVadDetector: VadDetector? = null
             var stopVadDetector: VadDetector? = null
+            var segmentElapsedMs = 0L
+            var segmentHasSpeech = false
             val autoStopEnabled = try {
                 isVadAutoStopEnabled(context, prefs)
             } catch (t: Throwable) {
@@ -109,8 +112,7 @@ abstract class LocalModelPseudoStreamAsrEngine(
                     Log.w(TAG, "Failed to read silence window for pseudo stream", t)
                     1200
                 }.coerceIn(300, 5000)
-                // 分句窗口采用停录窗口的 1/3，更宽松（更短），便于中途快速预览
-                val segmentWindowMs = (stopWindowMs / 3).coerceIn(300, stopWindowMs)
+                val segmentWindowMs = PREVIEW_SEGMENT_MS
 
                 segVadDetector = try {
                     VadDetector(
@@ -123,6 +125,7 @@ abstract class LocalModelPseudoStreamAsrEngine(
                     Log.e(TAG, "Failed to create segment VAD for pseudo stream", t)
                     null
                 }
+                segmentHasSpeech = segVadDetector == null
 
                 stopVadDetector = if (autoStopEnabled) {
                     try {
@@ -153,36 +156,64 @@ abstract class LocalModelPseudoStreamAsrEngine(
 
                     try {
                         if (audioChunk.isNotEmpty()) {
-                            sessionBuffer.write(audioChunk)
                             segmentBuffer.write(audioChunk)
-                            hasRecordedAudio = true
                         }
                     } catch (t: Throwable) {
                         Log.e(TAG, "Failed to buffer audio chunk", t)
                     }
 
-                    // 分段 VAD：用于检测“停顿”并切分片段，阈值比停录更宽松（更短）
+                    // 分段语音检测：用于过滤无声片段
                     val segVad = segVadDetector
                     if (segVad != null && audioChunk.isNotEmpty()) {
-                        val cutSegment = try {
-                            segVad.shouldStop(audioChunk, audioChunk.size)
+                        val hasSpeech = try {
+                            segVad.isSpeechFrame(audioChunk, audioChunk.size)
                         } catch (t: Throwable) {
-                            Log.e(TAG, "Segment VAD shouldStop failed", t)
+                            Log.e(TAG, "Segment VAD speech check failed", t)
                             false
                         }
-                        if (cutSegment && segmentBuffer.size() > 0) {
-                            val segBytes = segmentBuffer.toByteArray()
-                            segmentBuffer.reset()
-                            try {
-                                segVad.reset()
+                        if (hasSpeech) segmentHasSpeech = true
+                    } else if (segVad == null) {
+                        segmentHasSpeech = true
+                    }
+
+                    // 定时分段：固定间隔触发预览
+                    val frameMs = if (audioChunk.isNotEmpty() && sampleRate > 0) {
+                        ((audioChunk.size / 2) * 1000L) / sampleRate
+                    } else {
+                        0L
+                    }
+                    if (frameMs > 0L) {
+                        segmentElapsedMs += frameMs
+                    }
+                    if (segmentElapsedMs >= segmentWindowMs && segmentBuffer.size() > 0) {
+                        if (segmentHasSpeech) {
+                            val segBytes = try {
+                                segmentBuffer.toByteArray()
                             } catch (t: Throwable) {
-                                Log.w(TAG, "Failed to reset segment VAD detector", t)
+                                Log.e(TAG, "Failed to toByteArray for segment", t)
+                                null
                             }
-                            try {
-                                onSegmentBoundary(segBytes)
-                            } catch (t: Throwable) {
-                                Log.e(TAG, "onSegmentBoundary failed", t)
+                            if (segBytes != null) {
+                                try {
+                                    sessionBuffer.write(segBytes)
+                                    hasRecordedAudio = true
+                                } catch (t: Throwable) {
+                                    Log.e(TAG, "Failed to append segment to session buffer", t)
+                                }
+                                try {
+                                    onSegmentBoundary(segBytes)
+                                } catch (t: Throwable) {
+                                    Log.e(TAG, "onSegmentBoundary failed", t)
+                                }
                             }
+                        }
+                        segmentBuffer.reset()
+                        segmentElapsedMs = 0L
+                        segmentHasSpeech = segVadDetector == null
+                        try {
+                            segVadDetector?.reset()
+                        } catch (t: Throwable) {
+                            Log.w(TAG, "Failed to reset segment VAD detector", t)
                         }
                     }
 
@@ -234,6 +265,26 @@ abstract class LocalModelPseudoStreamAsrEngine(
                     } finally {
                         stoppedDelivered = true
                     }
+                }
+
+                if (segmentBuffer.size() > 0) {
+                    if (segmentHasSpeech) {
+                        val segBytes = try {
+                            segmentBuffer.toByteArray()
+                        } catch (t: Throwable) {
+                            Log.e(TAG, "Failed to toByteArray for tail segment", t)
+                            null
+                        }
+                        if (segBytes != null) {
+                            try {
+                                sessionBuffer.write(segBytes)
+                                hasRecordedAudio = true
+                            } catch (t: Throwable) {
+                                Log.e(TAG, "Failed to append tail segment to session buffer", t)
+                            }
+                        }
+                    }
+                    segmentBuffer.reset()
                 }
 
                 if (hasRecordedAudio) {
