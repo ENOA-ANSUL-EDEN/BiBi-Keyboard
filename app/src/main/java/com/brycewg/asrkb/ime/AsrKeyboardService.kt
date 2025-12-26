@@ -432,8 +432,8 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
                 // 清除一次性抑制标记，避免连环切换
                 suppressReturnPrevImeOnHideOnce = false
             } else {
-                val ok = try { switchToPreviousInputMethod() } catch (_: Throwable) { false }
-                if (!ok) {
+                val switched = switchToConfiguredImeOrPrevious()
+                if (!switched) {
                     // 若系统未允许切回，不做额外操作
                 }
             }
@@ -1073,7 +1073,7 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
             if (prefs.fcitx5ReturnOnImeSwitch) {
                 if (asrManager.isRunning()) asrManager.stopRecording()
                 suppressReturnPrevImeOnHideOnce = true
-                val switched = try { switchToPreviousInputMethod() } catch (_: Throwable) { false }
+                val switched = switchToConfiguredImeOrPrevious()
                 if (!switched) {
                     showImePicker()
                 }
@@ -2165,6 +2165,34 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
     private fun showImePicker() {
         val imm = getSystemService(InputMethodManager::class.java)
         imm?.showInputMethodPicker()
+    }
+
+    private fun switchToConfiguredImeOrPrevious(): Boolean {
+        val targetId = prefs.imeSwitchTargetId
+        return if (targetId.isNotBlank()) {
+            switchToTargetInputMethod(targetId)
+        } else {
+            safeSwitchToPreviousInputMethod()
+        }
+    }
+
+    private fun switchToTargetInputMethod(targetId: String): Boolean {
+        if (targetId.isBlank()) return false
+        val imm = getSystemService(InputMethodManager::class.java) ?: return false
+        val enabled = imm.enabledInputMethodList.any { it.id == targetId }
+        if (!enabled) return false
+        val token = window?.window?.attributes?.token ?: return false
+        imm.setInputMethod(token, targetId)
+        return true
+    }
+
+    private fun safeSwitchToPreviousInputMethod(): Boolean {
+        return try {
+            switchToPreviousInputMethod()
+        } catch (t: Throwable) {
+            android.util.Log.w("AsrKeyboardService", "Failed to switch to previous input method", t)
+            false
+        }
     }
 
     private fun showPromptPicker(anchor: View) {

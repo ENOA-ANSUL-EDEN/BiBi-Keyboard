@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.util.Log
 import android.view.HapticFeedbackConstants
 import android.view.View
+import android.view.inputmethod.InputMethodManager
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -67,6 +68,7 @@ class InputSettingsActivity : BaseActivity() {
         val switchExternalImeAidl = findViewById<MaterialSwitch>(R.id.switchExternalImeAidl)
         val toggleKeyboardHeight = findViewById<MaterialButtonToggleGroup>(R.id.toggleKeyboardHeight)
         val tvLanguage = findViewById<TextView>(R.id.tvLanguageValue)
+        val tvImeSwitchTarget = findViewById<TextView>(R.id.tvImeSwitchTargetValue)
         val sliderBottomPadding = findViewById<com.google.android.material.slider.Slider>(R.id.sliderBottomPadding)
         val tvBottomPaddingValue = findViewById<TextView>(R.id.tvBottomPaddingValue)
         val sliderWaveformSensitivity = findViewById<com.google.android.material.slider.Slider>(R.id.sliderWaveformSensitivity)
@@ -126,6 +128,9 @@ class InputSettingsActivity : BaseActivity() {
 
         // 波形灵敏度调节
         setupWaveformSensitivitySlider(prefs, sliderWaveformSensitivity, tvWaveformSensitivityValue)
+
+        // 切换目标输入法（点击弹出单选对话框）
+        setupImeSwitchTargetSelection(prefs, tvImeSwitchTarget)
 
         // 应用语言选择（点击弹出单选对话框）
         setupLanguageSelection(prefs, tvLanguage)
@@ -417,6 +422,59 @@ class InputSettingsActivity : BaseActivity() {
                         }
                         AppCompatDelegate.setApplicationLocales(locales)
                     }
+                }
+            )
+        }
+    }
+
+    /**
+     * 设置切换目标输入法选择对话框
+     */
+    private fun setupImeSwitchTargetSelection(prefs: Prefs, tvTarget: TextView) {
+        data class ImeOption(val id: String, val label: String)
+
+        fun buildOptions(): List<ImeOption> {
+            val imm = getSystemService(InputMethodManager::class.java)
+            val enabledImes = imm?.enabledInputMethodList ?: emptyList()
+            val options = mutableListOf(
+                ImeOption("", getString(R.string.ime_switch_target_previous))
+            )
+            enabledImes
+                .filter { it.packageName != packageName }
+                .forEach { info ->
+                    val label = info.loadLabel(packageManager)?.toString()?.trim()
+                    val display = if (!label.isNullOrBlank()) label else info.id
+                    options.add(ImeOption(info.id, display))
+                }
+            return options
+        }
+
+        fun updateSummary(options: List<ImeOption>) {
+            val currentId = prefs.imeSwitchTargetId
+            val label = options.firstOrNull { it.id == currentId }?.label
+                ?: options.first().label
+            tvTarget.text = label
+        }
+
+        val initialOptions = buildOptions()
+        updateSummary(initialOptions)
+
+        tvTarget.setOnClickListener { v ->
+            hapticTapIfEnabled(v)
+            val options = buildOptions()
+            val items = options.map { it.label }
+            val currentIndex = options.indexOfFirst { it.id == prefs.imeSwitchTargetId }
+                .takeIf { it >= 0 } ?: 0
+            showSingleChoiceDialog(
+                titleRes = R.string.label_ime_switch_target,
+                items = items,
+                currentIndex = currentIndex,
+                onSelected = { selectedIndex ->
+                    val selectedId = options.getOrNull(selectedIndex)?.id ?: ""
+                    if (prefs.imeSwitchTargetId != selectedId) {
+                        prefs.imeSwitchTargetId = selectedId
+                    }
+                    updateSummary(options)
                 }
             )
         }

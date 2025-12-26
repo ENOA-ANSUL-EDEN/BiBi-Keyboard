@@ -188,7 +188,7 @@
   <string name="model_guide_downloading">モデルをダウンロード中、お待ちください…</string>
   <string name="model_guide_download_complete">モデルのダウンロード完了</string>
   <string name="model_guide_config_doc_url">https://brycewg.notion.site/bibi-keyboard-providers-guide</string>
-  <string name="label_return_prev_ime_on_hide">非表示時に前のIMEに切り替える</string>
+  <string name="label_return_prev_ime_on_hide">非表示時に指定のIMEに切り替える</string>
   <string name="toast_bt_connect_permission_required">ヘッドセットマイクを使用するにはBluetooth接続権限が必要です</string>
   <string name="toast_bt_connect_permission_denied">Bluetooth接続権限が拒否されました。ヘッドセット優先が無効になりました。</string>
   <string name="toast_vad_sensitivity_applied">VAD感度が更新されました。次回の録音に適用されます</string>
@@ -245,11 +245,11 @@
 
   <!-- 入力法切替キーの機能 -->
   <string name="feature_fcitx5_return_on_switcher_off_desc">入力法切替キーはシステムの入力法選択画面を開きます。</string>
-  <string name="feature_fcitx5_return_on_switcher_on_desc">入力法切替キーは前の入力法に直接戻ります。素早い切り替えに便利です。</string>
+  <string name="feature_fcitx5_return_on_switcher_on_desc">入力法切替キーは指定した入力法に戻ります（未設定の場合は前の入力法）。</string>
 
   <!-- 非表示時に前のIMEに戻る -->
   <string name="feature_return_prev_ime_on_hide_off_desc">非表示後も現在の入力法はBiBi Keyboardのままです。</string>
-  <string name="feature_return_prev_ime_on_hide_on_desc">キーボードが非表示になったときに自動的に前の入力法に切り替わります。一時的な音声入力に便利です。</string>
+  <string name="feature_return_prev_ime_on_hide_on_desc">キーボードが非表示になったときに指定した入力法に切り替わります（未設定の場合は前の入力法）。一時的な音声入力に便利です。</string>
 
   <!-- 最近のタスクを非表示 -->
   <string name="feature_hide_recent_tasks_off_desc">アプリカードは最近のタスク概要に表示されます。</string>

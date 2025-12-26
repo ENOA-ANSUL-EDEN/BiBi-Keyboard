@@ -187,7 +187,7 @@
   <string name="model_guide_downloading">正在下載模型，請稍候…</string>
   <string name="model_guide_download_complete">模型下載完成</string>
   <string name="model_guide_config_doc_url">https://brycewg.notion.site/bibi-keyboard-providers-guide</string>
-  <string name="label_return_prev_ime_on_hide">鍵盤收起後切回上一個輸入法</string>
+  <string name="label_return_prev_ime_on_hide">鍵盤收起後切換到指定輸入法</string>
   <string name="toast_bt_connect_permission_required">需要藍牙連線權限以使用耳機麥克風</string>
   <string name="toast_bt_connect_permission_denied">已拒絕藍牙連線權限，將停用耳機麥克風優先</string>
   <string name="toast_vad_sensitivity_applied">已套用 VAD 靈敏度，將在下次錄音生效</string>
@@ -244,11 +244,11 @@
 
   <!-- 輸入法切換鍵功能 -->
   <string name="feature_fcitx5_return_on_switcher_off_desc">輸入法切換鍵開啟系統的輸入法選擇器。</string>
-  <string name="feature_fcitx5_return_on_switcher_on_desc">輸入法切換鍵直接返回上一個輸入法，方便快速切換。</string>
+  <string name="feature_fcitx5_return_on_switcher_on_desc">輸入法切換鍵直接返回指定輸入法，未設定時返回上一個輸入法。</string>
 
   <!-- 收起後切回上一個輸入法 -->
   <string name="feature_return_prev_ime_on_hide_off_desc">鍵盤收起後，目前輸入法仍為說點啥。</string>
-  <string name="feature_return_prev_ime_on_hide_on_desc">鍵盤收起時自動切回上一個輸入法，方便臨時語音輸入。</string>
+  <string name="feature_return_prev_ime_on_hide_on_desc">鍵盤收起時自動切換到指定輸入法，未設定時返回上一個輸入法，方便臨時語音輸入。</string>
 
   <!-- 隱藏任務卡片 -->
   <string name="feature_hide_recent_tasks_off_desc">應用程式卡片在最近任務清單中可見。</string>

@@ -62,6 +62,11 @@
             android:text="@string/label_auto_start_recording_on_show" />
 
           <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/switchHideRecentTasks"
+            style="@style/SettingsSwitch"
+            android:text="@string/label_hide_recent_task_card" />
+
+          <com.google.android.material.materialswitch.MaterialSwitch
             android:id="@+id/switchFcitx5ReturnOnSwitcher"
             style="@style/SettingsSwitch"
             android:text="@string/label_fcitx5_return_on_switcher" />
@@ -71,10 +76,14 @@
             style="@style/SettingsSwitch"
             android:text="@string/label_return_prev_ime_on_hide" />
 
-          <com.google.android.material.materialswitch.MaterialSwitch
-            android:id="@+id/switchHideRecentTasks"
-            style="@style/SettingsSwitch"
-            android:text="@string/label_hide_recent_task_card" />
+          <TextView
+            style="@style/SettingsLabel"
+            android:text="@string/label_ime_switch_target" />
+
+          <TextView
+            android:id="@+id/tvImeSwitchTargetValue"
+            style="@style/SettingsClickableValue.Dropdown"
+            android:text="@string/ime_switch_target_previous" />
 
         </LinearLayout>
 

@@ -56,7 +56,9 @@
     <string name="label_waveform_sensitivity">波形靈敏度（1-10，越高回應越明顯）</string>
 
     <!-- Keyboard layout option -->
-    <string name="label_fcitx5_return_on_switcher">輸入法切換鍵返回上個輸入法</string>
+    <string name="label_fcitx5_return_on_switcher">輸入法切換鍵改為返回指定輸入法</string>
+    <string name="label_ime_switch_target">切換目標輸入法</string>
+    <string name="ime_switch_target_previous">上一個輸入法</string>
     <string name="label_hide_recent_task_card">隱藏最近任務預覽</string>
 
     <!-- Section titles -->

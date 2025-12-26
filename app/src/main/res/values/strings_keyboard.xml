@@ -56,7 +56,9 @@
     <string name="label_waveform_sensitivity">Waveform sensitivity (1-10; higher = more responsive)</string>
 
     <!-- Keyboard layout option -->
-    <string name="label_fcitx5_return_on_switcher">IME switch key returns to previous input method</string>
+    <string name="label_fcitx5_return_on_switcher">IME switch key returns to specified input method</string>
+    <string name="label_ime_switch_target">Switch target IME</string>
+    <string name="ime_switch_target_previous">Previous input method</string>
     <string name="label_hide_recent_task_card">Hide recent task preview</string>
 
     <!-- Section titles -->

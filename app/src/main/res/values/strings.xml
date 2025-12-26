@@ -189,7 +189,7 @@
   <string name="model_guide_downloading">Downloading model, please wait…</string>
   <string name="model_guide_download_complete">Model download complete</string>
   <string name="model_guide_config_doc_url">https://brycewg.notion.site/bibi-keyboard-providers-guide</string>
-  <string name="label_return_prev_ime_on_hide">Switch back to previous IME when hidden</string>
+  <string name="label_return_prev_ime_on_hide">Switch to specified IME when hidden</string>
   <string name="toast_bt_connect_permission_required">Bluetooth connect permission is required to use headset mic</string>
   <string name="toast_bt_connect_permission_denied">Bluetooth connect permission denied; headset priority disabled</string>
   <string name="toast_vad_sensitivity_applied">VAD sensitivity updated; will apply to the next recording</string>
@@ -246,11 +246,11 @@
 
   <!-- Fcitx5 return on switcher -->
   <string name="feature_fcitx5_return_on_switcher_off_desc">The IME switcher key opens the system input method picker.</string>
-  <string name="feature_fcitx5_return_on_switcher_on_desc">The IME switcher key directly returns to the previous input method, convenient for quick switching.</string>
+  <string name="feature_fcitx5_return_on_switcher_on_desc">The IME switcher key returns to the specified input method (falls back to the previous one if not set).</string>
 
   <!-- Return prev IME on hide -->
   <string name="feature_return_prev_ime_on_hide_off_desc">The current input method remains as BiBi Keyboard after hiding.</string>
-  <string name="feature_return_prev_ime_on_hide_on_desc">Automatically switches back to the previous input method when the keyboard is hidden, convenient for temporary voice input.</string>
+  <string name="feature_return_prev_ime_on_hide_on_desc">Switches to the specified input method when the keyboard is hidden (falls back to the previous one if not set), convenient for temporary voice input.</string>
 
   <!-- Hide recent tasks -->
   <string name="feature_hide_recent_tasks_off_desc">The app card is visible in the recent tasks overview.</string>

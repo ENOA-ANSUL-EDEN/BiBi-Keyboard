@@ -164,6 +164,11 @@ class Prefs(context: Context) {
         get() = sp.getBoolean(KEY_RETURN_PREV_IME_ON_HIDE, false)
         set(value) = sp.edit { putBoolean(KEY_RETURN_PREV_IME_ON_HIDE, value) }
 
+    // 输入法切换目标（空字符串表示使用上一个输入法）
+    var imeSwitchTargetId: String
+        get() = sp.getString(KEY_IME_SWITCH_TARGET_ID, "") ?: ""
+        set(value) = sp.edit { putString(KEY_IME_SWITCH_TARGET_ID, value.trim()) }
+
     // 后台隐藏任务卡片（最近任务不显示预览图）
     var hideRecentTaskCard: Boolean
         get() = sp.getBoolean(KEY_HIDE_RECENT_TASK_CARD, false)
@@ -1454,6 +1459,7 @@ class Prefs(context: Context) {
         private const val KEY_SWAP_AI_EDIT_IME_SWITCHER = "swap_ai_edit_ime_switcher"
         private const val KEY_FCITX5_RETURN_ON_SWITCHER = "fcitx5_return_on_switcher"
         private const val KEY_RETURN_PREV_IME_ON_HIDE = "return_prev_ime_on_hide"
+        private const val KEY_IME_SWITCH_TARGET_ID = "ime_switch_target_id"
         private const val KEY_HIDE_RECENT_TASK_CARD = "hide_recent_task_card"
         private const val KEY_FLOATING_WRITE_COMPAT_ENABLED = "floating_write_compat_enabled"
         private const val KEY_FLOATING_WRITE_PASTE_ENABLED = "floating_write_paste_enabled"
@@ -1859,6 +1865,7 @@ class Prefs(context: Context) {
         o.put(KEY_SWAP_AI_EDIT_IME_SWITCHER, swapAiEditWithImeSwitcher)
         o.put(KEY_FCITX5_RETURN_ON_SWITCHER, fcitx5ReturnOnImeSwitch)
         o.put(KEY_RETURN_PREV_IME_ON_HIDE, returnPrevImeOnHide)
+        o.put(KEY_IME_SWITCH_TARGET_ID, imeSwitchTargetId)
         o.put(KEY_HIDE_RECENT_TASK_CARD, hideRecentTaskCard)
         o.put(KEY_APP_LANGUAGE_TAG, appLanguageTag)
         o.put(KEY_FLOATING_SWITCHER_ENABLED, floatingSwitcherEnabled)
@@ -2106,6 +2113,7 @@ class Prefs(context: Context) {
             optBool(KEY_VOLC_NONSTREAM_ENABLED)?.let { volcNonstreamEnabled = it }
             optString(KEY_VOLC_LANGUAGE)?.let { volcLanguage = it }
             optBool(KEY_RETURN_PREV_IME_ON_HIDE)?.let { returnPrevImeOnHide = it }
+            optString(KEY_IME_SWITCH_TARGET_ID)?.let { imeSwitchTargetId = it }
             optBool(KEY_VOLC_FIRST_CHAR_ACCEL_ENABLED)?.let { volcFirstCharAccelEnabled = it }
             optBool(KEY_VOLC_FILE_STANDARD_ENABLED)?.let { volcFileStandardEnabled = it }
             optBool(KEY_VOLC_MODEL_V2_ENABLED)?.let { volcModelV2Enabled = it }

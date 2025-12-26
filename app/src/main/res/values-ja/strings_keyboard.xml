@@ -57,7 +57,9 @@
     <string name="label_waveform_sensitivity">波形感度（1-10；高いほど反応が大きい）</string>
 
     <!-- Keyboard layout option -->
-    <string name="label_fcitx5_return_on_switcher">IME切り替えキーが前の入力メソッドに戻る</string>
+    <string name="label_fcitx5_return_on_switcher">IME切り替えキーを指定の入力メソッドに戻す</string>
+    <string name="label_ime_switch_target">切り替え先のIME</string>
+    <string name="ime_switch_target_previous">前の入力メソッド</string>
     <string name="label_hide_recent_task_card">最近のタスクプレビューを非表示</string>
 
     <!-- Section titles -->
