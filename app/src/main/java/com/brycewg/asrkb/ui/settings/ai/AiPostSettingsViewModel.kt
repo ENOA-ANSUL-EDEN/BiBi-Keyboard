@@ -259,7 +259,8 @@ class AiPostSettingsViewModel : ViewModel() {
             endpoint = Prefs.DEFAULT_LLM_ENDPOINT,
             apiKey = "",
             model = Prefs.DEFAULT_LLM_MODEL,
-            temperature = Prefs.DEFAULT_LLM_TEMPERATURE
+            temperature = Prefs.DEFAULT_LLM_TEMPERATURE,
+            models = emptyList()
         )
         return mutator?.invoke(defaultProvider) ?: defaultProvider
     }
@@ -276,7 +277,8 @@ class AiPostSettingsViewModel : ViewModel() {
                 endpoint = Prefs.DEFAULT_LLM_ENDPOINT,
                 apiKey = "",
                 model = Prefs.DEFAULT_LLM_MODEL,
-                temperature = Prefs.DEFAULT_LLM_TEMPERATURE
+                temperature = Prefs.DEFAULT_LLM_TEMPERATURE,
+                models = emptyList()
             )
 
             val list = _llmProfiles.value.toMutableList()

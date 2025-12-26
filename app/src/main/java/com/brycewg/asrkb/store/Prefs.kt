@@ -274,7 +274,8 @@ class Prefs(context: Context) {
         val endpoint: String,
         val apiKey: String,
         val model: String,
-        val temperature: Float
+        val temperature: Float,
+        val models: List<String> = emptyList()
     )
 
     fun getLlmProviders(): List<LlmProvider> {

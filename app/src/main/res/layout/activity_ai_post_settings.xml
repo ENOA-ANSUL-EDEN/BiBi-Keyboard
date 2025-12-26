@@ -383,12 +383,24 @@
               android:inputType="textPassword" />
           </com.google.android.material.textfield.TextInputLayout>
 
+          <TextView
+            android:id="@+id/tvCustomLlmModel"
+            style="@style/SettingsClickableValue.Dropdown" />
+
+          <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnCustomLlmFetchModels"
+            style="@style/SettingsTonalButton"
+            android:text="@string/btn_llm_fetch_models" />
+
+          <!-- 自定义模型ID输入 (选中自定义时可见) -->
           <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/tilCustomModelId"
             style="@style/SettingsTextInputLayout"
-            android:hint="@string/label_llm_model">
+            android:hint="@string/label_custom_model_id"
+            android:visibility="gone">
 
             <com.google.android.material.textfield.TextInputEditText
-              android:id="@+id/etLlmModel"
+              android:id="@+id/etCustomModelId"
               style="@style/SettingsTextInput"
               android:inputType="text" />
           </com.google.android.material.textfield.TextInputLayout>

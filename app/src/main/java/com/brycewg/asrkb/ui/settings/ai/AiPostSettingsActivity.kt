@@ -79,7 +79,10 @@ class AiPostSettingsActivity : BaseActivity() {
     private lateinit var etLlmProfileName: EditText
     private lateinit var etLlmEndpoint: EditText
     private lateinit var etLlmApiKey: EditText
-    private lateinit var etLlmModel: EditText
+    private lateinit var tvCustomLlmModel: TextView
+    private lateinit var btnCustomLlmFetchModels: Button
+    private lateinit var tilCustomModelId: View
+    private lateinit var etCustomModelId: EditText
     private lateinit var sliderLlmTemperature: Slider
     private lateinit var tvLlmTemperatureValue: TextView
     private lateinit var btnLlmAddProfile: Button
@@ -99,6 +102,8 @@ class AiPostSettingsActivity : BaseActivity() {
 
     // Flag to prevent recursive updates during programmatic text changes
     private var isUpdatingProgrammatically = false
+    private var isCustomModelInputVisible = false
+    private var lastCustomProfileId: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -275,7 +280,10 @@ class AiPostSettingsActivity : BaseActivity() {
         etLlmProfileName = findViewById(R.id.etLlmProfileName)
         etLlmEndpoint = findViewById(R.id.etLlmEndpoint)
         etLlmApiKey = findViewById(R.id.etLlmApiKey)
-        etLlmModel = findViewById(R.id.etLlmModel)
+        tvCustomLlmModel = findViewById(R.id.tvCustomLlmModel)
+        btnCustomLlmFetchModels = findViewById(R.id.btnCustomLlmFetchModels)
+        tilCustomModelId = findViewById(R.id.tilCustomModelId)
+        etCustomModelId = findViewById(R.id.etCustomModelId)
         sliderLlmTemperature = findViewById(R.id.sliderLlmTemperature)
         tvLlmTemperatureValue = findViewById(R.id.tvLlmTemperatureValue)
         btnLlmAddProfile = findViewById(R.id.btnLlmAddProfile)
@@ -355,8 +363,13 @@ class AiPostSettingsActivity : BaseActivity() {
         etLlmApiKey.addTextChangeListener { text ->
             viewModel.updateActiveLlmProvider(prefs) { it.copy(apiKey = text) }
         }
-        etLlmModel.addTextChangeListener { text ->
+        etCustomModelId.addTextChangeListener { text ->
             viewModel.updateActiveLlmProvider(prefs) { it.copy(model = text) }
+        }
+        tvCustomLlmModel.setOnClickListener { showCustomLlmModelSelectionDialog() }
+        btnCustomLlmFetchModels.setOnClickListener { view ->
+            hapticTapIfEnabled(view)
+            handleFetchCustomModels()
         }
         // Custom LLM temperature slider listener
         sliderLlmTemperature.addOnChangeListener { _, value, fromUser ->
@@ -525,12 +538,31 @@ class AiPostSettingsActivity : BaseActivity() {
 
     private fun updateLlmProfileUI(provider: Prefs.LlmProvider?) {
         isUpdatingProgrammatically = true
+        if (provider?.id != lastCustomProfileId) {
+            lastCustomProfileId = provider?.id
+            isCustomModelInputVisible = false
+        }
         val displayName = (provider?.name ?: "").ifBlank { getString(R.string.untitled_profile) }
         tvLlmProfiles.text = displayName
         etLlmProfileName.setTextIfDifferent(provider?.name ?: "")
         etLlmEndpoint.setTextIfDifferent(provider?.endpoint ?: prefs.llmEndpoint)
         etLlmApiKey.setTextIfDifferent(provider?.apiKey ?: prefs.llmApiKey)
-        etLlmModel.setTextIfDifferent(provider?.model ?: prefs.llmModel)
+        val customModels = provider?.models.orEmpty().map { it.trim() }.filter { it.isNotBlank() }
+        val model = (provider?.model ?: prefs.llmModel).trim()
+        val isPresetModel = model.isNotBlank() && customModels.contains(model)
+        if (isPresetModel) {
+            isCustomModelInputVisible = false
+        } else if (model.isNotBlank()) {
+            isCustomModelInputVisible = true
+        }
+        tvCustomLlmModel.text = if (model.isNotBlank()) model else getString(R.string.option_custom_model)
+        tilCustomModelId.visibility = if (isCustomModelInputVisible) View.VISIBLE else View.GONE
+        btnCustomLlmFetchModels.visibility = if (isCustomModelInputVisible) View.GONE else View.VISIBLE
+        if (isCustomModelInputVisible) {
+            etCustomModelId.setTextIfDifferent(model)
+        } else {
+            etCustomModelId.setTextIfDifferent("")
+        }
         val temperature = (provider?.temperature ?: prefs.llmTemperature).coerceIn(0f, 2f)
         sliderLlmTemperature.value = temperature
         tvLlmTemperatureValue.text = String.format("%.1f", temperature)
@@ -654,6 +686,112 @@ class AiPostSettingsActivity : BaseActivity() {
                 if (selected != null) {
                     viewModel.selectLlmProvider(prefs, selected.id)
                 }
+                dialog.dismiss()
+            }
+            .setNegativeButton(R.string.btn_cancel, null)
+            .show()
+    }
+
+    private fun showCustomLlmModelSelectionDialog() {
+        val provider = viewModel.activeLlmProvider.value
+        val customOption = getString(R.string.option_custom_model)
+        val presetModels = provider?.models.orEmpty().map { it.trim() }.filter { it.isNotBlank() }
+        val models = (presetModels + customOption).toTypedArray()
+        val currentModel = provider?.model.orEmpty()
+        val isCustom = currentModel.isBlank() || !presetModels.contains(currentModel)
+        val selectedIndex = if (isCustom) {
+            models.size - 1
+        } else {
+            presetModels.indexOf(currentModel).coerceAtLeast(0)
+        }
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.label_llm_model_select)
+            .setSingleChoiceItems(models, selectedIndex) { dialog, which ->
+                if (which == models.size - 1) {
+                    tilCustomModelId.visibility = View.VISIBLE
+                    btnCustomLlmFetchModels.visibility = View.GONE
+                    isCustomModelInputVisible = true
+                    etCustomModelId.requestFocus()
+                    val nextModel = currentModel.takeIf { it.isNotBlank() && !presetModels.contains(it) }.orEmpty()
+                    viewModel.updateActiveLlmProvider(prefs) { it.copy(model = nextModel) }
+                } else {
+                    val selected = presetModels.getOrNull(which) ?: return@setSingleChoiceItems
+                    isCustomModelInputVisible = false
+                    viewModel.updateActiveLlmProvider(prefs) { it.copy(model = selected) }
+                    tilCustomModelId.visibility = View.GONE
+                    btnCustomLlmFetchModels.visibility = View.VISIBLE
+                }
+                dialog.dismiss()
+            }
+            .setNegativeButton(R.string.btn_cancel, null)
+            .show()
+    }
+
+    private fun handleFetchCustomModels() {
+        val provider = viewModel.activeLlmProvider.value
+        val endpoint = provider?.endpoint?.ifBlank { prefs.llmEndpoint } ?: prefs.llmEndpoint
+        val apiKey = provider?.apiKey?.ifBlank { prefs.llmApiKey } ?: prefs.llmApiKey
+        if (endpoint.isBlank()) {
+            Toast.makeText(this, getString(R.string.llm_test_missing_params), Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val progressDialog = MaterialAlertDialogBuilder(this)
+            .setMessage(R.string.llm_models_fetching)
+            .setCancelable(false)
+            .create()
+        progressDialog.show()
+
+        lifecycleScope.launch {
+            val result = LlmPostProcessor().fetchModels(endpoint, apiKey)
+            progressDialog.dismiss()
+            if (result.ok) {
+                showCustomModelsPickerDialog(result.models)
+            } else {
+                val msg = result.message ?: getString(R.string.llm_test_failed_generic)
+                MaterialAlertDialogBuilder(this@AiPostSettingsActivity)
+                    .setTitle(R.string.llm_models_fetch_failed_title)
+                    .setMessage(getString(R.string.llm_models_fetch_failed, msg))
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show()
+            }
+        }
+    }
+
+    private fun showCustomModelsPickerDialog(models: List<String>) {
+        val provider = viewModel.activeLlmProvider.value
+        val currentModels = provider?.models.orEmpty().map { it.trim() }.filter { it.isNotBlank() }
+        val uniqueModels = models.map { it.trim() }.filter { it.isNotBlank() }.distinct()
+        if (uniqueModels.isEmpty()) {
+            MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.llm_models_fetch_failed_title)
+                .setMessage(getString(R.string.llm_models_fetch_failed, getString(R.string.llm_test_failed_generic)))
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
+            return
+        }
+
+        val checkedItems = uniqueModels.map { currentModels.contains(it) }.toBooleanArray()
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.llm_models_select_title)
+            .setMultiChoiceItems(uniqueModels.toTypedArray(), checkedItems) { _, which, isChecked ->
+                checkedItems[which] = isChecked
+            }
+            .setPositiveButton(R.string.btn_llm_models_add) { dialog, _ ->
+                val selected = uniqueModels.filterIndexed { index, _ -> checkedItems[index] }
+                if (selected.isEmpty()) {
+                    Toast.makeText(this, getString(R.string.toast_llm_models_none_selected), Toast.LENGTH_SHORT).show()
+                    dialog.dismiss()
+                    return@setPositiveButton
+                }
+                val currentModel = provider?.model.orEmpty()
+                val nextModel = when {
+                    currentModel.isNotBlank() && selected.contains(currentModel) -> currentModel
+                    else -> selected.first()
+                }
+                viewModel.updateActiveLlmProvider(prefs) { it.copy(models = selected, model = nextModel) }
                 dialog.dismiss()
             }
             .setNegativeButton(R.string.btn_cancel, null)

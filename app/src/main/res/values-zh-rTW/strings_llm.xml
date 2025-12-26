@@ -21,6 +21,7 @@
 
     <!-- LLM test call -->
     <string name="btn_llm_test_call">測試 LLM 呼叫</string>
+    <string name="btn_llm_fetch_models">取得模型清單</string>
     <string name="llm_test_running">正在測試 LLM 呼叫…</string>
     <string name="llm_test_success_title">測試成功</string>
     <string name="llm_test_success_preview">回應片段：%1$s</string>
@@ -28,6 +29,12 @@
     <string name="llm_test_failed_reason">原因：%1$s</string>
     <string name="llm_test_failed_generic">呼叫失敗</string>
     <string name="llm_test_missing_params">請填寫 API 位址</string>
+    <string name="llm_models_fetching">正在取得模型清單…</string>
+    <string name="llm_models_fetch_failed_title">取得失敗</string>
+    <string name="llm_models_fetch_failed">模型清單取得失敗：%1$s</string>
+    <string name="llm_models_select_title">選擇要加入的模型</string>
+    <string name="btn_llm_models_add">加入所選</string>
+    <string name="toast_llm_models_none_selected">未選擇任何模型</string>
     <!-- Skip AI under char count -->
     <string name="label_ai_skip_under_chars">少於特定字數時跳過 AI 後處理</string>
     <string name="helper_ai_skip_under_chars">當有效字數（中文按字，英文按詞）小於此數值時不執行 AI 後處理；設為 0 表示停用。</string>

@@ -33,6 +33,16 @@ class LlmPostProcessor(private val client: OkHttpClient? = null) {
   )
 
   /**
+   * /models 拉取结果
+   */
+  data class LlmModelsResult(
+    val ok: Boolean,
+    val models: List<String> = emptyList(),
+    val httpCode: Int? = null,
+    val message: String? = null
+  )
+
+  /**
    * 统一的底层调用结果
    */
   private data class RawCallResult(
@@ -164,6 +174,22 @@ class LlmPostProcessor(private val client: OkHttpClient? = null) {
 
     // 其他情况：直接补全 /chat/completions
     return "$b/chat/completions"
+  }
+
+  /**
+   * 解析 /models URL，支持将 /chat/completions 转换为 /models
+   */
+  private fun resolveModelsUrl(base: String): String {
+    val raw = base.trim()
+    if (raw.isEmpty()) throw IllegalArgumentException("Missing endpoint")
+    val b = raw.trimEnd('/')
+    val hasScheme = b.startsWith("http://", true) || b.startsWith("https://", true)
+    if (!hasScheme) throw IllegalArgumentException("Endpoint must start with http:// or https://")
+    if (b.endsWith("/models")) return b
+    if (b.endsWith("/chat/completions")) {
+      return b.removeSuffix("/chat/completions") + "/models"
+    }
+    return "$b/models"
   }
 
   /**
@@ -324,6 +350,17 @@ class LlmPostProcessor(private val client: OkHttpClient? = null) {
   }
 
   /**
+   * 获取模型列表时使用的客户端（避免无限读超时）
+   */
+  private fun getModelsHttpClient(): OkHttpClient {
+    return client ?: OkHttpClient.Builder()
+      .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+      .readTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+      .writeTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+      .build()
+  }
+
+  /**
    * 过滤掉 AI 输出中的 <think>...</think> 标签及其内容
    * 部分模型会将推理内容放在正文中，需要过滤
    *
@@ -365,6 +402,23 @@ class LlmPostProcessor(private val client: OkHttpClient? = null) {
       Log.e(TAG, "Failed to extract text from response", t)
       fallback
     }
+  }
+
+  /**
+   * 解析 OpenAI 标准 /models 返回，抽取模型 ID 列表
+   */
+  private fun parseModelsFromResponse(responseJson: String): List<String> {
+    val obj = JSONObject(responseJson)
+    val data = obj.optJSONArray("data") ?: return emptyList()
+    val result = mutableListOf<String>()
+    for (i in 0 until data.length()) {
+      val item = data.optJSONObject(i) ?: continue
+      val id = item.optString("id").trim()
+      if (id.isNotEmpty()) {
+        result.add(id)
+      }
+    }
+    return result
   }
 
   /**
@@ -596,6 +650,65 @@ class LlmPostProcessor(private val client: OkHttpClient? = null) {
     } else {
       return@withContext LlmTestResult(false, httpCode = result.httpCode, message = result.error)
     }
+  }
+
+  /**
+   * 拉取 OpenAI 标准 /models 列表
+   */
+  suspend fun fetchModels(endpoint: String, apiKey: String): LlmModelsResult = withContext(Dispatchers.IO) {
+    val url = try {
+      resolveModelsUrl(endpoint)
+    } catch (t: Throwable) {
+      Log.e(TAG, "Resolve /models url failed", t)
+      return@withContext LlmModelsResult(false, message = t.message ?: "Invalid endpoint")
+    }
+
+    val reqBuilder = Request.Builder()
+      .url(url)
+      .get()
+      .addHeader("Content-Type", "application/json")
+
+    if (apiKey.isNotBlank()) {
+      reqBuilder.addHeader("Authorization", "Bearer $apiKey")
+    }
+
+    val resp = try {
+      getModelsHttpClient().newCall(reqBuilder.build()).execute()
+    } catch (t: Throwable) {
+      Log.e(TAG, "Fetch /models failed", t)
+      return@withContext LlmModelsResult(false, message = t.message ?: "Network error")
+    }
+
+    val code = resp.code
+    val isSuccessful = resp.isSuccessful
+    val rawBody = try { resp.body?.string().orEmpty() } catch (t: Throwable) {
+      Log.w(TAG, "Read /models response failed", t)
+      ""
+    } finally {
+      try {
+        resp.close()
+      } catch (closeErr: Throwable) {
+        Log.w(TAG, "Close /models response failed", closeErr)
+      }
+    }
+
+    if (!isSuccessful) {
+      val msg = rawBody.take(256).ifBlank { "HTTP $code" }
+      return@withContext LlmModelsResult(false, httpCode = code, message = msg)
+    }
+
+    val models = try {
+      parseModelsFromResponse(rawBody)
+    } catch (t: Throwable) {
+      Log.e(TAG, "Parse /models response failed", t)
+      return@withContext LlmModelsResult(false, httpCode = code, message = t.message ?: "Parse error")
+    }
+
+    if (models.isEmpty()) {
+      return@withContext LlmModelsResult(false, httpCode = code, message = "No models found")
+    }
+
+    return@withContext LlmModelsResult(true, models = models.distinct())
   }
 
   /**
