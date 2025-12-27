@@ -510,9 +510,11 @@ flyhunterl - 6.66 RMB
 Thanks to the following open-source projects for their technical support:
 
 - [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) - Provides technical support for local ASR models, making offline voice recognition possible
+- [TEN-VAD](https://github.com/TEN-framework/ten-vad) - Provides the current VAD model support
 - [SyncClipboard](https://github.com/Jeric-X/SyncClipboard) - Provides clipboard synchronization backend service (not running locally, requires server)
 - [Phosphor](https://github.com/phosphor-icons/homepage) - Provides almost all icons used in the software
 - [WaveLineView](https://github.com/Jay-Goo/WaveLineView) - Provides beautiful wave animation implementation for audio visualization, making recording experience more fluid and visually appealing
+- Thanks to the author NURKE(南㲺) of the "Completion Project" icon pack for designing the new application icon for this project
 
 ---
 
