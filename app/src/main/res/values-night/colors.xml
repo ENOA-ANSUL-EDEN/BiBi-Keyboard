@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Dark mode splash background (no Monet) -->
-    <color name="splash_background">#121212</color>
+    <!-- Dark Mode Colors - Softened -->
+    <color name="ic_launcher_background_color">#1F1F1F</color> <!-- Softer Dark Background -->
+    <color name="ic_launcher_foreground_color">#BBBBBB</color> <!-- Dimmer Light Foreground -->
+
+    <!-- Linked Colors -->
+    <color name="splash_background">@color/ic_launcher_background_color</color>
 </resources>
 

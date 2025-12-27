@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Fixed splash background (no Monet) -->
-    <color name="splash_background">#FFFFFFFF</color>
-    <!-- Adaptive icon background color -->
-    <color name="ic_launcher_background">#FFFFFFFF</color>
+    <!-- Default Colors (Fallback) - Ultra Light Mode -->
+    <color name="ic_launcher_background_color">#FCFCFC</color> <!-- Ultra Light Gray -->
+    <color name="ic_launcher_foreground_color">#777777</color> <!-- Soft Gray -->
+
+    <!-- Linked Colors -->
+    <color name="splash_background">@color/ic_launcher_background_color</color>
+    <color name="ic_launcher_background">@color/ic_launcher_background_color</color>
 </resources>

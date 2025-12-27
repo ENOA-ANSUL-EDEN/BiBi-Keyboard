@@ -1,6 +1,8 @@
 <div align="center">
 
-# 🎙️ BiBi Keyboard
+<img src="images/logo.png" width="128" height="128" alt="Logo">
+
+# BiBi Keyboard
 
 **AI-powered Smart Voice Input Method | Make Voice Input More Natural and Efficient**
 
