@@ -6,7 +6,7 @@
 
 **AI-powered Smart Voice Input Method | Make Voice Input More Natural and Efficient**
 
-### 🌐 [Official Website](https://bibi.brycewg.com) • 📖 [Documentation](https://bibidocs.brycewg.com)
+### 🌐 [Official Website](https://bibi.brycewg.com) • 📖 [Documentation](https://bibidocs.brycewg.com/en/)
 
 English | [简体中文](README.md)
 
@@ -18,9 +18,18 @@ English | [简体中文](README.md)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/BryceWG/BiBi-Keyboard)
 ![GitHub all releases](https://img.shields.io/github/downloads/BryceWG/BiBi-Keyboard/total)
 
-[Features](#-features) • [Quick Start](#-quick-start) • [User Guide](#-user-guide) • [Configuration](#-configuration)
+[Features](#-features) • [Quick Start](#-quick-start)
 
 </div>
+
+## 🌟 Pro Version Released
+
+> 💎 **BiBi Keyboard Pro** is now officially available on the Play Store for a one-time purchase of just $4.49!
+
+The Pro version offers more advanced features and a better user experience.
+You can learn more in "About - Learn about Pro" in BiBi Keyboard v3.9.0+, or in the [Pro Features](https://bibidocs.brycewg.com/en/pro/features.html) documentation. We welcome your feedback to help us polish a better product!
+
+If you are interested in BiBi Keyboard, join our [Telegram Group](https://t.me/+UGFobXqi2bYzMDFl) for more information.
 
 ## ✨ Features
 
@@ -59,6 +68,8 @@ English | [简体中文](README.md)
 - **Rich Editing Tools** - Complete editing functions including cursor movement, selection, copy-paste
 - **Smart Target Selection** - Automatically identifies editing targets (selected text/last recognition/full text)
 - **Custom Keys** - Personalized punctuation keys
+- **Fcitx5 Integration** - Supports invoking BiBi Keyboard's speech recognition capability directly via modified Fcitx5-Android
+- **External Speech Input Interface** - Supports third-party apps invoking BiBi Keyboard for speech input via SpeechRecognizer interface
 
 </td>
 <td width="50%">
@@ -153,266 +164,6 @@ English | [简体中文](README.md)
 
 > 💡 **Tip**: First-time users are recommended to configure Volcengine for 20 hours of free quota!
 
-## 📖 User Guide
-
-### 🎤 Voice Input Feature
-
-<details>
-<summary><b>Basic Operations</b></summary>
-
-1. Long press the microphone button in the center of the keyboard to start recording
-2. Release the button, and the audio will be automatically uploaded to the selected ASR service for recognition
-3. Recognition results will be automatically inserted into the current input field
-
-**Smart Auto-Stop Feature**:
-
-- When enabled, automatically stops recording when continuous silence is detected
-- Adjustable silence duration (0.5-3 seconds) and sensitivity (1-10 levels) in settings
-- Supports both streaming recognition (Volc, Soniox, DashScope, ElevenLabs, Paraformer, Zipformer) and file recognition modes
-
-**Segmented Recording & Auto-Continue (non-streaming)**:
-
-- When reaching per-vendor local time limit, the current segment is cut and uploaded in the background while recording immediately continues for the next segment (no gap)
-- Keyboard panel and Floating Ball keep the “Recording” appearance during segmentation (no flicker into “Processing/Idle”)
-- Per-vendor local caps (non-streaming):
-  - Volcengine: 1 hour (official 2h, with safety margin)
-  - SiliconFlow: 20 minutes
-  - ElevenLabs: 20 minutes
-  - OpenAI Whisper: 20 minutes
-  - Alibaba DashScope: 3 minutes
-  - Google Gemini: 4 hours (official ~9.5h, with safety margin)
-  - Soniox: 1 hour
-  - Local SenseVoice: 5 minutes
-  - Local Telespeech: 5 minutes
-- Streaming mode has no duration cap (supports: Volc, Soniox, DashScope, ElevenLabs, Paraformer, Zipformer)
-
-</details>
-
-<details>
-<summary><b>AI Editing Feature</b></summary>
-
-### 🎯 Basic Operations
-
-1. Click the edit button on the keyboard (AI icon) to enter the AI Edit Panel
-2. Speak editing commands (e.g., "delete the last word", "change 'hello' to 'hi'", etc.)
-3. After speaking the command, AI will modify the selected text or previously recognized content based on the command
-
-### 🎨 AI Edit Panel Features
-
-The AI Edit Panel provides comprehensive text editing tools with a symmetrical layout:
-
-**Left Function Area:**
-
-- **⬅️ Return to Main Keyboard** - Exit AI Edit Panel
-- **✨ Apply Preset Prompt** - Quickly apply preset AI prompts
-- **◀️ ▶️ Cursor Movement** - Move cursor left and right
-- **🔢 Numpad** - Switch to numeric input panel
-- **📝 Selection Mode** - Toggle text selection mode
-
-**Right Function Area:**
-
-- **📄 Select All** - Select all text
-- **⌫ Undo/Backspace** - Undo operations or delete characters
-- **📋 Copy/Paste** - Copy and paste text
-- **🏠 🔚 Move to Start/End** - Quickly navigate to text beginning or end
-
-### 🎙️ Edit Target Selection
-
-AI Editing supports multiple target selection methods:
-
-- **Selected Text Priority**: If text is selected, prioritize editing the selected content
-- **Last Recognition Result**: When no selection, default to editing the last voice recognition result
-- **Entire Input Field**: Configurable to edit the entire input field content
-
-### 💡 Use Cases
-
-- **Text Correction**: "Fix typos", "Adjust sentence order"
-- **Format Optimization**: "Add punctuation", "Segment text"
-- **Content Rewriting**: "Simplify expression", "Polish text"
-- **Batch Operations**: "Remove duplicate content", "Standardize format"
-
-</details>
-
-### ⌨️ Keyboard Button Functions
-
-<details>
-<summary><b>Main Button Layout</b></summary>
-
-| Button      | Function                | Special Operations                        |
-| ----------- | ----------------------- | ----------------------------------------- |
-| 🎤 Mic      | Long press for voice    | -                                         |
-| 🤖 Post     | Toggle AI post-process  | -                                         |
-| 💬 Prompt   | Switch AI prompt preset | -                                         |
-| ⬇️ Hide     | Hide keyboard           | -                                         |
-| ⌫ Back      | Delete characters       | Swipe up/left to delete all, down to undo |
-| ⚙️ Settings | Enter settings          | -                                         |
-| 🔄 Switch   | Switch to other IME     | -                                         |
-| ↵ Enter     | New line or submit      | -                                         |
-
-</details>
-
-<details>
-<summary><b>Custom Keys</b></summary>
-
-- There are **4 customizable** punctuation buttons at the bottom of the keyboard
-- You can customize the character or punctuation displayed on each button in settings
-- Support adding common symbols: `,` `.` `?` `!` etc.
-
-</details>
-
-### 🟣 Floating Ball Voice Recognition Feature ⭐
-
-> Perfectly solves the pain point of voice input working with regular input methods!
-
-<details open>
-<summary><b>Feature Highlights</b></summary>
-
-#### 🌐 Cross-IME Voice Input
-
-- Regardless of which input method you're currently using (Sogou, Baidu, Gboard, etc.), you can use voice input through the floating ball
-- No need to frequently switch input methods, enjoy high-quality voice recognition while maintaining your original typing habits
-- Recognition results are automatically inserted into the current input field for seamless integration
-
-#### 💼 Use Cases
-
-| Scenario                | Description                                                                                     |
-| ----------------------- | ----------------------------------------------------------------------------------------------- |
-| 💬 Daily Chat           | Use familiar input methods for typing, click floating ball for long text input                  |
-| 📄 Document Editing     | Use regular input methods for formatted content, quick voice input for long paragraphs          |
-| 🌍 Multi-language Input | Maintain your IME's multi-language support while getting high-quality Chinese voice recognition |
-| ⚡ Efficiency Boost     | Switch between typing and voice input anytime, greatly improving input efficiency               |
-
-#### 🎯 Operation Flow
-
-```
-1. Enable "Use Floating Ball for Voice Recognition" in settings
-2. Grant overlay permission and accessibility permission
-3. Floating ball always displays on screen (adjustable transparency and size)
-4. Long press and drag to adjust floating ball position
-5. Click floating ball to start recording, click again to stop
-6. Recognition results are automatically inserted into current input field
-```
-
-#### 🎨 Visual Feedback
-
-- 🔘 **Idle State**: Microphone icon shows in gray
-- 🔴 **Recording**: Icon turns red
-- 🔵 **AI Processing**: Icon turns blue
-- **Function Menu**: Long press the floating ball to bring up the function menu, including options to switch to AI post-processing, switch input methods, etc.
-
-</details>
-
-<details>
-<summary><b>Compatibility Mode</b></summary>
-
-In some apps, input fields expose background placeholder text to Accessibility, which contaminates the inserted content. Enable “Floating write-text compatibility mode” in Floating Ball settings:
-
-- When enabled: For apps listed under “Target package names”, the floating ball will attempt Select-All + Paste with an invisible character to mask the background placeholder.
-- Target packages: One full package name per line, exact match (e.g., org.telegram.messenger, nu.gpu.nagram).
-- Built-in examples: org.telegram.messenger, nu.gpu.nagram.
-
-> 💡 Tip: If you encounter text insertion issues, enable compatibility mode and add the app's package here
-
-</details>
-
-<details>
-<summary><b>Difference from IME Switching Floating Ball</b></summary>
-
-| Type                      | Purpose                              | Applicable Scenarios                              |
-| ------------------------- | ------------------------------------ | ------------------------------------------------- |
-| 🔄 IME Switch Ball        | Quickly switch back to BiBi Keyboard | When you need to use this app's keyboard features |
-| 🎤 Voice Recognition Ball | Voice input with any IME             | Daily mixed usage scenarios                       |
-
-> ⚠️ **Note**: The two modes are mutually exclusive. When the voice recognition floating ball is enabled, the IME switching floating ball will be automatically hidden
-
-</details>
-
-<details>
-<summary><b>Recommended Configuration</b></summary>
-
-```
-✅ Set your frequently used third-party IME as default (Sogou, Baidu, etc.)
-✅ Enable BiBi Keyboard's floating ball voice recognition
-✅ Multiple streaming engines supported: Volc, Soniox, DashScope, ElevenLabs (cloud) and Paraformer, Zipformer (local)
-✅ Use third-party IME for daily typing, click floating ball when voice input is needed
-✅ Enjoy the best of both worlds: familiar typing experience + high-quality voice recognition
-✅ Switch to BiBi Keyboard when needed for more smart ASR features
-```
-
-If you use Fcitx5, you can call up BiBi Keyboard through the voice recognition button and return to Fcitx5 through the BiBi Keyboard switch button.
-(Requires enabling Fcitx5 linkage in BiBi Keyboard settings and ensuring Google voice input service is disabled)
-
-</details>
-
----
-
-## ⚙️ Configuration
-
-### 🎤 Voice Recognition Configuration
-
-[Provider Configuration Guide](https://brycewg.notion.site/bibi-keyboard-providers-guide)
-
-### 🧠 LLM Post-Processing Configuration
-
-<details>
-<summary><b>Configuration Parameters</b></summary>
-
-| Parameter         | Description                          | Example                                      |
-| ----------------- | ------------------------------------ | -------------------------------------------- |
-| API Key           | LLM service API key                  | `sk-xxx...`                                  |
-| Service Endpoint  | LLM API address                      | `https://api.openai.com/v1/chat/completions` |
-| Model Name        | LLM model to use                     | `gpt-4o-mini`                                |
-| Temperature       | Control randomness of generated text | `0.0 - 2.0`                                  |
-| Prompt Presets    | Multiple preset prompts              | Customizable, can add and delete             |
-| Auto Post-Process | Automatic post-processing toggle     | Enable/Disable                               |
-
-</details>
-
-### 🎛️ Other Feature Configurations
-
-<details>
-<summary><b>ASR Advanced Settings</b></summary>
-
-- **Silence Auto-Stop**: Enable/disable auto-stop feature
-- **Stop Duration**: Adjustable from 0.5-3 seconds
-- **Stop Sensitivity**: 1-10 levels
-- **Recognition Prompt**: Support custom prompts for Gemini, DashScope and other engines
-- **Language Selection**: Soniox, DashScope support multi-language selection
-
-</details>
-
-<details>
-<summary><b>Speech Preset Information</b></summary>
-
-- Function Description: When speech recognition result exactly matches a "name", it is automatically replaced with its "content", helping to quickly input common phrases, signatures, addresses, employee numbers, etc.
-- Matching Rules: First perform strict case-sensitive matching, if no match then perform case-insensitive matching; replacement is only triggered when the entire text is identical to the name.
-- Usage: Add or delete entries in "Other Settings → Speech Preset Information", select entries to edit through the dropdown, and fill in "name" and "content" separately.
-- Example: Name "My Address" → Content "Shanghai, Xuhui District..."; when you say "My Address" and recognition is completed, it will be directly replaced with the preset content.
-
-</details>
-
-<details>
-<summary><b>Floating Ball Settings</b></summary>
-
-- **Voice Recognition Ball**: Transparency, size adjustment, compatibility mode
-- **IME Switching Ball**: Quick switching function
-- **IME Visibility Compatibility (per‑app)**: Applies only to listed packages; in these apps use IME package detection as compatibility fallback. Includes com.tencent.mm by default
-
-</details>
-
-<details>
-<summary><b>Experience Settings</b></summary>
-
-- **Keyboard Height**: Three levels - Small/Medium/Large
-- **Vibration Feedback**: Microphone / keyboard button vibration
-- **Language Settings**: Follow system / Simplified Chinese / Traditional Chinese / English / Japanese
-- **Test Input**: Test input method directly in settings
-- **Auto Update**: Daily automatic update check on app launch
-
-</details>
-
----
-
 ### 🎨 Tech Stack
 
 ```
@@ -424,8 +175,6 @@ OkHttp 5.2.1 (network requests)
 SharedPreferences (data storage)
 sherpa-onnx (local ASR models)
 ```
-
----
 
 ## 📄 License
 
@@ -515,8 +264,6 @@ Thanks to the following open-source projects for their technical support:
 - [Phosphor](https://github.com/phosphor-icons/homepage) - Provides almost all icons used in the software
 - [WaveLineView](https://github.com/Jay-Goo/WaveLineView) - Provides beautiful wave animation implementation for audio visualization, making recording experience more fluid and visually appealing
 - Thanks to the author NURKE(南㲺) of the "Completion Project" icon pack for designing the new application icon for this project
-
----
 
 <div align="center">
 
