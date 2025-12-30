@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/layoutBottomSheetRoot"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingBottom="8dp">
+
+    <LinearLayout
+        android:id="@+id/layoutBottomSheetHeader"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <View
+            style="@style/SettingsBottomSheetHandle"
+            android:importantForAccessibility="no" />
+
+        <TextView
+            android:id="@+id/tvBottomSheetTitle"
+            style="@style/SettingsBottomSheetTitle" />
+    </LinearLayout>
+
+    <ListView
+        android:id="@+id/listBottomSheetOptions"
+        style="@style/SettingsBottomSheetList"
+        android:choiceMode="singleChoice"
+        android:overScrollMode="ifContentScrolls" />
+</LinearLayout>

@@ -22,6 +22,7 @@ import com.brycewg.asrkb.R
 import com.brycewg.asrkb.asr.AsrVendor
 import com.brycewg.asrkb.asr.SherpaPunctuationManager
 import com.brycewg.asrkb.ui.AsrVendorUi
+import com.brycewg.asrkb.ui.SettingsOptionSheet
 import com.brycewg.asrkb.ui.installExplainedSwitch
 import com.brycewg.asrkb.store.Prefs
 import com.brycewg.asrkb.asr.VadDetector
@@ -2326,14 +2327,13 @@ class AsrSettingsActivity : BaseActivity() {
         currentIndex: Int,
         onSelected: (Int) -> Unit
     ) {
-        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
-            .setTitle(titleResId)
-            .setSingleChoiceItems(items, currentIndex) { dlg, which ->
-                onSelected(which)
-                dlg.dismiss()
-            }
-            .setNegativeButton(R.string.btn_cancel, null)
-            .show()
+        SettingsOptionSheet.showSingleChoice(
+            context = this,
+            titleResId = titleResId,
+            items = items.toList(),
+            selectedIndex = currentIndex,
+            onSelected = onSelected
+        )
     }
 
     /**

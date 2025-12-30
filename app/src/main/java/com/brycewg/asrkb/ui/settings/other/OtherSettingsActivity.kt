@@ -16,6 +16,7 @@ import com.brycewg.asrkb.ui.BaseActivity
 import com.brycewg.asrkb.R
 import com.brycewg.asrkb.store.Prefs
 import com.brycewg.asrkb.analytics.AnalyticsManager
+import com.brycewg.asrkb.ui.SettingsOptionSheet
 import com.brycewg.asrkb.ui.installExplainedSwitch
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.materialswitch.MaterialSwitch
@@ -234,17 +235,17 @@ class OtherSettingsActivity : BaseActivity() {
             val idx = state.presets.indexOfFirst { it.id == state.activePresetId }
                 .let { if (it < 0) 0 else it }
 
-            com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
-                .setTitle(R.string.label_speech_preset_section)
-                .setSingleChoiceItems(displayNames.toTypedArray(), idx) { dlg, which ->
-                    val preset = state.presets.getOrNull(which)
-                    if (preset != null) {
-                        viewModel.setActivePreset(preset.id)
-                    }
-                    dlg.dismiss()
+            SettingsOptionSheet.showSingleChoice(
+                context = this,
+                titleResId = R.string.label_speech_preset_section,
+                items = displayNames,
+                selectedIndex = idx
+            ) { which ->
+                val preset = state.presets.getOrNull(which)
+                if (preset != null) {
+                    viewModel.setActivePreset(preset.id)
                 }
-                .setNegativeButton(R.string.btn_cancel, null)
-                .show()
+            }
         }
 
         // Setup add button

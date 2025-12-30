@@ -20,6 +20,7 @@ import androidx.core.os.LocaleListCompat
 import com.brycewg.asrkb.R
 import com.brycewg.asrkb.ime.AsrKeyboardService
 import com.brycewg.asrkb.store.Prefs
+import com.brycewg.asrkb.ui.SettingsOptionSheet
 import com.brycewg.asrkb.ui.installExplainedSwitch
 import com.google.android.material.button.MaterialButtonToggleGroup
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -494,14 +495,13 @@ class InputSettingsActivity : BaseActivity() {
         currentIndex: Int,
         onSelected: (Int) -> Unit
     ) {
-        MaterialAlertDialogBuilder(this)
-            .setTitle(titleRes)
-            .setSingleChoiceItems(items.toTypedArray(), currentIndex) { dialog, which ->
-                onSelected(which)
-                dialog.dismiss()
-            }
-            .setNegativeButton(R.string.btn_cancel, null)
-            .show()
+        SettingsOptionSheet.showSingleChoice(
+            context = this,
+            titleResId = titleRes,
+            items = items,
+            selectedIndex = currentIndex,
+            onSelected = onSelected
+        )
     }
 
     /**

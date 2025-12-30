@@ -439,6 +439,77 @@
         <item name="android:textStyle">italic</item>
     </style>
 
+    <!-- ==================== 底部选项面板样式 ==================== -->
+
+    <!-- 选项底部面板主题 -->
+    <style name="SettingsBottomSheetDialog" parent="ThemeOverlay.Material3.BottomSheetDialog">
+        <item name="bottomSheetStyle">@style/SettingsBottomSheet</item>
+    </style>
+
+    <!-- 选项底部面板容器 -->
+    <style name="SettingsBottomSheet" parent="Widget.Material3.BottomSheet.Modal">
+        <item name="shapeAppearance">@style/SettingsBottomSheetShape</item>
+        <item name="backgroundTint">?attr/colorSurface</item>
+    </style>
+
+    <!-- 选项底部面板圆角 -->
+    <style name="SettingsBottomSheetShape" parent="ShapeAppearance.Material3.LargeComponent">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSizeTopLeft">24dp</item>
+        <item name="cornerSizeTopRight">24dp</item>
+        <item name="cornerSizeBottomLeft">0dp</item>
+        <item name="cornerSizeBottomRight">0dp</item>
+    </style>
+
+    <!-- 底部面板拖拽条 -->
+    <style name="SettingsBottomSheetHandle">
+        <item name="android:layout_width">36dp</item>
+        <item name="android:layout_height">4dp</item>
+        <item name="android:layout_gravity">center_horizontal</item>
+        <item name="android:layout_marginTop">8dp</item>
+        <item name="android:layout_marginBottom">8dp</item>
+        <item name="android:alpha">0.4</item>
+        <item name="android:background">@drawable/bg_bottom_sheet_handle</item>
+    </style>
+
+    <!-- 底部面板标题 -->
+    <style name="SettingsBottomSheetTitle">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:paddingStart">20dp</item>
+        <item name="android:paddingEnd">20dp</item>
+        <item name="android:paddingBottom">8dp</item>
+        <item name="android:textColor">?attr/colorOnSurface</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <!-- 底部面板列表 -->
+    <style name="SettingsBottomSheetList">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:divider">@null</item>
+        <item name="android:dividerHeight">0dp</item>
+    </style>
+
+    <!-- 底部面板单选项 -->
+    <style name="SettingsBottomSheetItem">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:paddingStart">20dp</item>
+        <item name="android:paddingEnd">20dp</item>
+        <item name="android:paddingTop">12dp</item>
+        <item name="android:paddingBottom">12dp</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:textColor">?attr/colorOnSurface</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:checkMarkTint">?attr/colorPrimary</item>
+        <item name="android:foreground">?attr/selectableItemBackground</item>
+        <item name="android:ellipsize">end</item>
+        <item name="android:maxLines">2</item>
+    </style>
+
     <!-- ==================== 引导页样式 ==================== -->
 
     <!-- 引导页卡片 -->

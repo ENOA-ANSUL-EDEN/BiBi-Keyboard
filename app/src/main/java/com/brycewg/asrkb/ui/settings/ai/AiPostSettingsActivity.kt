@@ -23,6 +23,7 @@ import com.brycewg.asrkb.asr.LlmVendor
 import com.brycewg.asrkb.ime.AsrKeyboardService
 import com.brycewg.asrkb.store.Prefs
 import com.brycewg.asrkb.store.PromptPreset
+import com.brycewg.asrkb.ui.SettingsOptionSheet
 import com.brycewg.asrkb.ui.installExplainedSwitch
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -580,21 +581,37 @@ class AiPostSettingsActivity : BaseActivity() {
 
     // ======== Dialog Methods ========
 
+    private fun showSingleChoiceBottomSheet(
+        titleResId: Int,
+        items: List<String>,
+        selectedIndex: Int,
+        onSelected: (Int) -> Unit
+    ) {
+        SettingsOptionSheet.showSingleChoice(
+            context = this,
+            titleResId = titleResId,
+            items = items,
+            selectedIndex = selectedIndex,
+            onSelected = onSelected
+        )
+    }
+
     private fun showVendorSelectionDialog() {
         val vendors = LlmVendor.allVendors()
         val titles = vendors.map { getString(it.displayNameResId) }.toTypedArray()
         val currentVendor = viewModel.selectedVendor.value
         val selectedIndex = vendors.indexOf(currentVendor).coerceAtLeast(0)
 
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.label_llm_vendor)
-            .setSingleChoiceItems(titles, selectedIndex) { dialog, which ->
-                val selected = vendors.getOrNull(which) ?: return@setSingleChoiceItems
+        showSingleChoiceBottomSheet(
+            titleResId = R.string.label_llm_vendor,
+            items = titles.toList(),
+            selectedIndex = selectedIndex
+        ) { which ->
+            val selected = vendors.getOrNull(which)
+            if (selected != null) {
                 viewModel.selectVendor(prefs, selected)
-                dialog.dismiss()
             }
-            .setNegativeButton(R.string.btn_cancel, null)
-            .show()
+        }
     }
 
     private fun showSfFreeLlmModelSelectionDialog() {
@@ -614,16 +631,19 @@ class AiPostSettingsActivity : BaseActivity() {
             presetModels.indexOf(currentModel).coerceAtLeast(0)
         }
 
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.label_sf_free_llm_model)
-            .setSingleChoiceItems(models, selectedIndex) { dialog, which ->
-                if (which == models.size - 1) {
-                    // Custom option selected - show input field
-                    tilSfCustomModelId.visibility = View.VISIBLE
-                    etSfCustomModelId.requestFocus()
-                    tvSfFreeLlmModel.text = customOption
-                } else {
-                    val selected = presetModels.getOrNull(which) ?: return@setSingleChoiceItems
+        showSingleChoiceBottomSheet(
+            titleResId = R.string.label_sf_free_llm_model,
+            items = models.toList(),
+            selectedIndex = selectedIndex
+        ) { which ->
+            if (which == models.size - 1) {
+                // Custom option selected - show input field
+                tilSfCustomModelId.visibility = View.VISIBLE
+                etSfCustomModelId.requestFocus()
+                tvSfFreeLlmModel.text = customOption
+            } else {
+                val selected = presetModels.getOrNull(which)
+                if (selected != null) {
                     if (prefs.sfFreeLlmUsePaidKey) {
                         prefs.setLlmVendorModel(LlmVendor.SF_FREE, selected)
                     } else {
@@ -632,12 +652,10 @@ class AiPostSettingsActivity : BaseActivity() {
                     tilSfCustomModelId.visibility = View.GONE
                     updateSfFreeLlmModelDisplay()
                 }
-                // Update reasoning mode UI based on new model
-                updateSfReasoningModeUI()
-                dialog.dismiss()
             }
-            .setNegativeButton(R.string.btn_cancel, null)
-            .show()
+            // Update reasoning mode UI based on new model
+            updateSfReasoningModeUI()
+        }
     }
 
     private fun showBuiltinModelSelectionDialog() {
@@ -654,23 +672,24 @@ class AiPostSettingsActivity : BaseActivity() {
             presetModels.indexOf(currentModel).coerceAtLeast(0)
         }
 
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.label_llm_model_select)
-            .setSingleChoiceItems(models, selectedIndex) { dialog, which ->
-                if (which == models.size - 1) {
-                    // Custom option selected - show input field
-                    tilBuiltinCustomModelId.visibility = View.VISIBLE
-                    etBuiltinCustomModelId.requestFocus()
-                    tvBuiltinModel.text = customOption
-                } else {
-                    val selected = presetModels.getOrNull(which) ?: return@setSingleChoiceItems
+        showSingleChoiceBottomSheet(
+            titleResId = R.string.label_llm_model_select,
+            items = models.toList(),
+            selectedIndex = selectedIndex
+        ) { which ->
+            if (which == models.size - 1) {
+                // Custom option selected - show input field
+                tilBuiltinCustomModelId.visibility = View.VISIBLE
+                etBuiltinCustomModelId.requestFocus()
+                tvBuiltinModel.text = customOption
+            } else {
+                val selected = presetModels.getOrNull(which)
+                if (selected != null) {
                     viewModel.updateBuiltinModel(prefs, selected)
                     tilBuiltinCustomModelId.visibility = View.GONE
                 }
-                dialog.dismiss()
             }
-            .setNegativeButton(R.string.btn_cancel, null)
-            .show()
+        }
     }
 
     private fun showLlmProfileSelectionDialog() {
@@ -680,17 +699,16 @@ class AiPostSettingsActivity : BaseActivity() {
         val titles = profiles.map { it.name.ifBlank { getString(R.string.untitled_profile) } }.toTypedArray()
         val selectedIndex = viewModel.getActiveLlmProviderIndex()
 
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.label_llm_choose_profile)
-            .setSingleChoiceItems(titles, selectedIndex) { dialog, which ->
-                val selected = profiles.getOrNull(which)
-                if (selected != null) {
-                    viewModel.selectLlmProvider(prefs, selected.id)
-                }
-                dialog.dismiss()
+        showSingleChoiceBottomSheet(
+            titleResId = R.string.label_llm_choose_profile,
+            items = titles.toList(),
+            selectedIndex = selectedIndex
+        ) { which ->
+            val selected = profiles.getOrNull(which)
+            if (selected != null) {
+                viewModel.selectLlmProvider(prefs, selected.id)
             }
-            .setNegativeButton(R.string.btn_cancel, null)
-            .show()
+        }
     }
 
     private fun showCustomLlmModelSelectionDialog() {
@@ -707,27 +725,28 @@ class AiPostSettingsActivity : BaseActivity() {
             presetModels.indexOf(currentModel).coerceAtLeast(0)
         }
 
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.label_llm_model_select)
-            .setSingleChoiceItems(models, selectedIndex) { dialog, which ->
-                if (which == models.size - 1) {
-                    tilCustomModelId.visibility = View.VISIBLE
-                    btnCustomLlmFetchModels.visibility = if (hasPresetModels) View.GONE else View.VISIBLE
-                    isCustomModelInputVisible = true
-                    etCustomModelId.requestFocus()
-                    val nextModel = currentModel.takeIf { it.isNotBlank() && !presetModels.contains(it) }.orEmpty()
-                    viewModel.updateActiveLlmProvider(prefs) { it.copy(model = nextModel) }
-                } else {
-                    val selected = presetModels.getOrNull(which) ?: return@setSingleChoiceItems
+        showSingleChoiceBottomSheet(
+            titleResId = R.string.label_llm_model_select,
+            items = models.toList(),
+            selectedIndex = selectedIndex
+        ) { which ->
+            if (which == models.size - 1) {
+                tilCustomModelId.visibility = View.VISIBLE
+                btnCustomLlmFetchModels.visibility = if (hasPresetModels) View.GONE else View.VISIBLE
+                isCustomModelInputVisible = true
+                etCustomModelId.requestFocus()
+                val nextModel = currentModel.takeIf { it.isNotBlank() && !presetModels.contains(it) }.orEmpty()
+                viewModel.updateActiveLlmProvider(prefs) { it.copy(model = nextModel) }
+            } else {
+                val selected = presetModels.getOrNull(which)
+                if (selected != null) {
                     isCustomModelInputVisible = false
                     viewModel.updateActiveLlmProvider(prefs) { it.copy(model = selected) }
                     tilCustomModelId.visibility = View.GONE
                     btnCustomLlmFetchModels.visibility = View.VISIBLE
                 }
-                dialog.dismiss()
             }
-            .setNegativeButton(R.string.btn_cancel, null)
-            .show()
+        }
     }
 
     private fun handleFetchCustomModels() {
@@ -807,17 +826,16 @@ class AiPostSettingsActivity : BaseActivity() {
         val titles = presets.map { it.title.ifBlank { getString(R.string.untitled_preset) } }.toTypedArray()
         val selectedIndex = viewModel.getActivePromptPresetIndex()
 
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.label_llm_prompt_presets)
-            .setSingleChoiceItems(titles, selectedIndex) { dialog, which ->
-                val selected = presets.getOrNull(which)
-                if (selected != null) {
-                    viewModel.selectPromptPreset(prefs, selected.id)
-                }
-                dialog.dismiss()
+        showSingleChoiceBottomSheet(
+            titleResId = R.string.label_llm_prompt_presets,
+            items = titles.toList(),
+            selectedIndex = selectedIndex
+        ) { which ->
+            val selected = presets.getOrNull(which)
+            if (selected != null) {
+                viewModel.selectPromptPreset(prefs, selected.id)
             }
-            .setNegativeButton(R.string.btn_cancel, null)
-            .show()
+        }
     }
 
     // ======== Action Handlers ========
