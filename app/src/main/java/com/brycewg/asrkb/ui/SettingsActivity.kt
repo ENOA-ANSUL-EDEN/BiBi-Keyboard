@@ -846,46 +846,51 @@ class SettingsActivity : BaseActivity() {
      */
     private fun showDownloadSourceDialog(originalUrl: String, version: String) {
         if (!updatesEnabled) return
-        val downloadSources = arrayOf(
-            getString(R.string.download_source_github_official),
-            getString(R.string.download_source_mirror_ghproxy),
-            getString(R.string.download_source_mirror_gitmirror),
-            getString(R.string.download_source_mirror_gh_proxynet)
-        )
-
         // 根据 release 页面构造 APK 直链
         val directApkUrl = buildDirectApkUrl(originalUrl, version)
 
         // 生成对应的 URL：所有源都使用 APK 直链
-        val downloadUrls = arrayOf(
-            directApkUrl,
-            convertToMirrorUrl(directApkUrl, "https://ghproxy.net/"),
-            convertToMirrorUrl(directApkUrl, "https://hub.gitmirror.com/"),
-            convertToMirrorUrl(directApkUrl, "https://gh-proxy.net/")
+        val downloadOptions = listOf(
+            DownloadSourceDialog.Option(
+                getString(R.string.download_source_github_official),
+                directApkUrl
+            ),
+            DownloadSourceDialog.Option(
+                getString(R.string.download_source_mirror_ghproxy),
+                convertToMirrorUrl(directApkUrl, "https://ghproxy.net/")
+            ),
+            DownloadSourceDialog.Option(
+                getString(R.string.download_source_mirror_gitmirror),
+                convertToMirrorUrl(directApkUrl, "https://hub.gitmirror.com/")
+            ),
+            DownloadSourceDialog.Option(
+                getString(R.string.download_source_mirror_gh_proxynet),
+                convertToMirrorUrl(directApkUrl, "https://fastgit.cc/")
+            )
         )
 
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.download_source_title)
-            .setItems(downloadSources) { _, which ->
-                try {
-                    // 启动下载服务
-                    ApkDownloadService.startDownload(this, downloadUrls[which], version)
-                    Toast.makeText(
-                        this,
-                        getString(R.string.apk_download_started),
-                        Toast.LENGTH_SHORT
-                    ).show()
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to start download", e)
-                    Toast.makeText(
-                        this,
-                        getString(R.string.apk_download_start_failed),
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
+        DownloadSourceDialog.show(
+            context = this,
+            titleRes = R.string.download_source_title,
+            options = downloadOptions
+        ) { option ->
+            try {
+                // 启动下载服务
+                ApkDownloadService.startDownload(this, option.url, version)
+                Toast.makeText(
+                    this,
+                    getString(R.string.apk_download_started),
+                    Toast.LENGTH_SHORT
+                ).show()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to start download", e)
+                Toast.makeText(
+                    this,
+                    getString(R.string.apk_download_start_failed),
+                    Toast.LENGTH_SHORT
+                ).show()
             }
-            .setNegativeButton(R.string.btn_cancel, null)
-            .show()
+        }
     }
 
     /**
@@ -1309,53 +1314,54 @@ class SettingsActivity : BaseActivity() {
      * 显示模型下载镜像源选择对话框（从模型选择引导进入）
      */
     private fun showModelDownloadSourceDialog() {
-        val downloadSources = arrayOf(
-            getString(R.string.download_source_github_official),
-            getString(R.string.download_source_mirror_ghproxy),
-            getString(R.string.download_source_mirror_gitmirror),
-            getString(R.string.download_source_mirror_gh_proxynet)
-        )
-
         val variant = "small-full"
         val urlOfficial = "https://github.com/BryceWG/BiBi-Keyboard/releases/download/models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.zip"
 
-        val downloadUrls = arrayOf(
-            urlOfficial,
-            "https://ghproxy.net/$urlOfficial",
-            "https://hub.gitmirror.com/$urlOfficial",
-            "https://gh-proxy.net/$urlOfficial"
+        val downloadOptions = listOf(
+            DownloadSourceDialog.Option(
+                getString(R.string.download_source_github_official),
+                urlOfficial
+            ),
+            DownloadSourceDialog.Option(
+                getString(R.string.download_source_mirror_ghproxy),
+                "https://ghproxy.net/$urlOfficial"
+            ),
+            DownloadSourceDialog.Option(
+                getString(R.string.download_source_mirror_gitmirror),
+                "https://hub.gitmirror.com/$urlOfficial"
+            ),
+            DownloadSourceDialog.Option(
+                getString(R.string.download_source_mirror_gh_proxynet),
+                "https://fastgit.cc/$urlOfficial"
+            )
         )
 
-        val dialog = MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.download_source_title)
-            .setItems(downloadSources) { _, which ->
-                try {
-                    com.brycewg.asrkb.ui.settings.asr.ModelDownloadService.startDownload(
-                        this,
-                        downloadUrls[which],
-                        variant
-                    )
-                    Toast.makeText(
-                        this,
-                        getString(R.string.model_guide_downloading),
-                        Toast.LENGTH_SHORT
-                    ).show()
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to start model download", e)
-                    Toast.makeText(
-                        this,
-                        getString(R.string.sv_download_status_failed),
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
+        DownloadSourceDialog.show(
+            context = this,
+            titleRes = R.string.download_source_title,
+            options = downloadOptions,
+            cancelable = false
+        ) { option ->
+            try {
+                com.brycewg.asrkb.ui.settings.asr.ModelDownloadService.startDownload(
+                    this,
+                    option.url,
+                    variant
+                )
+                Toast.makeText(
+                    this,
+                    getString(R.string.model_guide_downloading),
+                    Toast.LENGTH_SHORT
+                ).show()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to start model download", e)
+                Toast.makeText(
+                    this,
+                    getString(R.string.sv_download_status_failed),
+                    Toast.LENGTH_LONG
+                ).show()
             }
-            .setNegativeButton(R.string.btn_cancel, null)
-            .setCancelable(false)
-            .create()
-
-        // 防止点击空白区域关闭对话框（必须在 create() 后、show() 前设置）
-        dialog.setCanceledOnTouchOutside(false)
-        dialog.show()
+        }
     }
 
     /**

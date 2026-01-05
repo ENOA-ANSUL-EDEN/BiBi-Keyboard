@@ -22,6 +22,7 @@ import com.brycewg.asrkb.R
 import com.brycewg.asrkb.asr.AsrVendor
 import com.brycewg.asrkb.asr.SherpaPunctuationManager
 import com.brycewg.asrkb.ui.AsrVendorUi
+import com.brycewg.asrkb.ui.DownloadSourceDialog
 import com.brycewg.asrkb.ui.SettingsOptionSheet
 import com.brycewg.asrkb.ui.installExplainedSwitch
 import com.brycewg.asrkb.store.Prefs
@@ -1202,12 +1203,6 @@ class AsrSettingsActivity : BaseActivity() {
         btnDl.setOnClickListener { v ->
             v.isEnabled = false
             tvStatus.text = ""
-            val sources = arrayOf(
-                getString(R.string.download_source_github_official),
-                getString(R.string.download_source_mirror_ghproxy),
-                getString(R.string.download_source_mirror_gitmirror),
-                getString(R.string.download_source_mirror_gh_proxynet)
-            )
             val variant = prefs.pfModelVariant
             val isTri = variant.startsWith("trilingual")
             val urlOfficial = if (isTri) {
@@ -1215,27 +1210,42 @@ class AsrSettingsActivity : BaseActivity() {
             } else {
                 "https://github.com/BryceWG/BiBi-Keyboard/releases/download/models/sherpa-onnx-streaming-paraformer-bilingual-zh-en.zip"
             }
-            androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle(R.string.download_source_title)
-                .setItems(sources) { dlg, which ->
-                    dlg.dismiss()
-                    val url = when (which) {
-                        1 -> "https://ghproxy.net/$urlOfficial"
-                        2 -> "https://hub.gitmirror.com/$urlOfficial"
-                        3 -> "https://gh-proxy.net/$urlOfficial"
-                        else -> urlOfficial
-                    }
-                    try {
-                        // 统一下载服务
-                        ModelDownloadService.startDownload(this, url, variant, "paraformer")
-                        tvStatus.text = getString(R.string.pf_download_started_in_bg)
-                    } catch (e: Throwable) {
-                        android.util.Log.e(TAG, "Failed to start paraformer download", e)
-                        tvStatus.text = getString(R.string.pf_download_status_failed)
-                    } finally { v.isEnabled = true }
+            val options = listOf(
+                DownloadSourceDialog.Option(
+                    getString(R.string.download_source_github_official),
+                    urlOfficial
+                ),
+                DownloadSourceDialog.Option(
+                    getString(R.string.download_source_mirror_ghproxy),
+                    "https://ghproxy.net/$urlOfficial"
+                ),
+                DownloadSourceDialog.Option(
+                    getString(R.string.download_source_mirror_gitmirror),
+                    "https://hub.gitmirror.com/$urlOfficial"
+                ),
+                DownloadSourceDialog.Option(
+                    getString(R.string.download_source_mirror_gh_proxynet),
+                    "https://fastgit.cc/$urlOfficial"
+                )
+            )
+            DownloadSourceDialog.show(
+                context = this,
+                titleRes = R.string.download_source_title,
+                options = options,
+                showCancelButton = false,
+                onDismiss = { v.isEnabled = true }
+            ) { option ->
+                try {
+                    // 统一下载服务
+                    ModelDownloadService.startDownload(this, option.url, variant, "paraformer")
+                    tvStatus.text = getString(R.string.pf_download_started_in_bg)
+                } catch (e: Throwable) {
+                    android.util.Log.e(TAG, "Failed to start paraformer download", e)
+                    tvStatus.text = getString(R.string.pf_download_status_failed)
+                } finally {
+                    v.isEnabled = true
                 }
-                .setOnDismissListener { v.isEnabled = true }
-                .show()
+            }
         }
 
         btnClear.setOnClickListener { v ->
@@ -1406,13 +1416,6 @@ class AsrSettingsActivity : BaseActivity() {
         btnSvDownload.setOnClickListener { v ->
             v.isEnabled = false
             tvSvDownloadStatus.text = ""
-
-            val sources = arrayOf(
-                getString(R.string.download_source_github_official),
-                getString(R.string.download_source_mirror_ghproxy),
-                getString(R.string.download_source_mirror_gitmirror),
-                getString(R.string.download_source_mirror_gh_proxynet)
-            )
             val variant = prefs.svModelVariant
             val urlOfficial = when (variant) {
                 "small-full" -> "https://github.com/BryceWG/BiBi-Keyboard/releases/download/models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.zip"
@@ -1421,28 +1424,41 @@ class AsrSettingsActivity : BaseActivity() {
                 else -> "https://github.com/BryceWG/BiBi-Keyboard/releases/download/models/sherpa-onnx-sense-voice-funasr-nano-int8-2025-12-17.zip"
             }
 
-            androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle(R.string.download_source_title)
-                .setItems(sources) { dlg, which ->
-                    dlg.dismiss()
-                    val url = when (which) {
-                        1 -> "https://ghproxy.net/$urlOfficial"
-                        2 -> "https://hub.gitmirror.com/$urlOfficial"
-                        3 -> "https://gh-proxy.net/$urlOfficial"
-                        else -> urlOfficial
-                    }
-                    try {
-                        ModelDownloadService.startDownload(this, url, variant)
-                        tvSvDownloadStatus.text = getString(R.string.sv_download_started_in_bg)
-                    } catch (e: Throwable) {
-                        android.util.Log.e(TAG, "Failed to start model download", e)
-                        tvSvDownloadStatus.text = getString(R.string.sv_download_status_failed)
-                    } finally {
-                        v.isEnabled = true
-                    }
+            val options = listOf(
+                DownloadSourceDialog.Option(
+                    getString(R.string.download_source_github_official),
+                    urlOfficial
+                ),
+                DownloadSourceDialog.Option(
+                    getString(R.string.download_source_mirror_ghproxy),
+                    "https://ghproxy.net/$urlOfficial"
+                ),
+                DownloadSourceDialog.Option(
+                    getString(R.string.download_source_mirror_gitmirror),
+                    "https://hub.gitmirror.com/$urlOfficial"
+                ),
+                DownloadSourceDialog.Option(
+                    getString(R.string.download_source_mirror_gh_proxynet),
+                    "https://fastgit.cc/$urlOfficial"
+                )
+            )
+            DownloadSourceDialog.show(
+                context = this,
+                titleRes = R.string.download_source_title,
+                options = options,
+                showCancelButton = false,
+                onDismiss = { v.isEnabled = true }
+            ) { option ->
+                try {
+                    ModelDownloadService.startDownload(this, option.url, variant)
+                    tvSvDownloadStatus.text = getString(R.string.sv_download_started_in_bg)
+                } catch (e: Throwable) {
+                    android.util.Log.e(TAG, "Failed to start model download", e)
+                    tvSvDownloadStatus.text = getString(R.string.sv_download_status_failed)
+                } finally {
+                    v.isEnabled = true
                 }
-                .setOnDismissListener { v.isEnabled = true }
-                .show()
+            }
         }
 
         btnSvClear.setOnClickListener { v ->
@@ -1506,40 +1522,47 @@ class AsrSettingsActivity : BaseActivity() {
         btnDl.setOnClickListener { v ->
             v.isEnabled = false
             tvStatus.text = ""
-            val sources = arrayOf(
-                getString(R.string.download_source_github_official),
-                getString(R.string.download_source_mirror_ghproxy),
-                getString(R.string.download_source_mirror_gitmirror),
-                getString(R.string.download_source_mirror_gh_proxynet)
-            )
             val variant = prefs.tsModelVariant
             // TeleSpeech：int8/fp32 使用 GitHub 发布的官方 ZIP
             val urlOfficial = when (variant) {
                 "full" -> "https://github.com/BryceWG/BiBi-Keyboard/releases/download/models/sherpa-onnx-telespeech-ctc-zh-2024-06-04.zip"
                 else -> "https://github.com/BryceWG/BiBi-Keyboard/releases/download/models/sherpa-onnx-telespeech-ctc-int8-zh-2024-06-04.zip"
             }
-            androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle(R.string.download_source_title)
-                .setItems(sources) { dlg, which ->
-                    dlg.dismiss()
-                    val url = when (which) {
-                        1 -> "https://ghproxy.net/$urlOfficial"
-                        2 -> "https://hub.gitmirror.com/$urlOfficial"
-                        3 -> "https://gh-proxy.net/$urlOfficial"
-                        else -> urlOfficial
-                    }
-                    try {
-                        ModelDownloadService.startDownload(this, url, variant, "telespeech")
-                        tvStatus.text = getString(R.string.ts_download_started_in_bg)
-                    } catch (e: Throwable) {
-                        android.util.Log.e(TAG, "Failed to start telespeech model download", e)
-                        tvStatus.text = getString(R.string.ts_download_status_failed)
-                    } finally {
-                        v.isEnabled = true
-                    }
+            val options = listOf(
+                DownloadSourceDialog.Option(
+                    getString(R.string.download_source_github_official),
+                    urlOfficial
+                ),
+                DownloadSourceDialog.Option(
+                    getString(R.string.download_source_mirror_ghproxy),
+                    "https://ghproxy.net/$urlOfficial"
+                ),
+                DownloadSourceDialog.Option(
+                    getString(R.string.download_source_mirror_gitmirror),
+                    "https://hub.gitmirror.com/$urlOfficial"
+                ),
+                DownloadSourceDialog.Option(
+                    getString(R.string.download_source_mirror_gh_proxynet),
+                    "https://fastgit.cc/$urlOfficial"
+                )
+            )
+            DownloadSourceDialog.show(
+                context = this,
+                titleRes = R.string.download_source_title,
+                options = options,
+                showCancelButton = false,
+                onDismiss = { v.isEnabled = true }
+            ) { option ->
+                try {
+                    ModelDownloadService.startDownload(this, option.url, variant, "telespeech")
+                    tvStatus.text = getString(R.string.ts_download_started_in_bg)
+                } catch (e: Throwable) {
+                    android.util.Log.e(TAG, "Failed to start telespeech model download", e)
+                    tvStatus.text = getString(R.string.ts_download_status_failed)
+                } finally {
+                    v.isEnabled = true
                 }
-                .setOnDismissListener { v.isEnabled = true }
-                .show()
+            }
         }
 
         btnClear.setOnClickListener { v ->
@@ -1609,34 +1632,41 @@ class AsrSettingsActivity : BaseActivity() {
         btnDl.setOnClickListener { v ->
             v.isEnabled = false
             tvStatus.text = ""
-            val sources = arrayOf(
-                getString(R.string.download_source_github_official),
-                getString(R.string.download_source_mirror_ghproxy),
-                getString(R.string.download_source_mirror_gitmirror),
-                getString(R.string.download_source_mirror_gh_proxynet)
+            val options = listOf(
+                DownloadSourceDialog.Option(
+                    getString(R.string.download_source_github_official),
+                    urlOfficial
+                ),
+                DownloadSourceDialog.Option(
+                    getString(R.string.download_source_mirror_ghproxy),
+                    "https://ghproxy.net/$urlOfficial"
+                ),
+                DownloadSourceDialog.Option(
+                    getString(R.string.download_source_mirror_gitmirror),
+                    "https://hub.gitmirror.com/$urlOfficial"
+                ),
+                DownloadSourceDialog.Option(
+                    getString(R.string.download_source_mirror_gh_proxynet),
+                    "https://fastgit.cc/$urlOfficial"
+                )
             )
-            androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle(R.string.download_source_title)
-                .setItems(sources) { dlg, which ->
-                    dlg.dismiss()
-                    val url = when (which) {
-                        1 -> "https://ghproxy.net/$urlOfficial"
-                        2 -> "https://hub.gitmirror.com/$urlOfficial"
-                        3 -> "https://gh-proxy.net/$urlOfficial"
-                        else -> urlOfficial
-                    }
-                    try {
-                        ModelDownloadService.startDownload(this, url, variant, "punctuation")
-                        tvStatus.text = getString(R.string.punct_download_started_in_bg)
-                    } catch (e: Throwable) {
-                        android.util.Log.e(TAG, "Failed to start punctuation model download", e)
-                        tvStatus.text = getString(R.string.punct_download_status_failed)
-                    } finally {
-                        v.isEnabled = true
-                    }
+            DownloadSourceDialog.show(
+                context = this,
+                titleRes = R.string.download_source_title,
+                options = options,
+                showCancelButton = false,
+                onDismiss = { v.isEnabled = true }
+            ) { option ->
+                try {
+                    ModelDownloadService.startDownload(this, option.url, variant, "punctuation")
+                    tvStatus.text = getString(R.string.punct_download_started_in_bg)
+                } catch (e: Throwable) {
+                    android.util.Log.e(TAG, "Failed to start punctuation model download", e)
+                    tvStatus.text = getString(R.string.punct_download_status_failed)
+                } finally {
+                    v.isEnabled = true
                 }
-                .setOnDismissListener { v.isEnabled = true }
-                .show()
+            }
         }
 
         btnClear.setOnClickListener { v ->
