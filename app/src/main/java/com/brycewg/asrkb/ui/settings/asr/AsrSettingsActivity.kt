@@ -22,6 +22,7 @@ import com.brycewg.asrkb.R
 import com.brycewg.asrkb.asr.AsrVendor
 import com.brycewg.asrkb.asr.SherpaPunctuationManager
 import com.brycewg.asrkb.ui.AsrVendorUi
+import com.brycewg.asrkb.ui.DownloadSourceConfig
 import com.brycewg.asrkb.ui.DownloadSourceDialog
 import com.brycewg.asrkb.ui.SettingsOptionSheet
 import com.brycewg.asrkb.ui.installExplainedSwitch
@@ -1210,24 +1211,7 @@ class AsrSettingsActivity : BaseActivity() {
             } else {
                 "https://github.com/BryceWG/BiBi-Keyboard/releases/download/models/sherpa-onnx-streaming-paraformer-bilingual-zh-en.zip"
             }
-            val options = listOf(
-                DownloadSourceDialog.Option(
-                    getString(R.string.download_source_github_official),
-                    urlOfficial
-                ),
-                DownloadSourceDialog.Option(
-                    getString(R.string.download_source_mirror_ghproxy),
-                    "https://ghproxy.net/$urlOfficial"
-                ),
-                DownloadSourceDialog.Option(
-                    getString(R.string.download_source_mirror_gitmirror),
-                    "https://hub.gitmirror.com/$urlOfficial"
-                ),
-                DownloadSourceDialog.Option(
-                    getString(R.string.download_source_mirror_gh_proxynet),
-                    "https://fastgit.cc/$urlOfficial"
-                )
-            )
+            val options = DownloadSourceConfig.buildOptions(this, urlOfficial)
             DownloadSourceDialog.show(
                 context = this,
                 titleRes = R.string.download_source_title,
@@ -1424,24 +1408,7 @@ class AsrSettingsActivity : BaseActivity() {
                 else -> "https://github.com/BryceWG/BiBi-Keyboard/releases/download/models/sherpa-onnx-sense-voice-funasr-nano-int8-2025-12-17.zip"
             }
 
-            val options = listOf(
-                DownloadSourceDialog.Option(
-                    getString(R.string.download_source_github_official),
-                    urlOfficial
-                ),
-                DownloadSourceDialog.Option(
-                    getString(R.string.download_source_mirror_ghproxy),
-                    "https://ghproxy.net/$urlOfficial"
-                ),
-                DownloadSourceDialog.Option(
-                    getString(R.string.download_source_mirror_gitmirror),
-                    "https://hub.gitmirror.com/$urlOfficial"
-                ),
-                DownloadSourceDialog.Option(
-                    getString(R.string.download_source_mirror_gh_proxynet),
-                    "https://fastgit.cc/$urlOfficial"
-                )
-            )
+            val options = DownloadSourceConfig.buildOptions(this, urlOfficial)
             DownloadSourceDialog.show(
                 context = this,
                 titleRes = R.string.download_source_title,
@@ -1528,24 +1495,7 @@ class AsrSettingsActivity : BaseActivity() {
                 "full" -> "https://github.com/BryceWG/BiBi-Keyboard/releases/download/models/sherpa-onnx-telespeech-ctc-zh-2024-06-04.zip"
                 else -> "https://github.com/BryceWG/BiBi-Keyboard/releases/download/models/sherpa-onnx-telespeech-ctc-int8-zh-2024-06-04.zip"
             }
-            val options = listOf(
-                DownloadSourceDialog.Option(
-                    getString(R.string.download_source_github_official),
-                    urlOfficial
-                ),
-                DownloadSourceDialog.Option(
-                    getString(R.string.download_source_mirror_ghproxy),
-                    "https://ghproxy.net/$urlOfficial"
-                ),
-                DownloadSourceDialog.Option(
-                    getString(R.string.download_source_mirror_gitmirror),
-                    "https://hub.gitmirror.com/$urlOfficial"
-                ),
-                DownloadSourceDialog.Option(
-                    getString(R.string.download_source_mirror_gh_proxynet),
-                    "https://fastgit.cc/$urlOfficial"
-                )
-            )
+            val options = DownloadSourceConfig.buildOptions(this, urlOfficial)
             DownloadSourceDialog.show(
                 context = this,
                 titleRes = R.string.download_source_title,
@@ -1632,24 +1582,7 @@ class AsrSettingsActivity : BaseActivity() {
         btnDl.setOnClickListener { v ->
             v.isEnabled = false
             tvStatus.text = ""
-            val options = listOf(
-                DownloadSourceDialog.Option(
-                    getString(R.string.download_source_github_official),
-                    urlOfficial
-                ),
-                DownloadSourceDialog.Option(
-                    getString(R.string.download_source_mirror_ghproxy),
-                    "https://ghproxy.net/$urlOfficial"
-                ),
-                DownloadSourceDialog.Option(
-                    getString(R.string.download_source_mirror_gitmirror),
-                    "https://hub.gitmirror.com/$urlOfficial"
-                ),
-                DownloadSourceDialog.Option(
-                    getString(R.string.download_source_mirror_gh_proxynet),
-                    "https://fastgit.cc/$urlOfficial"
-                )
-            )
+            val options = DownloadSourceConfig.buildOptions(this, urlOfficial)
             DownloadSourceDialog.show(
                 context = this,
                 titleRes = R.string.download_source_title,

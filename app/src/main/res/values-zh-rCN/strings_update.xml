@@ -19,9 +19,9 @@
 
     <string name="download_source_title">选择下载源</string>
     <string name="download_source_github_official">GitHub 官方</string>
-    <string name="download_source_mirror_ghproxy">GitHub 镜像 (ghproxy.net)</string>
-    <string name="download_source_mirror_gitmirror">GitHub 镜像 (hub.gitmirror.com)</string>
-    <string name="download_source_mirror_gh_proxynet">GitHub 镜像 (fastgit.cc)</string>
+    <string name="download_source_mirror_1">GitHub 镜像1</string>
+    <string name="download_source_mirror_2">GitHub 镜像2</string>
+    <string name="download_source_mirror_3">GitHub 镜像3</string>
     <string name="download_source_latency_pending">延迟：测速中…</string>
     <string name="download_source_latency_value">延迟：%1$d ms</string>
     <string name="download_source_latency_timeout">延迟：超时</string>

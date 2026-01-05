@@ -849,25 +849,7 @@ class SettingsActivity : BaseActivity() {
         // 根据 release 页面构造 APK 直链
         val directApkUrl = buildDirectApkUrl(originalUrl, version)
 
-        // 生成对应的 URL：所有源都使用 APK 直链
-        val downloadOptions = listOf(
-            DownloadSourceDialog.Option(
-                getString(R.string.download_source_github_official),
-                directApkUrl
-            ),
-            DownloadSourceDialog.Option(
-                getString(R.string.download_source_mirror_ghproxy),
-                convertToMirrorUrl(directApkUrl, "https://ghproxy.net/")
-            ),
-            DownloadSourceDialog.Option(
-                getString(R.string.download_source_mirror_gitmirror),
-                convertToMirrorUrl(directApkUrl, "https://hub.gitmirror.com/")
-            ),
-            DownloadSourceDialog.Option(
-                getString(R.string.download_source_mirror_gh_proxynet),
-                convertToMirrorUrl(directApkUrl, "https://fastgit.cc/")
-            )
-        )
+        val downloadOptions = DownloadSourceConfig.buildOptions(this, directApkUrl)
 
         DownloadSourceDialog.show(
             context = this,
@@ -929,20 +911,6 @@ class SettingsActivity : BaseActivity() {
         val apkName = "lexisharp-keyboard-$version-release.apk"
         return "$base/releases/download/$tag/$apkName"
     }
-
-    /**
-     * 转换为镜像 URL
-     *
-     * 仅对 GitHub 链接加镜像前缀
-     */
-    private fun convertToMirrorUrl(originalUrl: String, mirrorPrefix: String): String {
-        return if (originalUrl.startsWith("https://github.com/")) {
-            mirrorPrefix + originalUrl
-        } else {
-            originalUrl
-        }
-    }
-
 
     /**
      * 清理旧的 APK 安装包
@@ -1317,24 +1285,7 @@ class SettingsActivity : BaseActivity() {
         val variant = "small-full"
         val urlOfficial = "https://github.com/BryceWG/BiBi-Keyboard/releases/download/models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.zip"
 
-        val downloadOptions = listOf(
-            DownloadSourceDialog.Option(
-                getString(R.string.download_source_github_official),
-                urlOfficial
-            ),
-            DownloadSourceDialog.Option(
-                getString(R.string.download_source_mirror_ghproxy),
-                "https://ghproxy.net/$urlOfficial"
-            ),
-            DownloadSourceDialog.Option(
-                getString(R.string.download_source_mirror_gitmirror),
-                "https://hub.gitmirror.com/$urlOfficial"
-            ),
-            DownloadSourceDialog.Option(
-                getString(R.string.download_source_mirror_gh_proxynet),
-                "https://fastgit.cc/$urlOfficial"
-            )
-        )
+        val downloadOptions = DownloadSourceConfig.buildOptions(this, urlOfficial)
 
         DownloadSourceDialog.show(
             context = this,

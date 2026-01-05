@@ -19,9 +19,9 @@
 
     <string name="download_source_title">Select Download Source</string>
     <string name="download_source_github_official">GitHub (official)</string>
-    <string name="download_source_mirror_ghproxy">GitHub mirror (ghproxy.net)</string>
-    <string name="download_source_mirror_gitmirror">GitHub mirror (hub.gitmirror.com)</string>
-    <string name="download_source_mirror_gh_proxynet">GitHub mirror (fastgit.cc)</string>
+    <string name="download_source_mirror_1">GitHub mirror 1</string>
+    <string name="download_source_mirror_2">GitHub mirror 2</string>
+    <string name="download_source_mirror_3">GitHub mirror 3</string>
     <string name="download_source_latency_pending">Latency: measuring…</string>
     <string name="download_source_latency_value">Latency: %1$d ms</string>
     <string name="download_source_latency_timeout">Latency: timeout</string>

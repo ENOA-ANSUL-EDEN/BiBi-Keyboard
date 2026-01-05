@@ -20,9 +20,9 @@
 
     <string name="download_source_title">ダウンロードソースを選択</string>
     <string name="download_source_github_official">GitHub（公式）</string>
-    <string name="download_source_mirror_ghproxy">GitHubミラー（ghproxy.net）</string>
-    <string name="download_source_mirror_gitmirror">GitHubミラー（hub.gitmirror.com）</string>
-    <string name="download_source_mirror_gh_proxynet">GitHubミラー（fastgit.cc）</string>
+    <string name="download_source_mirror_1">GitHubミラー1</string>
+    <string name="download_source_mirror_2">GitHubミラー2</string>
+    <string name="download_source_mirror_3">GitHubミラー3</string>
     <string name="update_timestamp_label">リリース時間：%1$s</string>
     <string name="update_release_notes_label">リリースノート：\n%1$s</string>
     <string name="error_open_browser">ブラウザを開けません</string>
