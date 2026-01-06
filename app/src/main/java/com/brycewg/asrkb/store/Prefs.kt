@@ -298,8 +298,8 @@ class Prefs(context: Context) {
         val temperature: Float,
         val models: List<String> = emptyList(),
         val enableReasoning: Boolean = false,
-        val reasoningParamsOnJson: String = DEFAULT_CUSTOM_REASONING_PARAMS_ON_JSON,
-        val reasoningParamsOffJson: String = DEFAULT_CUSTOM_REASONING_PARAMS_OFF_JSON
+        val reasoningParamsOnJson: String = "",
+        val reasoningParamsOffJson: String = ""
     )
 
     fun getLlmProviders(): List<LlmProvider> {
@@ -644,14 +644,6 @@ class Prefs(context: Context) {
         return vendor.models.contains(model)
     }
 
-    private fun isCustomLlmProviderModel(provider: LlmProvider): Boolean {
-        val model = provider.model.trim()
-        if (model.isBlank()) return true
-        val presetModels = provider.models.map { it.trim() }.filter { it.isNotBlank() }
-        if (presetModels.isEmpty()) return true
-        return !presetModels.contains(model)
-    }
-
     /**
      * 获取当前有效的 LLM 配置（根据选择的供应商）
      * @return EffectiveLlmConfig 或 null（如果配置无效）
@@ -709,9 +701,9 @@ class Prefs(context: Context) {
                         temperature = provider.temperature,
                         vendor = vendor,
                         enableReasoning = provider.enableReasoning,
-                        useCustomReasoningParams = isCustomLlmProviderModel(provider),
-                        reasoningParamsOnJson = provider.reasoningParamsOnJson.ifBlank { DEFAULT_CUSTOM_REASONING_PARAMS_ON_JSON },
-                        reasoningParamsOffJson = provider.reasoningParamsOffJson.ifBlank { DEFAULT_CUSTOM_REASONING_PARAMS_OFF_JSON }
+                        useCustomReasoningParams = true,
+                        reasoningParamsOnJson = provider.reasoningParamsOnJson,
+                        reasoningParamsOffJson = provider.reasoningParamsOffJson
                     )
                 } else null
             }

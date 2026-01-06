@@ -635,13 +635,13 @@ class AiPostSettingsActivity : BaseActivity() {
         } else {
             etCustomModelId.setTextIfDifferent("")
         }
-        layoutCustomReasoningMode.visibility = if (isCustomModelInputVisible) View.VISIBLE else View.GONE
+        layoutCustomReasoningMode.visibility = View.VISIBLE
         switchCustomReasoningMode.isChecked = provider?.enableReasoning ?: false
         etCustomReasoningParamsOnJson.setTextIfDifferent(
-            provider?.reasoningParamsOnJson ?: Prefs.DEFAULT_CUSTOM_REASONING_PARAMS_ON_JSON
+            provider?.reasoningParamsOnJson.orEmpty()
         )
         etCustomReasoningParamsOffJson.setTextIfDifferent(
-            provider?.reasoningParamsOffJson ?: Prefs.DEFAULT_CUSTOM_REASONING_PARAMS_OFF_JSON
+            provider?.reasoningParamsOffJson.orEmpty()
         )
         val temperature = (provider?.temperature ?: prefs.llmTemperature).coerceIn(0f, 2f)
         sliderLlmTemperature.value = temperature
