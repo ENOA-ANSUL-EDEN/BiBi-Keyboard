@@ -591,6 +591,40 @@ class Prefs(context: Context) {
         sp.edit { putBoolean(key, enabled) }
     }
 
+    fun getLlmVendorModels(vendor: LlmVendor): List<String> {
+        val key = "llm_vendor_${vendor.id}_models_json"
+        if (vendor == LlmVendor.SF_FREE && !sfFreeLlmUsePaidKey) {
+            return SF_FREE_LLM_MODELS
+        }
+        val fallback = vendor.models
+        val raw = sp.getString(key, "") ?: ""
+        if (raw.isBlank()) return fallback
+        return try {
+            val parsed = json.decodeFromString<List<String>>(raw)
+            val cleaned = parsed.map { it.trim() }.filter { it.isNotBlank() }.distinct()
+            if (cleaned.isEmpty()) fallback else cleaned
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to parse LLM vendor models JSON", e)
+            fallback
+        }
+    }
+
+    fun setLlmVendorModels(vendor: LlmVendor, models: List<String>) {
+        val key = "llm_vendor_${vendor.id}_models_json"
+        val cleaned = models.map { it.trim() }.filter { it.isNotBlank() }.distinct()
+        try {
+            val raw = json.encodeToString(cleaned)
+            sp.edit { putString(key, raw) }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to serialize LLM vendor models", e)
+        }
+    }
+
+    fun setLlmVendorModelsJson(vendor: LlmVendor, raw: String) {
+        val key = "llm_vendor_${vendor.id}_models_json"
+        sp.edit { putString(key, raw.trim()) }
+    }
+
     fun getLlmVendorReasoningParamsOnJson(vendor: LlmVendor): String {
         val key = "llm_vendor_${vendor.id}_reasoning_on_json"
         val stored = sp.getString(key, "") ?: ""
@@ -2093,6 +2127,9 @@ class Prefs(context: Context) {
             try { o.put("${keyPrefix}_reasoning_enabled", getLlmVendorReasoningEnabled(vendor)) } catch (_: Throwable) {}
             try { o.put("${keyPrefix}_reasoning_on_json", getLlmVendorReasoningParamsOnJson(vendor)) } catch (_: Throwable) {}
             try { o.put("${keyPrefix}_reasoning_off_json", getLlmVendorReasoningParamsOffJson(vendor)) } catch (_: Throwable) {}
+            try { o.put("${keyPrefix}_models_json", getPrefString("${keyPrefix}_models_json", "")) } catch (t: Throwable) {
+                Log.w(TAG, "Failed to export LLM vendor models", t)
+            }
         }
         return o.toString()
     }
@@ -2297,6 +2334,7 @@ class Prefs(context: Context) {
                 optBool("${keyPrefix}_reasoning_enabled")?.let { setLlmVendorReasoningEnabled(vendor, it) }
                 optString("${keyPrefix}_reasoning_on_json")?.let { setLlmVendorReasoningParamsOnJson(vendor, it) }
                 optString("${keyPrefix}_reasoning_off_json")?.let { setLlmVendorReasoningParamsOffJson(vendor, it) }
+                optString("${keyPrefix}_models_json")?.let { setLlmVendorModelsJson(vendor, it) }
             }
             Log.i(TAG, "Successfully imported settings from JSON")
             true

@@ -51,6 +51,7 @@ class AiPostSettingsActivity : BaseActivity() {
     private lateinit var tilSfApiKey: View
     private lateinit var etSfApiKey: EditText
     private lateinit var tvSfFreeLlmModel: TextView
+    private lateinit var btnSfFreeLlmFetchModels: Button
     private lateinit var tilSfCustomModelId: View
     private lateinit var etSfCustomModelId: EditText
     private lateinit var layoutSfReasoningMode: View
@@ -67,6 +68,7 @@ class AiPostSettingsActivity : BaseActivity() {
     private lateinit var groupBuiltinLlm: View
     private lateinit var etBuiltinApiKey: EditText
     private lateinit var tvBuiltinModel: TextView
+    private lateinit var btnBuiltinFetchModels: Button
     private lateinit var tilBuiltinCustomModelId: View
     private lateinit var etBuiltinCustomModelId: EditText
     private lateinit var layoutBuiltinReasoningMode: View
@@ -203,6 +205,7 @@ class AiPostSettingsActivity : BaseActivity() {
         tilSfApiKey = findViewById(R.id.tilSfApiKey)
         etSfApiKey = findViewById(R.id.etSfApiKey)
         tvSfFreeLlmModel = findViewById(R.id.tvSfFreeLlmModel)
+        btnSfFreeLlmFetchModels = findViewById(R.id.btnSfFreeLlmFetchModels)
         tilSfCustomModelId = findViewById(R.id.tilSfCustomModelId)
         etSfCustomModelId = findViewById(R.id.etSfCustomModelId)
         layoutSfReasoningMode = findViewById(R.id.layoutSfReasoningMode)
@@ -232,6 +235,10 @@ class AiPostSettingsActivity : BaseActivity() {
 
         // SF model selection
         tvSfFreeLlmModel.setOnClickListener { showSfFreeLlmModelSelectionDialog() }
+        btnSfFreeLlmFetchModels.setOnClickListener { v ->
+            hapticTapIfEnabled(v)
+            handleFetchSfModels()
+        }
 
         // SF custom model ID listener
         etSfCustomModelId.addTextChangeListener { text ->
@@ -280,6 +287,7 @@ class AiPostSettingsActivity : BaseActivity() {
         groupBuiltinLlm = findViewById(R.id.groupBuiltinLlm)
         etBuiltinApiKey = findViewById(R.id.etBuiltinApiKey)
         tvBuiltinModel = findViewById(R.id.tvBuiltinModel)
+        btnBuiltinFetchModels = findViewById(R.id.btnBuiltinFetchModels)
         tilBuiltinCustomModelId = findViewById(R.id.tilBuiltinCustomModelId)
         etBuiltinCustomModelId = findViewById(R.id.etBuiltinCustomModelId)
         layoutBuiltinReasoningMode = findViewById(R.id.layoutBuiltinReasoningMode)
@@ -344,6 +352,10 @@ class AiPostSettingsActivity : BaseActivity() {
 
         // Builtin model selection
         tvBuiltinModel.setOnClickListener { showBuiltinModelSelectionDialog() }
+        btnBuiltinFetchModels.setOnClickListener { v ->
+            hapticTapIfEnabled(v)
+            handleFetchBuiltinModels(viewModel.selectedVendor.value)
+        }
 
         // Builtin custom model ID listener
         etBuiltinCustomModelId.addTextChangeListener { text ->
@@ -537,6 +549,7 @@ class AiPostSettingsActivity : BaseActivity() {
         tvSfFreeServiceDesc.visibility = if (isFreeMode) View.VISIBLE else View.GONE
         tilSfApiKey.visibility = if (isFreeMode) View.GONE else View.VISIBLE
         layoutSfTemperature.visibility = if (isFreeMode) View.GONE else View.VISIBLE
+        btnSfFreeLlmFetchModels.visibility = if (isFreeMode) View.GONE else View.VISIBLE
         // Update model display based on mode
         updateSfFreeLlmModelDisplay()
         updateSfReasoningModeUI()
@@ -546,6 +559,14 @@ class AiPostSettingsActivity : BaseActivity() {
     }
 
     private fun getSfPresetModels(): List<String> {
+        return if (prefs.sfFreeLlmUsePaidKey) {
+            prefs.getLlmVendorModels(LlmVendor.SF_FREE)
+        } else {
+            Prefs.SF_FREE_LLM_MODELS
+        }
+    }
+
+    private fun getSfStaticModels(): List<String> {
         return if (prefs.sfFreeLlmUsePaidKey) {
             LlmVendor.SF_FREE.models
         } else {
@@ -561,8 +582,8 @@ class AiPostSettingsActivity : BaseActivity() {
             prefs.sfFreeLlmModel
         }
         // Check if it's a custom model (not in preset list)
-        val presetModels = getSfPresetModels()
-        val isCustom = !presetModels.contains(model) && model.isNotBlank()
+        val staticModels = getSfStaticModels()
+        val isCustom = !staticModels.contains(model) && model.isNotBlank()
         tvSfFreeLlmModel.text = if (isCustom) model else model
         tilSfCustomModelId.visibility = if (isCustom) View.VISIBLE else View.GONE
         if (isCustom) {
@@ -587,8 +608,8 @@ class AiPostSettingsActivity : BaseActivity() {
         } else {
             prefs.sfFreeLlmModel
         }
-        val presetModels = getSfPresetModels()
-        val isCustom = model.isNotBlank() && !presetModels.contains(model)
+        val staticModels = getSfStaticModels()
+        val isCustom = model.isNotBlank() && !staticModels.contains(model)
         val supportsReasoning = viewModel.supportsReasoningSwitch(LlmVendor.SF_FREE, model)
         val showReasoning = supportsReasoning || isCustom
         layoutSfReasoningMode.visibility = if (showReasoning) View.VISIBLE else View.GONE
@@ -739,7 +760,7 @@ class AiPostSettingsActivity : BaseActivity() {
     private fun showBuiltinModelSelectionDialog() {
         val vendor = viewModel.selectedVendor.value
         val customOption = getString(R.string.option_custom_model)
-        val presetModels = vendor.models
+        val presetModels = prefs.getLlmVendorModels(vendor)
         val models = (presetModels + customOption).toTypedArray()
 
         val currentModel = viewModel.builtinVendorConfig.value.model.ifBlank { vendor.defaultModel }
@@ -827,6 +848,68 @@ class AiPostSettingsActivity : BaseActivity() {
         }
     }
 
+    private fun handleFetchBuiltinModels(vendor: LlmVendor) {
+        if (vendor == LlmVendor.CUSTOM || vendor == LlmVendor.SF_FREE) return
+        val endpoint = vendor.endpoint
+        val apiKey = prefs.getLlmVendorApiKey(vendor)
+        if (endpoint.isBlank()) {
+            Toast.makeText(this, getString(R.string.llm_test_missing_params), Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val progressDialog = MaterialAlertDialogBuilder(this)
+            .setMessage(R.string.llm_models_fetching)
+            .setCancelable(false)
+            .create()
+        progressDialog.show()
+
+        lifecycleScope.launch {
+            val result = LlmPostProcessor().fetchModels(endpoint, apiKey)
+            progressDialog.dismiss()
+            if (result.ok) {
+                showBuiltinModelsPickerDialog(vendor, result.models)
+            } else {
+                val msg = result.message ?: getString(R.string.llm_test_failed_generic)
+                MaterialAlertDialogBuilder(this@AiPostSettingsActivity)
+                    .setTitle(R.string.llm_models_fetch_failed_title)
+                    .setMessage(getString(R.string.llm_models_fetch_failed, msg))
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show()
+            }
+        }
+    }
+
+    private fun handleFetchSfModels() {
+        if (!prefs.sfFreeLlmUsePaidKey) return
+        val endpoint = LlmVendor.SF_FREE.endpoint
+        val apiKey = prefs.getLlmVendorApiKey(LlmVendor.SF_FREE)
+        if (endpoint.isBlank()) {
+            Toast.makeText(this, getString(R.string.llm_test_missing_params), Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val progressDialog = MaterialAlertDialogBuilder(this)
+            .setMessage(R.string.llm_models_fetching)
+            .setCancelable(false)
+            .create()
+        progressDialog.show()
+
+        lifecycleScope.launch {
+            val result = LlmPostProcessor().fetchModels(endpoint, apiKey)
+            progressDialog.dismiss()
+            if (result.ok) {
+                showBuiltinModelsPickerDialog(LlmVendor.SF_FREE, result.models)
+            } else {
+                val msg = result.message ?: getString(R.string.llm_test_failed_generic)
+                MaterialAlertDialogBuilder(this@AiPostSettingsActivity)
+                    .setTitle(R.string.llm_models_fetch_failed_title)
+                    .setMessage(getString(R.string.llm_models_fetch_failed, msg))
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show()
+            }
+        }
+    }
+
     private fun handleFetchCustomModels() {
         val provider = viewModel.activeLlmProvider.value
         val endpoint = provider?.endpoint?.ifBlank { prefs.llmEndpoint } ?: prefs.llmEndpoint
@@ -856,6 +939,59 @@ class AiPostSettingsActivity : BaseActivity() {
                     .show()
             }
         }
+    }
+
+    private fun showBuiltinModelsPickerDialog(vendor: LlmVendor, models: List<String>) {
+        val currentModels = prefs.getLlmVendorModels(vendor)
+        val uniqueModels = models.map { it.trim() }.filter { it.isNotBlank() }.distinct()
+        if (uniqueModels.isEmpty()) {
+            MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.llm_models_fetch_failed_title)
+                .setMessage(getString(R.string.llm_models_fetch_failed, getString(R.string.llm_test_failed_generic)))
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
+            return
+        }
+
+        val checkedItems = uniqueModels.map { currentModels.contains(it) }.toBooleanArray()
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.llm_models_select_title)
+            .setMultiChoiceItems(uniqueModels.toTypedArray(), checkedItems) { _, which, isChecked ->
+                checkedItems[which] = isChecked
+            }
+            .setPositiveButton(R.string.btn_llm_models_add) { dialog, _ ->
+                val selected = uniqueModels.filterIndexed { index, _ -> checkedItems[index] }
+                if (selected.isEmpty()) {
+                    Toast.makeText(this, getString(R.string.toast_llm_models_none_selected), Toast.LENGTH_SHORT).show()
+                    dialog.dismiss()
+                    return@setPositiveButton
+                }
+                prefs.setLlmVendorModels(vendor, selected)
+                val currentModel = if (vendor == LlmVendor.SF_FREE && !prefs.sfFreeLlmUsePaidKey) {
+                    prefs.sfFreeLlmModel
+                } else {
+                    prefs.getLlmVendorModel(vendor)
+                }
+                val nextModel = when {
+                    currentModel.isNotBlank() && selected.contains(currentModel) -> currentModel
+                    else -> selected.first()
+                }
+                if (vendor == LlmVendor.SF_FREE && !prefs.sfFreeLlmUsePaidKey) {
+                    prefs.sfFreeLlmModel = nextModel
+                } else {
+                    prefs.setLlmVendorModel(vendor, nextModel)
+                }
+                if (vendor == LlmVendor.SF_FREE) {
+                    updateSfFreeLlmModelDisplay()
+                    updateSfReasoningModeUI()
+                } else {
+                    viewModel.updateBuiltinModel(prefs, nextModel)
+                }
+                dialog.dismiss()
+            }
+            .setNegativeButton(R.string.btn_cancel, null)
+            .show()
     }
 
     private fun showCustomModelsPickerDialog(models: List<String>) {

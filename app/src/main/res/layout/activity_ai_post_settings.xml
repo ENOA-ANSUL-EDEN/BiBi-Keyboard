@@ -140,6 +140,12 @@
               android:inputType="text" />
           </com.google.android.material.textfield.TextInputLayout>
 
+          <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnSfFreeLlmFetchModels"
+            style="@style/SettingsTonalButton"
+            android:visibility="gone"
+            android:text="@string/btn_llm_fetch_models" />
+
           <!-- 推理模式开关 (仅支持的模型显示) -->
           <LinearLayout
             android:id="@+id/layoutSfReasoningMode"
@@ -288,6 +294,11 @@
               style="@style/SettingsTextInput"
               android:inputType="text" />
           </com.google.android.material.textfield.TextInputLayout>
+
+          <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnBuiltinFetchModels"
+            style="@style/SettingsTonalButton"
+            android:text="@string/btn_llm_fetch_models" />
 
           <!-- 推理模式开关 (仅支持的模型显示) -->
           <LinearLayout
