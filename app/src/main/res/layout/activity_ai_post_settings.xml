@@ -158,6 +158,38 @@
               android:id="@+id/tvSfReasoningModeHint"
               style="@style/SettingsHint"
               android:text="@string/hint_reasoning_mode" />
+
+            <LinearLayout
+              android:id="@+id/layoutSfReasoningParams"
+              android:layout_width="match_parent"
+              android:layout_height="wrap_content"
+              android:orientation="vertical"
+              android:visibility="gone">
+
+              <com.google.android.material.textfield.TextInputLayout
+                style="@style/SettingsTextInputLayout"
+                android:hint="@string/label_reasoning_params_on_json">
+
+                <com.google.android.material.textfield.TextInputEditText
+                  android:id="@+id/etSfReasoningParamsOnJson"
+                  style="@style/SettingsTextInput.MultiLine"
+                  android:inputType="text" />
+              </com.google.android.material.textfield.TextInputLayout>
+
+              <com.google.android.material.textfield.TextInputLayout
+                style="@style/SettingsTextInputLayout"
+                android:hint="@string/label_reasoning_params_off_json">
+
+                <com.google.android.material.textfield.TextInputEditText
+                  android:id="@+id/etSfReasoningParamsOffJson"
+                  style="@style/SettingsTextInput.MultiLine"
+                  android:inputType="text" />
+              </com.google.android.material.textfield.TextInputLayout>
+
+              <TextView
+                style="@style/SettingsHint"
+                android:text="@string/hint_reasoning_params_json" />
+            </LinearLayout>
           </LinearLayout>
 
           <!-- Temperature 滑块（付费模式可见） -->
@@ -275,6 +307,38 @@
               android:id="@+id/tvBuiltinReasoningModeHint"
               style="@style/SettingsHint"
               android:text="@string/hint_reasoning_mode" />
+
+            <LinearLayout
+              android:id="@+id/layoutBuiltinReasoningParams"
+              android:layout_width="match_parent"
+              android:layout_height="wrap_content"
+              android:orientation="vertical"
+              android:visibility="gone">
+
+              <com.google.android.material.textfield.TextInputLayout
+                style="@style/SettingsTextInputLayout"
+                android:hint="@string/label_reasoning_params_on_json">
+
+                <com.google.android.material.textfield.TextInputEditText
+                  android:id="@+id/etBuiltinReasoningParamsOnJson"
+                  style="@style/SettingsTextInput.MultiLine"
+                  android:inputType="text" />
+              </com.google.android.material.textfield.TextInputLayout>
+
+              <com.google.android.material.textfield.TextInputLayout
+                style="@style/SettingsTextInputLayout"
+                android:hint="@string/label_reasoning_params_off_json">
+
+                <com.google.android.material.textfield.TextInputEditText
+                  android:id="@+id/etBuiltinReasoningParamsOffJson"
+                  style="@style/SettingsTextInput.MultiLine"
+                  android:inputType="text" />
+              </com.google.android.material.textfield.TextInputLayout>
+
+              <TextView
+                style="@style/SettingsHint"
+                android:text="@string/hint_reasoning_params_json" />
+            </LinearLayout>
           </LinearLayout>
 
           <!-- Temperature 滑块 -->
@@ -404,6 +468,49 @@
               style="@style/SettingsTextInput"
               android:inputType="text" />
           </com.google.android.material.textfield.TextInputLayout>
+
+          <LinearLayout
+            android:id="@+id/layoutCustomReasoningMode"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <com.google.android.material.materialswitch.MaterialSwitch
+              android:id="@+id/switchCustomReasoningMode"
+              style="@style/SettingsSwitch"
+              android:layout_marginTop="0dp"
+              android:text="@string/label_reasoning_mode" />
+
+            <TextView
+              android:id="@+id/tvCustomReasoningModeHint"
+              style="@style/SettingsHint"
+              android:text="@string/hint_reasoning_mode" />
+
+            <com.google.android.material.textfield.TextInputLayout
+              style="@style/SettingsTextInputLayout"
+              android:hint="@string/label_reasoning_params_on_json">
+
+              <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etCustomReasoningParamsOnJson"
+                style="@style/SettingsTextInput.MultiLine"
+                android:inputType="text" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.textfield.TextInputLayout
+              style="@style/SettingsTextInputLayout"
+              android:hint="@string/label_reasoning_params_off_json">
+
+              <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etCustomReasoningParamsOffJson"
+                style="@style/SettingsTextInput.MultiLine"
+                android:inputType="text" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <TextView
+              style="@style/SettingsHint"
+              android:text="@string/hint_reasoning_params_json" />
+          </LinearLayout>
 
           <!-- Temperature 滑块 -->
           <TextView

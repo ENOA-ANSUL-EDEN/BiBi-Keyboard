@@ -74,7 +74,10 @@ class LlmPostProcessor(private val client: OkHttpClient? = null) {
     val temperature: Double,
     val vendor: LlmVendor,
     val enableReasoning: Boolean,
-    val supportsReasoningControl: Boolean
+    val supportsReasoningControl: Boolean,
+    val useCustomReasoningParams: Boolean,
+    val reasoningParamsOnJson: String,
+    val reasoningParamsOffJson: String
   )
 
   companion object {
@@ -99,7 +102,10 @@ class LlmPostProcessor(private val client: OkHttpClient? = null) {
     model: String,
     temperature: Double,
     vendor: LlmVendor,
-    enableReasoning: Boolean
+    enableReasoning: Boolean,
+    useCustomReasoningParams: Boolean,
+    reasoningParamsOnJson: String,
+    reasoningParamsOffJson: String
   ): LlmRequestConfig {
     val supportsReasoning = vendor.supportsReasoningControl(model)
     return LlmRequestConfig(
@@ -109,7 +115,10 @@ class LlmPostProcessor(private val client: OkHttpClient? = null) {
       temperature = temperature,
       vendor = vendor,
       enableReasoning = enableReasoning,
-      supportsReasoningControl = supportsReasoning
+      supportsReasoningControl = supportsReasoning,
+      useCustomReasoningParams = useCustomReasoningParams,
+      reasoningParamsOnJson = reasoningParamsOnJson,
+      reasoningParamsOffJson = reasoningParamsOffJson
     )
   }
 
@@ -122,13 +131,17 @@ class LlmPostProcessor(private val client: OkHttpClient? = null) {
     // SiliconFlow 免费服务特殊处理
     if (vendor == LlmVendor.SF_FREE && !prefs.sfFreeLlmUsePaidKey) {
       val model = prefs.sfFreeLlmModel
+      val effective = prefs.getEffectiveLlmConfig()
       return buildRequestConfig(
         apiKey = BuildConfig.SF_FREE_API_KEY,
         endpoint = Prefs.SF_CHAT_COMPLETIONS_ENDPOINT,
         model = model,
         temperature = Prefs.DEFAULT_LLM_TEMPERATURE.toDouble(),
         vendor = vendor,
-        enableReasoning = prefs.getLlmVendorReasoningEnabled(vendor)
+        enableReasoning = prefs.getLlmVendorReasoningEnabled(vendor),
+        useCustomReasoningParams = effective?.useCustomReasoningParams ?: false,
+        reasoningParamsOnJson = effective?.reasoningParamsOnJson ?: Prefs.DEFAULT_CUSTOM_REASONING_PARAMS_ON_JSON,
+        reasoningParamsOffJson = effective?.reasoningParamsOffJson ?: Prefs.DEFAULT_CUSTOM_REASONING_PARAMS_OFF_JSON
       )
     }
 
@@ -141,7 +154,10 @@ class LlmPostProcessor(private val client: OkHttpClient? = null) {
         model = config.model,
         temperature = config.temperature.toDouble(),
         vendor = config.vendor,
-        enableReasoning = config.enableReasoning
+        enableReasoning = config.enableReasoning,
+        useCustomReasoningParams = config.useCustomReasoningParams,
+        reasoningParamsOnJson = config.reasoningParamsOnJson,
+        reasoningParamsOffJson = config.reasoningParamsOffJson
       )
     }
 
@@ -154,7 +170,10 @@ class LlmPostProcessor(private val client: OkHttpClient? = null) {
       model = active?.model ?: prefs.llmModel,
       temperature = (active?.temperature ?: prefs.llmTemperature).toDouble(),
       vendor = vendor,
-      enableReasoning = prefs.getLlmVendorReasoningEnabled(vendor)
+      enableReasoning = prefs.getLlmVendorReasoningEnabled(vendor),
+      useCustomReasoningParams = false,
+      reasoningParamsOnJson = Prefs.DEFAULT_CUSTOM_REASONING_PARAMS_ON_JSON,
+      reasoningParamsOffJson = Prefs.DEFAULT_CUSTOM_REASONING_PARAMS_OFF_JSON
     )
   }
 
@@ -200,6 +219,28 @@ class LlmPostProcessor(private val client: OkHttpClient? = null) {
    */
   private fun addReasoningParams(body: JSONObject, config: LlmRequestConfig) {
     val vendor = config.vendor
+    if (config.useCustomReasoningParams) {
+      val raw = if (config.enableReasoning) config.reasoningParamsOnJson else config.reasoningParamsOffJson
+      val trimmed = raw.trim()
+      if (trimmed.isEmpty()) return
+      if (!trimmed.startsWith("{")) {
+        Log.w(TAG, "Reasoning params must be a JSON object: $trimmed")
+        return
+      }
+      val obj = try {
+        JSONObject(trimmed)
+      } catch (t: Throwable) {
+        Log.w(TAG, "Failed to parse reasoning params JSON: $trimmed", t)
+        return
+      }
+      val keys = obj.keys()
+      while (keys.hasNext()) {
+        val key = keys.next()
+        body.put(key, obj.opt(key))
+      }
+      return
+    }
+
     if (!config.supportsReasoningControl) return
 
     when (vendor) {

@@ -84,6 +84,9 @@
     <string name="label_reasoning_mode">深い思考を有効化</string>
     <string name="hint_reasoning_mode">有効にすると、モデルは推論分析を実行します。処理は遅くなりますが、複雑なタスクではより良い結果が得られます。</string>
     <string name="hint_reasoning_not_supported">現在のモデルは推論モードをサポートしていません</string>
+    <string name="label_reasoning_params_on_json">推論オン時のパラメータ（JSON）</string>
+    <string name="label_reasoning_params_off_json">推論オフ時のパラメータ（JSON）</string>
+    <string name="hint_reasoning_params_json">JSON オブジェクトを入力（例: {"thinking":{"type":"enabled"}}）。空欄または {} で追加パラメータなし。</string>
 
     <!-- SiliconFlow無料/有料切替 -->
     <string name="label_sf_use_free_service">無料サービスを使用</string>

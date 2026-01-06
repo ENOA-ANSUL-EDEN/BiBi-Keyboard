@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.core.content.edit
 import com.brycewg.asrkb.asr.AsrVendor
 import com.brycewg.asrkb.asr.LlmVendor
+import com.brycewg.asrkb.asr.ReasoningMode
 import com.brycewg.asrkb.store.debug.DebugLogManager
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -295,7 +296,10 @@ class Prefs(context: Context) {
         val apiKey: String,
         val model: String,
         val temperature: Float,
-        val models: List<String> = emptyList()
+        val models: List<String> = emptyList(),
+        val enableReasoning: Boolean = false,
+        val reasoningParamsOnJson: String = DEFAULT_CUSTOM_REASONING_PARAMS_ON_JSON,
+        val reasoningParamsOffJson: String = DEFAULT_CUSTOM_REASONING_PARAMS_OFF_JSON
     )
 
     fun getLlmProviders(): List<LlmProvider> {
@@ -587,6 +591,67 @@ class Prefs(context: Context) {
         sp.edit { putBoolean(key, enabled) }
     }
 
+    fun getLlmVendorReasoningParamsOnJson(vendor: LlmVendor): String {
+        val key = "llm_vendor_${vendor.id}_reasoning_on_json"
+        val stored = sp.getString(key, "") ?: ""
+        return stored.ifBlank { defaultReasoningParamsOnJson(vendor) }
+    }
+
+    fun setLlmVendorReasoningParamsOnJson(vendor: LlmVendor, json: String) {
+        val key = "llm_vendor_${vendor.id}_reasoning_on_json"
+        sp.edit { putString(key, json.trim()) }
+    }
+
+    fun getLlmVendorReasoningParamsOffJson(vendor: LlmVendor): String {
+        val key = "llm_vendor_${vendor.id}_reasoning_off_json"
+        val stored = sp.getString(key, "") ?: ""
+        return stored.ifBlank { defaultReasoningParamsOffJson(vendor) }
+    }
+
+    fun setLlmVendorReasoningParamsOffJson(vendor: LlmVendor, json: String) {
+        val key = "llm_vendor_${vendor.id}_reasoning_off_json"
+        sp.edit { putString(key, json.trim()) }
+    }
+
+    private fun defaultReasoningParamsOnJson(vendor: LlmVendor): String {
+        return when (vendor.reasoningMode) {
+            ReasoningMode.ENABLE_THINKING -> """{"enable_thinking":true}"""
+            ReasoningMode.THINKING_TYPE -> """{"thinking":{"type":"enabled"}}"""
+            ReasoningMode.REASONING_EFFORT -> """{"reasoning_effort":"medium"}"""
+            ReasoningMode.MODEL_SELECTION,
+            ReasoningMode.NONE -> DEFAULT_CUSTOM_REASONING_PARAMS_ON_JSON
+        }
+    }
+
+    private fun defaultReasoningParamsOffJson(vendor: LlmVendor): String {
+        return when (vendor) {
+            LlmVendor.CEREBRAS -> """{"reasoning_effort":"low"}"""
+            else -> when (vendor.reasoningMode) {
+                ReasoningMode.ENABLE_THINKING -> """{"enable_thinking":false}"""
+                ReasoningMode.THINKING_TYPE -> """{"thinking":{"type":"disabled"}}"""
+                ReasoningMode.REASONING_EFFORT -> """{"reasoning_effort":"none"}"""
+                ReasoningMode.MODEL_SELECTION,
+                ReasoningMode.NONE -> DEFAULT_CUSTOM_REASONING_PARAMS_OFF_JSON
+            }
+        }
+    }
+
+    private fun isBuiltinLlmPresetModel(vendor: LlmVendor, model: String): Boolean {
+        if (model.isBlank()) return false
+        if (vendor == LlmVendor.SF_FREE && !sfFreeLlmUsePaidKey) {
+            return SF_FREE_LLM_MODELS.contains(model)
+        }
+        return vendor.models.contains(model)
+    }
+
+    private fun isCustomLlmProviderModel(provider: LlmProvider): Boolean {
+        val model = provider.model.trim()
+        if (model.isBlank()) return true
+        val presetModels = provider.models.map { it.trim() }.filter { it.isNotBlank() }
+        if (presetModels.isEmpty()) return true
+        return !presetModels.contains(model)
+    }
+
     /**
      * 获取当前有效的 LLM 配置（根据选择的供应商）
      * @return EffectiveLlmConfig 或 null（如果配置无效）
@@ -611,7 +676,10 @@ class Prefs(context: Context) {
                             model = model,
                             temperature = getLlmVendorTemperature(LlmVendor.SF_FREE),
                             vendor = vendor,
-                            enableReasoning = getLlmVendorReasoningEnabled(vendor)
+                            enableReasoning = getLlmVendorReasoningEnabled(vendor),
+                            useCustomReasoningParams = !isBuiltinLlmPresetModel(vendor, model),
+                            reasoningParamsOnJson = getLlmVendorReasoningParamsOnJson(vendor),
+                            reasoningParamsOffJson = getLlmVendorReasoningParamsOffJson(vendor)
                         )
                     }
                 } else {
@@ -623,7 +691,10 @@ class Prefs(context: Context) {
                         model = model,
                         temperature = DEFAULT_LLM_TEMPERATURE,
                         vendor = vendor,
-                        enableReasoning = getLlmVendorReasoningEnabled(vendor)
+                        enableReasoning = getLlmVendorReasoningEnabled(vendor),
+                        useCustomReasoningParams = !isBuiltinLlmPresetModel(vendor, model),
+                        reasoningParamsOnJson = getLlmVendorReasoningParamsOnJson(vendor),
+                        reasoningParamsOffJson = getLlmVendorReasoningParamsOffJson(vendor)
                     )
                 }
             }
@@ -637,7 +708,10 @@ class Prefs(context: Context) {
                         model = provider.model,
                         temperature = provider.temperature,
                         vendor = vendor,
-                        enableReasoning = false  // Custom vendor doesn't support reasoning control
+                        enableReasoning = provider.enableReasoning,
+                        useCustomReasoningParams = isCustomLlmProviderModel(provider),
+                        reasoningParamsOnJson = provider.reasoningParamsOnJson.ifBlank { DEFAULT_CUSTOM_REASONING_PARAMS_ON_JSON },
+                        reasoningParamsOffJson = provider.reasoningParamsOffJson.ifBlank { DEFAULT_CUSTOM_REASONING_PARAMS_OFF_JSON }
                     )
                 } else null
             }
@@ -654,7 +728,10 @@ class Prefs(context: Context) {
                         model = model,
                         temperature = getLlmVendorTemperature(vendor),
                         vendor = vendor,
-                        enableReasoning = getLlmVendorReasoningEnabled(vendor)
+                        enableReasoning = getLlmVendorReasoningEnabled(vendor),
+                        useCustomReasoningParams = !isBuiltinLlmPresetModel(vendor, model),
+                        reasoningParamsOnJson = getLlmVendorReasoningParamsOnJson(vendor),
+                        reasoningParamsOffJson = getLlmVendorReasoningParamsOffJson(vendor)
                     )
                 }
             }
@@ -668,7 +745,10 @@ class Prefs(context: Context) {
         val model: String,
         val temperature: Float,
         val vendor: LlmVendor,
-        val enableReasoning: Boolean
+        val enableReasoning: Boolean,
+        val useCustomReasoningParams: Boolean,
+        val reasoningParamsOnJson: String,
+        val reasoningParamsOffJson: String
     )
 
     // 阿里云百炼（DashScope）凭证
@@ -1657,6 +1737,8 @@ class Prefs(context: Context) {
         const val DEFAULT_LLM_ENDPOINT = "https://api.openai.com/v1"
         const val DEFAULT_LLM_MODEL = "gpt-4o-mini"
         const val DEFAULT_LLM_TEMPERATURE = 0.2f
+        const val DEFAULT_CUSTOM_REASONING_PARAMS_ON_JSON = "{}"
+        const val DEFAULT_CUSTOM_REASONING_PARAMS_OFF_JSON = "{}"
 
         // 静音自动判停默认值
         const val DEFAULT_SILENCE_WINDOW_MS = 1200
@@ -2016,6 +2098,9 @@ class Prefs(context: Context) {
                 o.put("${keyPrefix}_model", model)
             } catch (_: Throwable) {}
             try { o.put("${keyPrefix}_temperature", getLlmVendorTemperature(vendor).toDouble()) } catch (_: Throwable) {}
+            try { o.put("${keyPrefix}_reasoning_enabled", getLlmVendorReasoningEnabled(vendor)) } catch (_: Throwable) {}
+            try { o.put("${keyPrefix}_reasoning_on_json", getLlmVendorReasoningParamsOnJson(vendor)) } catch (_: Throwable) {}
+            try { o.put("${keyPrefix}_reasoning_off_json", getLlmVendorReasoningParamsOffJson(vendor)) } catch (_: Throwable) {}
         }
         return o.toString()
     }
@@ -2217,6 +2302,9 @@ class Prefs(context: Context) {
                 optString("${keyPrefix}_api_key")?.let { setLlmVendorApiKey(vendor, it) }
                 optString("${keyPrefix}_model")?.let { setLlmVendorModel(vendor, it) }
                 optFloat("${keyPrefix}_temperature")?.let { setLlmVendorTemperature(vendor, it) }
+                optBool("${keyPrefix}_reasoning_enabled")?.let { setLlmVendorReasoningEnabled(vendor, it) }
+                optString("${keyPrefix}_reasoning_on_json")?.let { setLlmVendorReasoningParamsOnJson(vendor, it) }
+                optString("${keyPrefix}_reasoning_off_json")?.let { setLlmVendorReasoningParamsOffJson(vendor, it) }
             }
             Log.i(TAG, "Successfully imported settings from JSON")
             true

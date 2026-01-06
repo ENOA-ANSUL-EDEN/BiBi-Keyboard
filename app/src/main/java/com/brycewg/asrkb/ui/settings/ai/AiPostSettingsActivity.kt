@@ -56,6 +56,9 @@ class AiPostSettingsActivity : BaseActivity() {
     private lateinit var layoutSfReasoningMode: View
     private lateinit var switchSfReasoningMode: MaterialSwitch
     private lateinit var tvSfReasoningModeHint: TextView
+    private lateinit var layoutSfReasoningParams: View
+    private lateinit var etSfReasoningParamsOnJson: EditText
+    private lateinit var etSfReasoningParamsOffJson: EditText
     private lateinit var layoutSfTemperature: View
     private lateinit var sliderSfTemperature: Slider
     private lateinit var tvSfTemperatureValue: TextView
@@ -69,6 +72,9 @@ class AiPostSettingsActivity : BaseActivity() {
     private lateinit var layoutBuiltinReasoningMode: View
     private lateinit var switchBuiltinReasoningMode: MaterialSwitch
     private lateinit var tvBuiltinReasoningModeHint: TextView
+    private lateinit var layoutBuiltinReasoningParams: View
+    private lateinit var etBuiltinReasoningParamsOnJson: EditText
+    private lateinit var etBuiltinReasoningParamsOffJson: EditText
     private lateinit var sliderBuiltinTemperature: Slider
     private lateinit var tvBuiltinTemperatureValue: TextView
     private lateinit var btnBuiltinRegister: Button
@@ -84,6 +90,11 @@ class AiPostSettingsActivity : BaseActivity() {
     private lateinit var btnCustomLlmFetchModels: Button
     private lateinit var tilCustomModelId: View
     private lateinit var etCustomModelId: EditText
+    private lateinit var layoutCustomReasoningMode: View
+    private lateinit var switchCustomReasoningMode: MaterialSwitch
+    private lateinit var tvCustomReasoningModeHint: TextView
+    private lateinit var etCustomReasoningParamsOnJson: EditText
+    private lateinit var etCustomReasoningParamsOffJson: EditText
     private lateinit var sliderLlmTemperature: Slider
     private lateinit var tvLlmTemperatureValue: TextView
     private lateinit var btnLlmAddProfile: Button
@@ -197,6 +208,9 @@ class AiPostSettingsActivity : BaseActivity() {
         layoutSfReasoningMode = findViewById(R.id.layoutSfReasoningMode)
         switchSfReasoningMode = findViewById(R.id.switchSfReasoningMode)
         tvSfReasoningModeHint = findViewById(R.id.tvSfReasoningModeHint)
+        layoutSfReasoningParams = findViewById(R.id.layoutSfReasoningParams)
+        etSfReasoningParamsOnJson = findViewById(R.id.etSfReasoningParamsOnJson)
+        etSfReasoningParamsOffJson = findViewById(R.id.etSfReasoningParamsOffJson)
         layoutSfTemperature = findViewById(R.id.layoutSfTemperature)
         sliderSfTemperature = findViewById(R.id.sliderSfTemperature)
         tvSfTemperatureValue = findViewById(R.id.tvSfTemperatureValue)
@@ -227,6 +241,7 @@ class AiPostSettingsActivity : BaseActivity() {
                 } else {
                     prefs.sfFreeLlmModel = text
                 }
+                updateSfReasoningModeUI()
             }
         }
 
@@ -270,6 +285,9 @@ class AiPostSettingsActivity : BaseActivity() {
         layoutBuiltinReasoningMode = findViewById(R.id.layoutBuiltinReasoningMode)
         switchBuiltinReasoningMode = findViewById(R.id.switchBuiltinReasoningMode)
         tvBuiltinReasoningModeHint = findViewById(R.id.tvBuiltinReasoningModeHint)
+        layoutBuiltinReasoningParams = findViewById(R.id.layoutBuiltinReasoningParams)
+        etBuiltinReasoningParamsOnJson = findViewById(R.id.etBuiltinReasoningParamsOnJson)
+        etBuiltinReasoningParamsOffJson = findViewById(R.id.etBuiltinReasoningParamsOffJson)
         sliderBuiltinTemperature = findViewById(R.id.sliderBuiltinTemperature)
         tvBuiltinTemperatureValue = findViewById(R.id.tvBuiltinTemperatureValue)
         btnBuiltinRegister = findViewById(R.id.btnBuiltinRegister)
@@ -285,6 +303,11 @@ class AiPostSettingsActivity : BaseActivity() {
         btnCustomLlmFetchModels = findViewById(R.id.btnCustomLlmFetchModels)
         tilCustomModelId = findViewById(R.id.tilCustomModelId)
         etCustomModelId = findViewById(R.id.etCustomModelId)
+        layoutCustomReasoningMode = findViewById(R.id.layoutCustomReasoningMode)
+        switchCustomReasoningMode = findViewById(R.id.switchCustomReasoningMode)
+        tvCustomReasoningModeHint = findViewById(R.id.tvCustomReasoningModeHint)
+        etCustomReasoningParamsOnJson = findViewById(R.id.etCustomReasoningParamsOnJson)
+        etCustomReasoningParamsOffJson = findViewById(R.id.etCustomReasoningParamsOffJson)
         sliderLlmTemperature = findViewById(R.id.sliderLlmTemperature)
         tvLlmTemperatureValue = findViewById(R.id.tvLlmTemperatureValue)
         btnLlmAddProfile = findViewById(R.id.btnLlmAddProfile)
@@ -333,10 +356,26 @@ class AiPostSettingsActivity : BaseActivity() {
         switchBuiltinReasoningMode.setOnCheckedChangeListener { _, isChecked ->
             viewModel.updateBuiltinReasoningEnabled(prefs, isChecked)
         }
+        etBuiltinReasoningParamsOnJson.addTextChangeListener { text ->
+            val vendor = viewModel.selectedVendor.value
+            if (vendor == LlmVendor.CUSTOM || vendor == LlmVendor.SF_FREE) return@addTextChangeListener
+            prefs.setLlmVendorReasoningParamsOnJson(vendor, text)
+        }
+        etBuiltinReasoningParamsOffJson.addTextChangeListener { text ->
+            val vendor = viewModel.selectedVendor.value
+            if (vendor == LlmVendor.CUSTOM || vendor == LlmVendor.SF_FREE) return@addTextChangeListener
+            prefs.setLlmVendorReasoningParamsOffJson(vendor, text)
+        }
 
         // SF reasoning mode switch
         switchSfReasoningMode.setOnCheckedChangeListener { _, isChecked ->
             prefs.setLlmVendorReasoningEnabled(LlmVendor.SF_FREE, isChecked)
+        }
+        etSfReasoningParamsOnJson.addTextChangeListener { text ->
+            prefs.setLlmVendorReasoningParamsOnJson(LlmVendor.SF_FREE, text)
+        }
+        etSfReasoningParamsOffJson.addTextChangeListener { text ->
+            prefs.setLlmVendorReasoningParamsOffJson(LlmVendor.SF_FREE, text)
         }
 
         // Builtin register button
@@ -366,6 +405,15 @@ class AiPostSettingsActivity : BaseActivity() {
         }
         etCustomModelId.addTextChangeListener { text ->
             viewModel.updateActiveLlmProvider(prefs) { it.copy(model = text) }
+        }
+        switchCustomReasoningMode.setOnCheckedChangeListener { _, isChecked ->
+            viewModel.updateActiveLlmProvider(prefs) { it.copy(enableReasoning = isChecked) }
+        }
+        etCustomReasoningParamsOnJson.addTextChangeListener { text ->
+            viewModel.updateActiveLlmProvider(prefs) { it.copy(reasoningParamsOnJson = text) }
+        }
+        etCustomReasoningParamsOffJson.addTextChangeListener { text ->
+            viewModel.updateActiveLlmProvider(prefs) { it.copy(reasoningParamsOffJson = text) }
         }
         tvCustomLlmModel.setOnClickListener { showCustomLlmModelSelectionDialog() }
         btnCustomLlmFetchModels.setOnClickListener { view ->
@@ -468,9 +516,19 @@ class AiPostSettingsActivity : BaseActivity() {
 
         // Update reasoning mode switch visibility and state
         val supportsReasoning = viewModel.supportsReasoningSwitch(vendor, displayModel)
-        layoutBuiltinReasoningMode.visibility = if (supportsReasoning) View.VISIBLE else View.GONE
-        if (supportsReasoning) {
+        val showReasoning = supportsReasoning || isCustom
+        layoutBuiltinReasoningMode.visibility = if (showReasoning) View.VISIBLE else View.GONE
+        layoutBuiltinReasoningParams.visibility = if (isCustom) View.VISIBLE else View.GONE
+        if (showReasoning) {
             switchBuiltinReasoningMode.isChecked = config.reasoningEnabled
+        }
+        if (isCustom) {
+            etBuiltinReasoningParamsOnJson.setTextIfDifferent(
+                prefs.getLlmVendorReasoningParamsOnJson(vendor)
+            )
+            etBuiltinReasoningParamsOffJson.setTextIfDifferent(
+                prefs.getLlmVendorReasoningParamsOffJson(vendor)
+            )
         }
         isUpdatingProgrammatically = false
     }
@@ -529,10 +587,22 @@ class AiPostSettingsActivity : BaseActivity() {
         } else {
             prefs.sfFreeLlmModel
         }
+        val presetModels = getSfPresetModels()
+        val isCustom = model.isNotBlank() && !presetModels.contains(model)
         val supportsReasoning = viewModel.supportsReasoningSwitch(LlmVendor.SF_FREE, model)
-        layoutSfReasoningMode.visibility = if (supportsReasoning) View.VISIBLE else View.GONE
-        if (supportsReasoning) {
+        val showReasoning = supportsReasoning || isCustom
+        layoutSfReasoningMode.visibility = if (showReasoning) View.VISIBLE else View.GONE
+        layoutSfReasoningParams.visibility = if (isCustom) View.VISIBLE else View.GONE
+        if (showReasoning) {
             switchSfReasoningMode.isChecked = prefs.getLlmVendorReasoningEnabled(LlmVendor.SF_FREE)
+        }
+        if (isCustom) {
+            etSfReasoningParamsOnJson.setTextIfDifferent(
+                prefs.getLlmVendorReasoningParamsOnJson(LlmVendor.SF_FREE)
+            )
+            etSfReasoningParamsOffJson.setTextIfDifferent(
+                prefs.getLlmVendorReasoningParamsOffJson(LlmVendor.SF_FREE)
+            )
         }
         isUpdatingProgrammatically = false
     }
@@ -565,6 +635,14 @@ class AiPostSettingsActivity : BaseActivity() {
         } else {
             etCustomModelId.setTextIfDifferent("")
         }
+        layoutCustomReasoningMode.visibility = if (isCustomModelInputVisible) View.VISIBLE else View.GONE
+        switchCustomReasoningMode.isChecked = provider?.enableReasoning ?: false
+        etCustomReasoningParamsOnJson.setTextIfDifferent(
+            provider?.reasoningParamsOnJson ?: Prefs.DEFAULT_CUSTOM_REASONING_PARAMS_ON_JSON
+        )
+        etCustomReasoningParamsOffJson.setTextIfDifferent(
+            provider?.reasoningParamsOffJson ?: Prefs.DEFAULT_CUSTOM_REASONING_PARAMS_OFF_JSON
+        )
         val temperature = (provider?.temperature ?: prefs.llmTemperature).coerceIn(0f, 2f)
         sliderLlmTemperature.value = temperature
         tvLlmTemperatureValue.text = String.format("%.1f", temperature)

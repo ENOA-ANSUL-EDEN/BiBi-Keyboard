@@ -83,6 +83,9 @@
     <string name="label_reasoning_mode">Enable Deep Thinking</string>
     <string name="hint_reasoning_mode">When enabled, the model performs reasoning analysis. Slower but better results for complex tasks.</string>
     <string name="hint_reasoning_not_supported">Current model doesn\'t support reasoning mode</string>
+    <string name="label_reasoning_params_on_json">Reasoning params (On, JSON)</string>
+    <string name="label_reasoning_params_off_json">Reasoning params (Off, JSON)</string>
+    <string name="hint_reasoning_params_json">Enter a JSON object, e.g. {"thinking":{"type":"enabled"}}. Leave empty or {} to send nothing.</string>
 
     <!-- SiliconFlow free/paid toggle -->
     <string name="label_sf_use_free_service">Use free service</string>

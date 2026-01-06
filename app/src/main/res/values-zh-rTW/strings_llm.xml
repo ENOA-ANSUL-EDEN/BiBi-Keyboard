@@ -83,6 +83,9 @@
     <string name="label_reasoning_mode">啟用深度思考</string>
     <string name="hint_reasoning_mode">開啟後模型會進行推理分析，處理較慢但對複雜任務效果更好。</string>
     <string name="hint_reasoning_not_supported">目前模型不支援推理模式</string>
+    <string name="label_reasoning_params_on_json">推理啟用參數（JSON）</string>
+    <string name="label_reasoning_params_off_json">推理關閉參數（JSON）</string>
+    <string name="hint_reasoning_params_json">填寫 JSON 物件，例如：{"thinking":{"type":"enabled"}}；留空或 {} 表示不額外傳參。</string>
 
     <!-- 矽基流動免費/付費切換 -->
     <string name="label_sf_use_free_service">使用免費服務</string>
