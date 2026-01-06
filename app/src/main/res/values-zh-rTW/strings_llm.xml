@@ -11,7 +11,7 @@
     <string name="label_llm_prompt_presets">選擇提示詞預設</string>
     <string name="btn_add_preset">新增/另存為預設</string>
     <string name="btn_delete_preset">刪除預設</string>
-    <string name="label_llm_choose_profile">選擇後處理模型</string>
+    <string name="label_llm_choose_profile">選擇自訂供應商</string>
     <string name="label_llm_profile_name">設定檔名稱</string>
     <string name="btn_llm_add_profile">新增設定檔</string>
     <string name="btn_llm_delete_profile">刪除設定檔</string>

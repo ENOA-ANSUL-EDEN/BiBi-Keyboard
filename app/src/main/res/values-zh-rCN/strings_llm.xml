@@ -11,7 +11,7 @@
     <string name="label_llm_prompt_presets">选择 Prompt 预设</string>
     <string name="btn_add_preset">新增/另存为预设</string>
     <string name="btn_delete_preset">删除预设</string>
-    <string name="label_llm_choose_profile">选择后处理模型</string>
+    <string name="label_llm_choose_profile">选择自定义供应商</string>
     <string name="label_llm_profile_name">配置名称</string>
     <string name="btn_llm_add_profile">新增配置</string>
     <string name="btn_llm_delete_profile">删除配置</string>
