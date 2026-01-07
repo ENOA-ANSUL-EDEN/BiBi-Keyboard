@@ -8,12 +8,10 @@ import android.content.Intent
 import android.annotation.SuppressLint
 import android.content.pm.PackageManager
 import android.inputmethodservice.InputMethodService
-import android.os.Vibrator
 import android.view.LayoutInflater
 import android.view.ContextThemeWrapper
 import android.graphics.Color
 import android.view.MotionEvent
-import android.view.HapticFeedbackConstants
 import android.view.View
 import android.widget.Button
 import android.widget.Toast
@@ -36,6 +34,7 @@ import com.brycewg.asrkb.asr.BluetoothRouteManager
 import com.brycewg.asrkb.asr.LlmPostProcessor
 import com.brycewg.asrkb.asr.VadDetector
 import com.brycewg.asrkb.store.Prefs
+import com.brycewg.asrkb.util.HapticFeedbackHelper
 import com.brycewg.asrkb.ui.SettingsActivity
 import com.brycewg.asrkb.ui.AsrVendorUi
 import kotlinx.coroutines.CoroutineScope
@@ -2136,14 +2135,11 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
 
 
     private fun vibrateTick() {
-        if (!prefs.micHapticEnabled) return
-        val v = getSystemService(Vibrator::class.java)
-        v.vibrate(android.os.VibrationEffect.createOneShot(20, 50))
+        HapticFeedbackHelper.performTap(this, prefs, rootView)
     }
 
     private fun performKeyHaptic(view: View?) {
-        if (!prefs.micHapticEnabled) return
-        view?.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+        HapticFeedbackHelper.performTap(this, prefs, view)
     }
 
     private fun openSettings() {

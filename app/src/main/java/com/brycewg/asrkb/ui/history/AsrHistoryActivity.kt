@@ -26,6 +26,8 @@ import com.brycewg.asrkb.UiColors
 import com.brycewg.asrkb.UiColorTokens
 import com.brycewg.asrkb.asr.AsrVendor
 import com.brycewg.asrkb.store.AsrHistoryStore
+import com.brycewg.asrkb.store.Prefs
+import com.brycewg.asrkb.util.HapticFeedbackHelper
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.chip.Chip
@@ -50,6 +52,7 @@ class AsrHistoryActivity : BaseActivity() {
   private enum class TimeFilter { ALL, WITHIN_2H, TODAY, LAST_7D, LAST_30D }
 
   private lateinit var store: AsrHistoryStore
+  private lateinit var prefs: Prefs
   private lateinit var adapter: HistoryAdapter
   private lateinit var rv: RecyclerView
   private lateinit var etSearch: TextInputEditText
@@ -82,6 +85,7 @@ class AsrHistoryActivity : BaseActivity() {
     }
 
     store = AsrHistoryStore(this)
+    prefs = Prefs(this)
 
     val tb = findViewById<MaterialToolbar>(R.id.toolbar)
     tb.setTitle(R.string.title_asr_history)
@@ -128,10 +132,24 @@ class AsrHistoryActivity : BaseActivity() {
     chipClearSelection = findViewById(R.id.chipClearSelection)
     chipDeleteSelected = findViewById(R.id.chipDeleteSelected)
     chipSelectionCount = findViewById(R.id.chipSelectionCount)
-    chipFilter.setOnClickListener { showFilterDialog() }
-    chipSelectAll.setOnClickListener { adapter.selectAll(true); updateToolbarTitleWithSelection() }
-    chipClearSelection.setOnClickListener { adapter.selectAll(false); updateToolbarTitleWithSelection() }
-    chipDeleteSelected.setOnClickListener { confirmDeleteSelected() }
+    chipFilter.setOnClickListener { v ->
+      hapticTapIfEnabled(v)
+      showFilterDialog()
+    }
+    chipSelectAll.setOnClickListener { v ->
+      hapticTapIfEnabled(v)
+      adapter.selectAll(true)
+      updateToolbarTitleWithSelection()
+    }
+    chipClearSelection.setOnClickListener { v ->
+      hapticTapIfEnabled(v)
+      adapter.selectAll(false)
+      updateToolbarTitleWithSelection()
+    }
+    chipDeleteSelected.setOnClickListener { v ->
+      hapticTapIfEnabled(v)
+      confirmDeleteSelected()
+    }
 
     etSearch = findViewById(R.id.etSearch)
     etSearch.addTextChangedListener(object : TextWatcher {
@@ -202,12 +220,17 @@ class AsrHistoryActivity : BaseActivity() {
     }
   }
   private fun wireToolbarActions(menu: Menu) {
-    menu.findItem(R.id.action_filter)?.actionView?.setOnClickListener { showFilterDialog() }
-    menu.findItem(R.id.action_select_all)?.actionView?.setOnClickListener {
+    menu.findItem(R.id.action_filter)?.actionView?.setOnClickListener { v ->
+      hapticTapIfEnabled(v)
+      showFilterDialog()
+    }
+    menu.findItem(R.id.action_select_all)?.actionView?.setOnClickListener { v ->
+      hapticTapIfEnabled(v)
       adapter.selectAll(true)
       updateToolbarTitleWithSelection()
     }
-    menu.findItem(R.id.action_clear_selection)?.actionView?.setOnClickListener {
+    menu.findItem(R.id.action_clear_selection)?.actionView?.setOnClickListener { v ->
+      hapticTapIfEnabled(v)
       adapter.selectAll(false)
       updateToolbarTitleWithSelection()
     }
@@ -627,7 +650,10 @@ class AsrHistoryActivity : BaseActivity() {
           }
         }
 
-        btnCopy.setOnClickListener { onCopy(r.text) }
+        btnCopy.setOnClickListener { v ->
+          hapticTapIfEnabled(v)
+          onCopy(r.text)
+        }
       }
 
       private fun mapVendorName(id: String): String = try {
@@ -641,5 +667,9 @@ class AsrHistoryActivity : BaseActivity() {
         if (src == "floating") itemView.context.getString(R.string.source_floating_full)
         else itemView.context.getString(R.string.source_ime_full)
     }
+  }
+
+  private fun hapticTapIfEnabled(view: View?) {
+    HapticFeedbackHelper.performTap(this, prefs, view)
   }
 }

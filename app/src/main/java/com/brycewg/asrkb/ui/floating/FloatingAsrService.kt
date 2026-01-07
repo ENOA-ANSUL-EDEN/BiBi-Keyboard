@@ -26,6 +26,7 @@ import com.brycewg.asrkb.ui.AsrAccessibilityService
 import com.brycewg.asrkb.ui.AsrVendorUi
 import com.brycewg.asrkb.ui.SettingsActivity
 import com.brycewg.asrkb.store.debug.DebugLogManager
+import com.brycewg.asrkb.util.HapticFeedbackHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -1272,13 +1273,7 @@ class FloatingAsrService : Service(),
     }
 
     private fun hapticTapIfEnabled(view: View?) {
-        try {
-            if (prefs.micHapticEnabled) {
-                view?.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
-            }
-        } catch (e: Throwable) {
-            Log.w(TAG, "Failed to perform haptic feedback", e)
-        }
+        HapticFeedbackHelper.performTap(this, prefs, view)
     }
 
     private var localPreloadTriggered: Boolean = false

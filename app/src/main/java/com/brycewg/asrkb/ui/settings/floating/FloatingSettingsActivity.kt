@@ -19,9 +19,9 @@ import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.button.MaterialButton
 import android.text.Editable
 import android.text.TextWatcher
-import android.view.HapticFeedbackConstants
 import android.view.View
 import android.util.Log
+import com.brycewg.asrkb.util.HapticFeedbackHelper
 import kotlinx.coroutines.launch
 
 class FloatingSettingsActivity : BaseActivity() {
@@ -452,12 +452,6 @@ class FloatingSettingsActivity : BaseActivity() {
      * 触发触觉反馈（如果已启用）
      */
     private fun hapticTapIfEnabled(view: View?) {
-        try {
-            if (prefs.micHapticEnabled) {
-                view?.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-            }
-        } catch (e: Throwable) {
-            Log.e(TAG, "Failed to perform haptic feedback", e)
-        }
+        HapticFeedbackHelper.performTap(this, prefs, view)
     }
 }

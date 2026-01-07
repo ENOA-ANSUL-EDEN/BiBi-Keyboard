@@ -16,6 +16,7 @@ import android.text.style.ForegroundColorSpan
 import android.text.style.StyleSpan
 import android.util.Log
 import android.view.LayoutInflater
+import android.view.View
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.TextView
@@ -40,6 +41,7 @@ import com.brycewg.asrkb.ui.settings.other.OtherSettingsActivity
 import com.brycewg.asrkb.ui.settings.floating.FloatingSettingsActivity
 import com.brycewg.asrkb.ui.settings.backup.BackupSettingsActivity
 import com.brycewg.asrkb.analytics.AnalyticsManager
+import com.brycewg.asrkb.util.HapticFeedbackHelper
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
@@ -81,6 +83,8 @@ class SettingsActivity : BaseActivity() {
     // 无障碍服务状态（用于检测服务刚刚被启用）
     private var wasAccessibilityEnabled = false
 
+    private lateinit var prefs: Prefs
+
     // Handler 用于延迟任务
     private val handler = Handler(Looper.getMainLooper())
 
@@ -105,6 +109,8 @@ class SettingsActivity : BaseActivity() {
         findViewById<android.view.View>(android.R.id.content).let { rootView ->
             WindowInsetsHelper.applySystemBarsInsets(rootView)
         }
+
+        prefs = Prefs(this)
 
         // 初始化状态机和工具类
         setupStateMachine = SetupStateMachine(this)
@@ -227,58 +233,72 @@ class SettingsActivity : BaseActivity() {
      */
     private fun setupButtonListeners() {
         // 一键设置
-        findViewById<Button>(R.id.btnOneClickSetup)?.setOnClickListener {
+        findViewById<Button>(R.id.btnOneClickSetup)?.setOnClickListener { v ->
+            hapticTapIfEnabled(v)
             startOneClickSetup()
         }
 
         // 快速指南
-        findViewById<Button>(R.id.btnShowGuide)?.setOnClickListener {
+        findViewById<Button>(R.id.btnShowGuide)?.setOnClickListener { v ->
+            hapticTapIfEnabled(v)
             showQuickGuide()
         }
 
         // 手动检查更新入口
         findViewById<Button>(R.id.btnCheckUpdate)?.let { btn ->
             if (updatesEnabled) {
-                btn.setOnClickListener { checkForUpdates() }
+                btn.setOnClickListener { v ->
+                    hapticTapIfEnabled(v)
+                    checkForUpdates()
+                }
             } else {
                 btn.visibility = android.view.View.GONE
             }
         }
 
         // 测试输入
-        findViewById<Button>(R.id.btnTestInput)?.setOnClickListener {
+        findViewById<Button>(R.id.btnTestInput)?.setOnClickListener { v ->
+            hapticTapIfEnabled(v)
             showTestInputBottomSheet()
         }
 
         // 关于
-        findViewById<Button>(R.id.btnAbout)?.setOnClickListener {
+        findViewById<Button>(R.id.btnAbout)?.setOnClickListener { v ->
+            hapticTapIfEnabled(v)
             startActivity(Intent(this, AboutActivity::class.java))
         }
 
         // 子设置页导航
-        findViewById<Button>(R.id.btnOpenInputSettings)?.setOnClickListener {
+        findViewById<Button>(R.id.btnOpenInputSettings)?.setOnClickListener { v ->
+            hapticTapIfEnabled(v)
             startActivity(Intent(this, InputSettingsActivity::class.java))
         }
-        findViewById<Button>(R.id.btnOpenAsrSettings)?.setOnClickListener {
+        findViewById<Button>(R.id.btnOpenAsrSettings)?.setOnClickListener { v ->
+            hapticTapIfEnabled(v)
             startActivity(Intent(this, AsrSettingsActivity::class.java))
         }
-        findViewById<Button>(R.id.btnOpenAiSettings)?.setOnClickListener {
+        findViewById<Button>(R.id.btnOpenAiSettings)?.setOnClickListener { v ->
+            hapticTapIfEnabled(v)
             startActivity(Intent(this, AiPostSettingsActivity::class.java))
         }
-        findViewById<Button>(R.id.btnOpenOtherSettings)?.setOnClickListener {
+        findViewById<Button>(R.id.btnOpenOtherSettings)?.setOnClickListener { v ->
+            hapticTapIfEnabled(v)
             startActivity(Intent(this, OtherSettingsActivity::class.java))
         }
-        findViewById<Button>(R.id.btnOpenFloatingSettings)?.setOnClickListener {
+        findViewById<Button>(R.id.btnOpenFloatingSettings)?.setOnClickListener { v ->
+            hapticTapIfEnabled(v)
             startActivity(Intent(this, FloatingSettingsActivity::class.java))
         }
 
         // 配置备份页入口
-        findViewById<Button>(R.id.btnExportSettings)?.setOnClickListener {
+        findViewById<Button>(R.id.btnExportSettings)?.setOnClickListener { v ->
+            hapticTapIfEnabled(v)
             startActivity(Intent(this, BackupSettingsActivity::class.java))
         }
 
         // 识别历史页入口
-        findViewById<Button>(R.id.btnOpenAsrHistory)?.setOnClickListener {
+        findViewById<Button>(R.id.btnOpenAsrHistory)?.setOnClickListener { v ->
+            hapticTapIfEnabled(v)
             try {
                 startActivity(Intent(this, com.brycewg.asrkb.ui.history.AsrHistoryActivity::class.java))
             } catch (e: Exception) {
@@ -873,6 +893,10 @@ class SettingsActivity : BaseActivity() {
                 ).show()
             }
         }
+    }
+
+    private fun hapticTapIfEnabled(view: View?) {
+        HapticFeedbackHelper.performTap(this, prefs, view)
     }
 
     /**

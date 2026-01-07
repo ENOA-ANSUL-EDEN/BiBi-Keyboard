@@ -6,7 +6,6 @@ import android.net.Uri
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
-import android.view.HapticFeedbackConstants
 import android.view.View
 import android.widget.EditText
 import android.widget.ImageView
@@ -26,6 +25,7 @@ import com.brycewg.asrkb.ui.DownloadSourceConfig
 import com.brycewg.asrkb.ui.DownloadSourceDialog
 import com.brycewg.asrkb.ui.SettingsOptionSheet
 import com.brycewg.asrkb.ui.installExplainedSwitch
+import com.brycewg.asrkb.util.HapticFeedbackHelper
 import com.brycewg.asrkb.store.Prefs
 import com.brycewg.asrkb.asr.VadDetector
 import com.google.android.material.appbar.MaterialToolbar
@@ -2078,13 +2078,7 @@ class AsrSettingsActivity : BaseActivity() {
     }
 
     private fun hapticTapIfEnabled(view: View?) {
-        try {
-            if (prefs.micHapticEnabled) {
-                view?.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-            }
-        } catch (e: Throwable) {
-            android.util.Log.e(TAG, "Failed to perform haptic feedback", e)
-        }
+        HapticFeedbackHelper.performTap(this, prefs, view)
     }
 
     private fun openUrlSafely(url: String) {

@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.view.View
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
@@ -17,6 +18,7 @@ import com.brycewg.asrkb.UiColors
 import com.brycewg.asrkb.UiColorTokens
 import com.brycewg.asrkb.asr.AsrVendor
 import com.brycewg.asrkb.store.Prefs
+import com.brycewg.asrkb.util.HapticFeedbackHelper
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.brycewg.asrkb.store.debug.DebugLogManager
@@ -31,6 +33,8 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 class AboutActivity : BaseActivity() {
+  private lateinit var prefs: Prefs
+
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     setContentView(R.layout.activity_about)
@@ -62,13 +66,14 @@ class AboutActivity : BaseActivity() {
     tvVersion.text = getString(R.string.about_version, "$versionName ($versionCodeLong)")
     tvPackage.text = getString(R.string.about_package, packageName)
 
-    val prefs = Prefs(this)
+    prefs = Prefs(this)
     switchAutoUpdateCheck.isChecked = prefs.autoUpdateCheckEnabled
     switchAutoUpdateCheck.setOnCheckedChangeListener { _, isChecked ->
       prefs.autoUpdateCheckEnabled = isChecked
     }
 
-    btnGithub.setOnClickListener {
+    btnGithub.setOnClickListener { v ->
+      hapticTapIfEnabled(v)
       try {
         val url = getString(R.string.about_project_url)
         startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
@@ -82,7 +87,8 @@ class AboutActivity : BaseActivity() {
     }
 
     // 查看项目官网按钮
-    findViewById<Button>(R.id.btnOpenWebsite)?.setOnClickListener {
+    findViewById<Button>(R.id.btnOpenWebsite)?.setOnClickListener { v ->
+      hapticTapIfEnabled(v)
       try {
         val url = getString(R.string.about_website_url)
         startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
@@ -96,7 +102,8 @@ class AboutActivity : BaseActivity() {
     }
 
     // 查看项目文档按钮
-    findViewById<Button>(R.id.btnOpenDocs)?.setOnClickListener {
+    findViewById<Button>(R.id.btnOpenDocs)?.setOnClickListener { v ->
+      hapticTapIfEnabled(v)
       try {
         val url = getString(R.string.about_docs_url)
         startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
@@ -110,7 +117,8 @@ class AboutActivity : BaseActivity() {
     }
 
     // 了解 Pro 按钮
-    findViewById<Button>(R.id.btnLearnPro)?.setOnClickListener {
+    findViewById<Button>(R.id.btnLearnPro)?.setOnClickListener { v ->
+      hapticTapIfEnabled(v)
       try {
         ProPromoDialog.showForce(this)
       } catch (e: Throwable) {
@@ -119,7 +127,8 @@ class AboutActivity : BaseActivity() {
     }
 
     // 查看完整许可证按钮
-    findViewById<Button>(R.id.btnViewLicenses)?.setOnClickListener {
+    findViewById<Button>(R.id.btnViewLicenses)?.setOnClickListener { v ->
+      hapticTapIfEnabled(v)
       showLicensesDialog()
     }
 
@@ -127,7 +136,8 @@ class AboutActivity : BaseActivity() {
     val btnToggle = findViewById<Button>(R.id.btnToggleDebugRecording)
     val btnExport = findViewById<Button>(R.id.btnExportDebugLog)
     updateToggleText(btnToggle)
-    btnToggle.setOnClickListener {
+    btnToggle.setOnClickListener { v ->
+      hapticTapIfEnabled(v)
       try {
         if (DebugLogManager.isRecording()) {
           DebugLogManager.stop()
@@ -164,7 +174,8 @@ class AboutActivity : BaseActivity() {
         Toast.makeText(this, R.string.toast_debug_failed, Toast.LENGTH_SHORT).show()
       }
     }
-    btnExport.setOnClickListener {
+    btnExport.setOnClickListener { v ->
+      hapticTapIfEnabled(v)
       try {
         val result = DebugLogManager.buildShareIntent(this)
         when (result) {
@@ -191,7 +202,8 @@ class AboutActivity : BaseActivity() {
     }
 
     // 返回箭头点击关闭（若布局中设置了导航图标）
-    findViewById<androidx.appcompat.widget.Toolbar?>(R.id.toolbar)?.setNavigationOnClickListener {
+    findViewById<androidx.appcompat.widget.Toolbar?>(R.id.toolbar)?.setNavigationOnClickListener { v ->
+      hapticTapIfEnabled(v)
       finish()
     }
 
@@ -205,6 +217,10 @@ class AboutActivity : BaseActivity() {
 
   companion object {
     private const val TAG = "AboutActivity"
+  }
+
+  private fun hapticTapIfEnabled(view: View?) {
+    HapticFeedbackHelper.performTap(this, prefs, view)
   }
 
   private fun renderUsageStats() {

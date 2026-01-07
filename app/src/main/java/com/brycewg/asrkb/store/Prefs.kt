@@ -70,10 +70,37 @@ class Prefs(context: Context) {
     // 移除：键盘内“切换输入法”按钮显示开关（按钮始终显示）
 
 
-    // 麦克风按钮触觉反馈
+    // 输入/点击触觉反馈强度
+    var hapticFeedbackLevel: Int
+        get() {
+            val stored = if (sp.contains(KEY_HAPTIC_FEEDBACK_LEVEL)) {
+                sp.getInt(KEY_HAPTIC_FEEDBACK_LEVEL, DEFAULT_HAPTIC_FEEDBACK_LEVEL)
+            } else {
+                if (sp.getBoolean(KEY_MIC_HAPTIC_ENABLED, true)) {
+                    HAPTIC_FEEDBACK_LEVEL_SYSTEM
+                } else {
+                    HAPTIC_FEEDBACK_LEVEL_OFF
+                }
+            }
+            return stored.coerceIn(HAPTIC_FEEDBACK_LEVEL_OFF, HAPTIC_FEEDBACK_LEVEL_HEAVY)
+        }
+        set(value) = sp.edit {
+            putInt(
+                KEY_HAPTIC_FEEDBACK_LEVEL,
+                value.coerceIn(HAPTIC_FEEDBACK_LEVEL_OFF, HAPTIC_FEEDBACK_LEVEL_HEAVY)
+            )
+        }
+
+    // 麦克风按钮触觉反馈（兼容旧开关）
     var micHapticEnabled: Boolean
-        get() = sp.getBoolean(KEY_MIC_HAPTIC_ENABLED, true)
-        set(value) = sp.edit { putBoolean(KEY_MIC_HAPTIC_ENABLED, value) }
+        get() = hapticFeedbackLevel != HAPTIC_FEEDBACK_LEVEL_OFF
+        set(value) {
+            hapticFeedbackLevel = if (value) {
+                HAPTIC_FEEDBACK_LEVEL_SYSTEM
+            } else {
+                HAPTIC_FEEDBACK_LEVEL_OFF
+            }
+        }
 
     // 麦克风点按控制（点按开始/停止），默认关闭：使用长按说话
     var micTapToggleEnabled: Boolean
@@ -1546,8 +1573,17 @@ class Prefs(context: Context) {
         private const val KEY_APP_KEY = "app_key"
         private const val KEY_ACCESS_KEY = "access_key"
         private const val KEY_TRIM_FINAL_TRAILING_PUNCT = "trim_final_trailing_punct"
+        private const val KEY_HAPTIC_FEEDBACK_LEVEL = "haptic_feedback_level"
         private const val KEY_MIC_HAPTIC_ENABLED = "mic_haptic_enabled"
         private const val KEY_MIC_TAP_TOGGLE_ENABLED = "mic_tap_toggle_enabled"
+        const val HAPTIC_FEEDBACK_LEVEL_OFF = 0
+        const val HAPTIC_FEEDBACK_LEVEL_SYSTEM = 1
+        const val HAPTIC_FEEDBACK_LEVEL_WEAK = 2
+        const val HAPTIC_FEEDBACK_LEVEL_LIGHT = 3
+        const val HAPTIC_FEEDBACK_LEVEL_MEDIUM = 4
+        const val HAPTIC_FEEDBACK_LEVEL_STRONG = 5
+        const val HAPTIC_FEEDBACK_LEVEL_HEAVY = 6
+        const val DEFAULT_HAPTIC_FEEDBACK_LEVEL = HAPTIC_FEEDBACK_LEVEL_SYSTEM
         private const val KEY_AUTO_START_RECORDING_ON_SHOW = "auto_start_recording_on_show"
         private const val KEY_DUCK_MEDIA_ON_RECORD = "duck_media_on_record"
         private const val KEY_OFFLINE_DENOISE_ENABLED = "offline_denoise_enabled"
@@ -1957,6 +1993,7 @@ class Prefs(context: Context) {
         o.put(KEY_APP_KEY, appKey)
         o.put(KEY_ACCESS_KEY, accessKey)
         o.put(KEY_TRIM_FINAL_TRAILING_PUNCT, trimFinalTrailingPunct)
+        o.put(KEY_HAPTIC_FEEDBACK_LEVEL, hapticFeedbackLevel)
         o.put(KEY_MIC_HAPTIC_ENABLED, micHapticEnabled)
         o.put(KEY_MIC_TAP_TOGGLE_ENABLED, micTapToggleEnabled)
         o.put(KEY_AUTO_START_RECORDING_ON_SHOW, autoStartRecordingOnShow)
@@ -2151,7 +2188,12 @@ class Prefs(context: Context) {
             optString(KEY_APP_KEY)?.let { appKey = it }
             optString(KEY_ACCESS_KEY)?.let { accessKey = it }
             optBool(KEY_TRIM_FINAL_TRAILING_PUNCT)?.let { trimFinalTrailingPunct = it }
-            optBool(KEY_MIC_HAPTIC_ENABLED)?.let { micHapticEnabled = it }
+            val importedHapticLevel = optInt(KEY_HAPTIC_FEEDBACK_LEVEL)
+            if (importedHapticLevel != null) {
+                hapticFeedbackLevel = importedHapticLevel
+            } else {
+                optBool(KEY_MIC_HAPTIC_ENABLED)?.let { micHapticEnabled = it }
+            }
             optBool(KEY_MIC_TAP_TOGGLE_ENABLED)?.let { micTapToggleEnabled = it }
             optBool(KEY_AUTO_START_RECORDING_ON_SHOW)?.let { autoStartRecordingOnShow = it }
             optBool(KEY_DUCK_MEDIA_ON_RECORD)?.let { duckMediaOnRecordEnabled = it }

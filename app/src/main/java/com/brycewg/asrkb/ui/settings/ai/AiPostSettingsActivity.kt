@@ -6,7 +6,6 @@ import android.net.Uri
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
-import android.view.HapticFeedbackConstants
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
@@ -25,6 +24,7 @@ import com.brycewg.asrkb.store.Prefs
 import com.brycewg.asrkb.store.PromptPreset
 import com.brycewg.asrkb.ui.SettingsOptionSheet
 import com.brycewg.asrkb.ui.installExplainedSwitch
+import com.brycewg.asrkb.util.HapticFeedbackHelper
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.materialswitch.MaterialSwitch
@@ -196,7 +196,10 @@ class AiPostSettingsActivity : BaseActivity() {
 
         // LLM Vendor Selection
         tvLlmVendor = findViewById(R.id.tvLlmVendor)
-        tvLlmVendor.setOnClickListener { showVendorSelectionDialog() }
+        tvLlmVendor.setOnClickListener { v ->
+            hapticTapIfEnabled(v)
+            showVendorSelectionDialog()
+        }
 
         // SiliconFlow LLM Group
         groupSfFreeLlm = findViewById(R.id.groupSfFreeLlm)
@@ -234,7 +237,10 @@ class AiPostSettingsActivity : BaseActivity() {
         etSfApiKey.setText(prefs.getLlmVendorApiKey(LlmVendor.SF_FREE))
 
         // SF model selection
-        tvSfFreeLlmModel.setOnClickListener { showSfFreeLlmModelSelectionDialog() }
+        tvSfFreeLlmModel.setOnClickListener { v ->
+            hapticTapIfEnabled(v)
+            showSfFreeLlmModelSelectionDialog()
+        }
         btnSfFreeLlmFetchModels.setOnClickListener { v ->
             hapticTapIfEnabled(v)
             handleFetchSfModels()
@@ -279,7 +285,8 @@ class AiPostSettingsActivity : BaseActivity() {
         }
 
         // SF test call button
-        findViewById<com.google.android.material.button.MaterialButton>(R.id.btnSfFreeLlmTestCall).setOnClickListener {
+        findViewById<com.google.android.material.button.MaterialButton>(R.id.btnSfFreeLlmTestCall).setOnClickListener { v ->
+            hapticTapIfEnabled(v)
             handleTestLlmCall()
         }
 
@@ -351,7 +358,10 @@ class AiPostSettingsActivity : BaseActivity() {
         })
 
         // Builtin model selection
-        tvBuiltinModel.setOnClickListener { showBuiltinModelSelectionDialog() }
+        tvBuiltinModel.setOnClickListener { v ->
+            hapticTapIfEnabled(v)
+            showBuiltinModelSelectionDialog()
+        }
         btnBuiltinFetchModels.setOnClickListener { v ->
             hapticTapIfEnabled(v)
             handleFetchBuiltinModels(viewModel.selectedVendor.value)
@@ -398,13 +408,19 @@ class AiPostSettingsActivity : BaseActivity() {
                 openUrlSafely(vendor.registerUrl)
             }
         }
-        btnBuiltinTestCall.setOnClickListener { handleTestLlmCall() }
+        btnBuiltinTestCall.setOnClickListener { v ->
+            hapticTapIfEnabled(v)
+            handleTestLlmCall()
+        }
     }
 
     // ======== LLM Profile Section Setup ========
 
     private fun setupLlmProfileSection() {
-        tvLlmProfiles.setOnClickListener { showLlmProfileSelectionDialog() }
+        tvLlmProfiles.setOnClickListener { v ->
+            hapticTapIfEnabled(v)
+            showLlmProfileSelectionDialog()
+        }
 
         etLlmProfileName.addTextChangeListener { text ->
             viewModel.updateActiveLlmProvider(prefs) { it.copy(name = text) }
@@ -427,7 +443,10 @@ class AiPostSettingsActivity : BaseActivity() {
         etCustomReasoningParamsOffJson.addTextChangeListener { text ->
             viewModel.updateActiveLlmProvider(prefs) { it.copy(reasoningParamsOffJson = text) }
         }
-        tvCustomLlmModel.setOnClickListener { showCustomLlmModelSelectionDialog() }
+        tvCustomLlmModel.setOnClickListener { v ->
+            hapticTapIfEnabled(v)
+            showCustomLlmModelSelectionDialog()
+        }
         btnCustomLlmFetchModels.setOnClickListener { view ->
             hapticTapIfEnabled(view)
             handleFetchCustomModels()
@@ -445,15 +464,27 @@ class AiPostSettingsActivity : BaseActivity() {
             override fun onStopTrackingTouch(slider: Slider) = hapticTapIfEnabled(slider)
         })
 
-        btnLlmTestCall.setOnClickListener { handleTestLlmCall() }
-        btnLlmAddProfile.setOnClickListener { handleAddLlmProfile() }
-        btnLlmDeleteProfile.setOnClickListener { handleDeleteLlmProfile() }
+        btnLlmTestCall.setOnClickListener { v ->
+            hapticTapIfEnabled(v)
+            handleTestLlmCall()
+        }
+        btnLlmAddProfile.setOnClickListener { v ->
+            hapticTapIfEnabled(v)
+            handleAddLlmProfile()
+        }
+        btnLlmDeleteProfile.setOnClickListener { v ->
+            hapticTapIfEnabled(v)
+            handleDeleteLlmProfile()
+        }
     }
 
     // ======== Prompt Preset Section Setup ========
 
     private fun setupPromptPresetSection() {
-        tvPromptPresets.setOnClickListener { showPromptPresetSelectionDialog() }
+        tvPromptPresets.setOnClickListener { v ->
+            hapticTapIfEnabled(v)
+            showPromptPresetSelectionDialog()
+        }
 
         etLlmPromptTitle.addTextChangeListener { text ->
             viewModel.updateActivePromptPreset(prefs) { it.copy(title = text) }
@@ -462,8 +493,14 @@ class AiPostSettingsActivity : BaseActivity() {
             viewModel.updateActivePromptPreset(prefs) { it.copy(content = text) }
         }
 
-        btnAddPromptPreset.setOnClickListener { handleAddPromptPreset() }
-        btnDeletePromptPreset.setOnClickListener { handleDeletePromptPreset() }
+        btnAddPromptPreset.setOnClickListener { v ->
+            hapticTapIfEnabled(v)
+            handleAddPromptPreset()
+        }
+        btnDeletePromptPreset.setOnClickListener { v ->
+            hapticTapIfEnabled(v)
+            handleDeletePromptPreset()
+        }
     }
 
     // ======== Observer Methods ========
@@ -1150,9 +1187,7 @@ class AiPostSettingsActivity : BaseActivity() {
     }
 
     private fun hapticTapIfEnabled(view: View?) {
-        if (prefs.micHapticEnabled) {
-            view?.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-        }
+        HapticFeedbackHelper.performTap(this, prefs, view)
     }
 
     /**

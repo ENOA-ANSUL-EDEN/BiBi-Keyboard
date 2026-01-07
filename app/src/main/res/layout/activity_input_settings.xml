@@ -47,11 +47,6 @@
             android:text="@string/label_trim_trailing_punct" />
 
           <com.google.android.material.materialswitch.MaterialSwitch
-            android:id="@+id/switchMicHaptic"
-            style="@style/SettingsSwitch"
-            android:text="@string/label_mic_haptic" />
-
-          <com.google.android.material.materialswitch.MaterialSwitch
             android:id="@+id/switchMicTapToggle"
             style="@style/SettingsSwitch"
             android:text="@string/label_mic_tap_toggle" />
@@ -154,6 +149,36 @@
               android:text="@string/keyboard_height_large" />
 
           </com.google.android.material.button.MaterialButtonToggleGroup>
+
+          <!-- 触觉反馈强度 -->
+          <TextView
+            style="@style/SettingsLabel"
+            android:text="@string/label_haptic_feedback_strength" />
+
+          <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <com.google.android.material.slider.Slider
+              android:id="@+id/sliderHapticFeedbackStrength"
+              android:layout_width="0dp"
+              android:layout_height="wrap_content"
+              android:layout_weight="1"
+              android:valueFrom="0"
+              android:valueTo="6"
+              android:stepSize="1"
+              android:value="1" />
+
+            <TextView
+              android:id="@+id/tvHapticFeedbackStrengthValue"
+              style="@style/SettingsSliderValue"
+              android:layout_width="wrap_content"
+              android:minWidth="72dp"
+              android:text="@string/haptic_strength_system" />
+
+          </LinearLayout>
 
           <!-- 底部间距调节 -->
           <TextView

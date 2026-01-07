@@ -48,6 +48,16 @@
     <string name="keyboard_height_medium">中</string>
     <string name="keyboard_height_large">大</string>
 
+    <!-- Haptic feedback strength -->
+    <string name="label_haptic_feedback_strength">輸入/點擊震動回饋強度</string>
+    <string name="haptic_strength_off">關閉</string>
+    <string name="haptic_strength_system">系統預設</string>
+    <string name="haptic_strength_weak">弱</string>
+    <string name="haptic_strength_light">偏弱</string>
+    <string name="haptic_strength_medium">中</string>
+    <string name="haptic_strength_strong">偏強</string>
+    <string name="haptic_strength_heavy">強</string>
+
     <!-- Keyboard bottom padding -->
     <string name="label_keyboard_bottom_padding">鍵盤底部填充</string>
     <string name="keyboard_bottom_padding_value">%d dp</string>

@@ -7,7 +7,6 @@ import android.provider.Settings
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
-import android.view.HapticFeedbackConstants
 import android.widget.EditText
 import android.widget.TextView
 import com.google.android.material.button.MaterialButton
@@ -22,6 +21,7 @@ import com.brycewg.asrkb.analytics.AnalyticsManager
 import com.brycewg.asrkb.ui.SettingsOptionSheet
 import com.brycewg.asrkb.ui.floating.FloatingServiceManager
 import com.brycewg.asrkb.ui.installExplainedSwitch
+import com.brycewg.asrkb.util.HapticFeedbackHelper
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.textfield.TextInputEditText
@@ -264,7 +264,8 @@ class OtherSettingsActivity : BaseActivity() {
         })
 
         // Setup preset selector
-        tvSpeechPresets.setOnClickListener {
+        tvSpeechPresets.setOnClickListener { v ->
+            hapticTapIfEnabled(v)
             val state = viewModel.speechPresetsState.value
             if (state.presets.isEmpty()) return@setOnClickListener
 
@@ -288,7 +289,8 @@ class OtherSettingsActivity : BaseActivity() {
         }
 
         // Setup add button
-        btnSpeechPresetAdd?.setOnClickListener {
+        btnSpeechPresetAdd?.setOnClickListener { v ->
+            hapticTapIfEnabled(v)
             val state = viewModel.speechPresetsState.value
             val defaultName = getString(R.string.speech_preset_default_name, state.presets.size + 1)
             viewModel.addSpeechPreset(defaultName)
@@ -302,7 +304,8 @@ class OtherSettingsActivity : BaseActivity() {
         }
 
         // Setup delete button
-        btnSpeechPresetDelete?.setOnClickListener {
+        btnSpeechPresetDelete?.setOnClickListener { v ->
+            hapticTapIfEnabled(v)
             val state = viewModel.speechPresetsState.value
             if (state.presets.isEmpty()) return@setOnClickListener
 
@@ -453,11 +456,13 @@ class OtherSettingsActivity : BaseActivity() {
             }
         })
 
-        btnTestPull.setOnClickListener {
+        btnTestPull.setOnClickListener { v ->
+            hapticTapIfEnabled(v)
             testClipboardSync()
         }
 
-        btnProjectHome.setOnClickListener {
+        btnProjectHome.setOnClickListener { v ->
+            hapticTapIfEnabled(v)
             openProjectHomePage()
         }
     }
@@ -536,16 +541,7 @@ class OtherSettingsActivity : BaseActivity() {
         }
     }
 
-    /**
-     * Performs haptic feedback if enabled in preferences
-     */
     private fun hapticTapIfEnabled(view: View?) {
-        try {
-            if (prefs.micHapticEnabled) {
-                view?.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-            }
-        } catch (e: Throwable) {
-            Log.e(TAG, "Failed to perform haptic feedback", e)
-        }
+        HapticFeedbackHelper.performTap(this, prefs, view)
     }
 }

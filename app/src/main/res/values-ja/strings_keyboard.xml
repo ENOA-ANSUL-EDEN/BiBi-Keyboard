@@ -49,6 +49,16 @@
     <string name="keyboard_height_medium">中</string>
     <string name="keyboard_height_large">大</string>
 
+    <!-- Haptic feedback strength -->
+    <string name="label_haptic_feedback_strength">入力/タップの触覚強度</string>
+    <string name="haptic_strength_off">オフ</string>
+    <string name="haptic_strength_system">システム</string>
+    <string name="haptic_strength_weak">弱い</string>
+    <string name="haptic_strength_light">やや弱い</string>
+    <string name="haptic_strength_medium">中</string>
+    <string name="haptic_strength_strong">やや強い</string>
+    <string name="haptic_strength_heavy">強い</string>
+
     <!-- Keyboard bottom padding -->
     <string name="label_keyboard_bottom_padding">キーボード下部パディング</string>
     <string name="keyboard_bottom_padding_value">%d dp</string>

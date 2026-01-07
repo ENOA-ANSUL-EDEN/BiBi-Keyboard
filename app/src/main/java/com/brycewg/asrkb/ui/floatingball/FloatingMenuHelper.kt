@@ -13,6 +13,8 @@ import android.widget.TextView
 import androidx.core.content.ContextCompat
 import com.brycewg.asrkb.R
 import com.brycewg.asrkb.UiColors
+import com.brycewg.asrkb.store.Prefs
+import com.brycewg.asrkb.util.HapticFeedbackHelper
 import com.google.android.material.color.DynamicColors
 
 /**
@@ -36,6 +38,7 @@ class FloatingMenuHelper(
         val dynCtx = DynamicColors.wrapContextIfAvailable(themedCtx)
         dynCtx
     }
+    private val prefs = Prefs(rawContext)
 
     /**
      * 拖拽选择会话控制器
@@ -91,7 +94,7 @@ class FloatingMenuHelper(
             val hit = updateHover(rawX, rawY)
             if (hit >= 0) {
                 // 触发反馈与点击
-                try { root.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP) } catch (_: Throwable) {}
+                HapticFeedbackHelper.performTap(context, prefs, root)
                 try { actions.getOrNull(hit)?.invoke() } catch (e: Throwable) { Log.e(TAG, "Drag select action failed", e) }
             }
             dismiss()
@@ -374,6 +377,7 @@ class FloatingMenuHelper(
                     isClickable = true
                     isFocusable = true
                     setOnClickListener {
+                        hapticFeedback(this)
                         // 同样先执行动作，再移除面板，保证动作期间具备前台焦点
                         try {
                             onClick()
@@ -538,6 +542,7 @@ class FloatingMenuHelper(
                     maxLines = 3
                     ellipsize = android.text.TextUtils.TruncateAt.END
                     setOnClickListener {
+                        hapticFeedback(this)
                         try { onItemClick(text) } catch (e: Throwable) {
                             Log.e(TAG, "Text item action failed", e)
                         }
@@ -734,11 +739,7 @@ class FloatingMenuHelper(
     }
 
     private fun hapticFeedback(view: View) {
-        try {
-            view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
-        } catch (e: Throwable) {
-            Log.w(TAG, "Failed to perform haptic feedback", e)
-        }
+        HapticFeedbackHelper.performTap(context, prefs, view)
     }
 
     private fun dp(v: Int): Int {

@@ -4,7 +4,6 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
@@ -12,6 +11,7 @@ import android.view.WindowManager
 import android.view.WindowInsets
 import android.os.Build
 import com.brycewg.asrkb.store.Prefs
+import com.brycewg.asrkb.util.HapticFeedbackHelper
 
 /**
  * 悬浮球触摸处理器
@@ -279,13 +279,7 @@ class FloatingBallTouchHandler(
     }
 
     private fun hapticFeedback() {
-        try {
-            if (prefs.micHapticEnabled) {
-                viewManager.getBallView()?.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-            }
-        } catch (e: Throwable) {
-            Log.w(TAG, "Failed to perform haptic feedback", e)
-        }
+        HapticFeedbackHelper.performTap(context, prefs, viewManager.getBallView())
     }
 
     private fun dp(v: Int): Int {

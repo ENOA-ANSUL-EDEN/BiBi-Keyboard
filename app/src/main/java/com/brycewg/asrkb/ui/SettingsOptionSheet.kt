@@ -8,6 +8,8 @@ import android.widget.ListView
 import android.widget.TextView
 import androidx.annotation.StringRes
 import com.brycewg.asrkb.R
+import com.brycewg.asrkb.store.Prefs
+import com.brycewg.asrkb.util.HapticFeedbackHelper
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import kotlin.math.roundToInt
@@ -29,6 +31,7 @@ object SettingsOptionSheet {
       .inflate(R.layout.bottom_sheet_single_choice, null, false)
     val titleView = contentView.findViewById<TextView>(R.id.tvBottomSheetTitle)
     val listView = contentView.findViewById<ListView>(R.id.listBottomSheetOptions)
+    val prefs = Prefs(context)
 
     titleView.setText(titleResId)
     val adapter = ArrayAdapter(context, R.layout.item_settings_bottom_sheet_single_choice, items)
@@ -41,7 +44,8 @@ object SettingsOptionSheet {
       listView.setSelection(safeIndex)
     }
 
-    listView.setOnItemClickListener { _, _, position, _ ->
+    listView.setOnItemClickListener { view, _, position, _ ->
+      HapticFeedbackHelper.performTap(context, prefs, view)
       onSelected(position)
       dialog.dismiss()
     }

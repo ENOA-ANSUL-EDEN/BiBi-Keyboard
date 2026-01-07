@@ -48,6 +48,16 @@
     <string name="keyboard_height_medium">Medium</string>
     <string name="keyboard_height_large">Large</string>
 
+    <!-- Haptic feedback strength -->
+    <string name="label_haptic_feedback_strength">Input/tap haptic strength</string>
+    <string name="haptic_strength_off">Off</string>
+    <string name="haptic_strength_system">System</string>
+    <string name="haptic_strength_weak">Weak</string>
+    <string name="haptic_strength_light">Light</string>
+    <string name="haptic_strength_medium">Medium</string>
+    <string name="haptic_strength_strong">Strong</string>
+    <string name="haptic_strength_heavy">Very strong</string>
+
     <!-- Keyboard bottom padding -->
     <string name="label_keyboard_bottom_padding">Keyboard bottom padding</string>
     <string name="keyboard_bottom_padding_value">%d dp</string>

@@ -5,13 +5,10 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import android.util.Log
-import android.view.HapticFeedbackConstants
 import android.view.View
 import android.view.inputmethod.InputMethodManager
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import com.brycewg.asrkb.ui.BaseActivity
 import androidx.core.app.ActivityCompat
@@ -22,6 +19,7 @@ import com.brycewg.asrkb.ime.AsrKeyboardService
 import com.brycewg.asrkb.store.Prefs
 import com.brycewg.asrkb.ui.SettingsOptionSheet
 import com.brycewg.asrkb.ui.installExplainedSwitch
+import com.brycewg.asrkb.util.HapticFeedbackHelper
 import com.google.android.material.button.MaterialButtonToggleGroup
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.materialswitch.MaterialSwitch
@@ -33,9 +31,10 @@ class InputSettingsActivity : BaseActivity() {
         private const val REQ_BT_CONNECT = 2001
     }
 
+    private lateinit var prefs: Prefs
+
     // 标志位：防止程序内部修改开关状态时触发监听器递归
     private var isUpdatingSwitchTrimTrailingPunct = false
-    private var isUpdatingSwitchMicHaptic = false
     private var isUpdatingSwitchMicTapToggle = false
     private var isUpdatingSwitchAutoStartRecordingOnShow = false
     private var isUpdatingSwitchFcitx5ReturnOnSwitcher = false
@@ -54,10 +53,9 @@ class InputSettingsActivity : BaseActivity() {
             com.brycewg.asrkb.ui.WindowInsetsHelper.applySystemBarsInsets(rootView)
         }
 
-        val prefs = Prefs(this)
+        prefs = Prefs(this)
 
         val switchTrimTrailingPunct = findViewById<MaterialSwitch>(R.id.switchTrimTrailingPunct)
-        val switchMicHaptic = findViewById<MaterialSwitch>(R.id.switchMicHaptic)
         val switchMicTapToggle = findViewById<MaterialSwitch>(R.id.switchMicTapToggle)
         val switchAutoStartRecordingOnShow = findViewById<MaterialSwitch>(R.id.switchAutoStartRecordingOnShow)
         val switchFcitx5ReturnOnSwitcher = findViewById<MaterialSwitch>(R.id.switchFcitx5ReturnOnSwitcher)
@@ -68,6 +66,8 @@ class InputSettingsActivity : BaseActivity() {
         val switchHeadsetMicPriority = findViewById<MaterialSwitch>(R.id.switchHeadsetMicPriority)
         val switchExternalImeAidl = findViewById<MaterialSwitch>(R.id.switchExternalImeAidl)
         val toggleKeyboardHeight = findViewById<MaterialButtonToggleGroup>(R.id.toggleKeyboardHeight)
+        val sliderHapticFeedbackStrength = findViewById<com.google.android.material.slider.Slider>(R.id.sliderHapticFeedbackStrength)
+        val tvHapticFeedbackStrengthValue = findViewById<TextView>(R.id.tvHapticFeedbackStrengthValue)
         val tvLanguage = findViewById<TextView>(R.id.tvLanguageValue)
         val tvImeSwitchTarget = findViewById<TextView>(R.id.tvImeSwitchTargetValue)
         val sliderBottomPadding = findViewById<com.google.android.material.slider.Slider>(R.id.sliderBottomPadding)
@@ -80,10 +80,6 @@ class InputSettingsActivity : BaseActivity() {
             isUpdatingSwitchTrimTrailingPunct = true
             switchTrimTrailingPunct.isChecked = prefs.trimFinalTrailingPunct
             isUpdatingSwitchTrimTrailingPunct = false
-
-            isUpdatingSwitchMicHaptic = true
-            switchMicHaptic.isChecked = prefs.micHapticEnabled
-            isUpdatingSwitchMicHaptic = false
 
             isUpdatingSwitchMicTapToggle = true
             switchMicTapToggle.isChecked = prefs.micTapToggleEnabled
@@ -124,6 +120,9 @@ class InputSettingsActivity : BaseActivity() {
         // 键盘高度：三档（分段按钮）
         setupKeyboardHeightToggle(prefs, toggleKeyboardHeight)
 
+        // 触觉反馈强度
+        setupHapticFeedbackStrengthSlider(prefs, sliderHapticFeedbackStrength, tvHapticFeedbackStrengthValue)
+
         // 底部间距调节
         setupBottomPaddingSlider(prefs, sliderBottomPadding, tvBottomPaddingValue)
 
@@ -148,21 +147,6 @@ class InputSettingsActivity : BaseActivity() {
             preferenceKey = "trim_trailing_punct_explained",
             readPref = { prefs.trimFinalTrailingPunct },
             writePref = { v -> prefs.trimFinalTrailingPunct = v },
-            hapticFeedback = { hapticTapIfEnabled(it) }
-        )
-        switchMicHaptic.installExplainedSwitch(
-            context = this,
-            titleRes = R.string.label_mic_haptic,
-            offDescRes = R.string.feature_mic_haptic_off_desc,
-            onDescRes = R.string.feature_mic_haptic_on_desc,
-            preferenceKey = "mic_haptic_explained",
-            readPref = { prefs.micHapticEnabled },
-            writePref = { v -> prefs.micHapticEnabled = v },
-            onChanged = { enabled ->
-                if (enabled) {
-                    switchMicHaptic.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                }
-            },
             hapticFeedback = { hapticTapIfEnabled(it) }
         )
         switchExternalImeAidl.setOnCheckedChangeListener { btn, isChecked ->
@@ -281,7 +265,6 @@ class InputSettingsActivity : BaseActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQ_BT_CONNECT) {
             val switchHeadsetMicPriority = findViewById<MaterialSwitch>(R.id.switchHeadsetMicPriority)
-            val prefs = Prefs(this)
             val granted = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
             if (granted) {
                 prefs.headsetMicPriorityEnabled = true
@@ -325,6 +308,50 @@ class InputSettingsActivity : BaseActivity() {
                 }
             }
         }
+    }
+
+    /**
+     * 设置触觉反馈强度滑块
+     */
+    private fun setupHapticFeedbackStrengthSlider(
+        prefs: Prefs,
+        slider: com.google.android.material.slider.Slider,
+        tvValue: TextView
+    ) {
+        var lastLevel = prefs.hapticFeedbackLevel
+        slider.value = lastLevel.toFloat()
+        tvValue.text = getHapticFeedbackStrengthLabel(lastLevel)
+
+        slider.addOnChangeListener { _, value, fromUser ->
+            val newLevel = value.toInt().coerceIn(
+                Prefs.HAPTIC_FEEDBACK_LEVEL_OFF,
+                Prefs.HAPTIC_FEEDBACK_LEVEL_HEAVY
+            )
+            if (prefs.hapticFeedbackLevel != newLevel) {
+                prefs.hapticFeedbackLevel = newLevel
+            }
+            if (lastLevel != newLevel || !fromUser) {
+                lastLevel = newLevel
+                tvValue.text = getHapticFeedbackStrengthLabel(newLevel)
+            }
+            if (fromUser) {
+                HapticFeedbackHelper.performTap(this, prefs, slider)
+            }
+        }
+    }
+
+    private fun getHapticFeedbackStrengthLabel(level: Int): String {
+        val resId = when (level) {
+            Prefs.HAPTIC_FEEDBACK_LEVEL_OFF -> R.string.haptic_strength_off
+            Prefs.HAPTIC_FEEDBACK_LEVEL_SYSTEM -> R.string.haptic_strength_system
+            Prefs.HAPTIC_FEEDBACK_LEVEL_WEAK -> R.string.haptic_strength_weak
+            Prefs.HAPTIC_FEEDBACK_LEVEL_LIGHT -> R.string.haptic_strength_light
+            Prefs.HAPTIC_FEEDBACK_LEVEL_MEDIUM -> R.string.haptic_strength_medium
+            Prefs.HAPTIC_FEEDBACK_LEVEL_STRONG -> R.string.haptic_strength_strong
+            Prefs.HAPTIC_FEEDBACK_LEVEL_HEAVY -> R.string.haptic_strength_heavy
+            else -> R.string.haptic_strength_system
+        }
+        return getString(resId)
     }
 
     /**
@@ -517,9 +544,7 @@ class InputSettingsActivity : BaseActivity() {
      * 根据设置执行触觉反馈
      */
     private fun hapticTapIfEnabled(view: View?) {
-        if (Prefs(this).micHapticEnabled) {
-            view?.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-        }
+        HapticFeedbackHelper.performTap(this, prefs, view)
     }
 
     /**

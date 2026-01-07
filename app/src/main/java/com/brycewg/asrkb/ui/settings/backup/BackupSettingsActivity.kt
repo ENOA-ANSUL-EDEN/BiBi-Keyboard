@@ -3,6 +3,7 @@ package com.brycewg.asrkb.ui.settings.backup
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
+import android.view.View
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -10,6 +11,7 @@ import androidx.lifecycle.lifecycleScope
 import com.brycewg.asrkb.ui.BaseActivity
 import com.brycewg.asrkb.R
 import com.brycewg.asrkb.store.Prefs
+import com.brycewg.asrkb.util.HapticFeedbackHelper
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
@@ -70,6 +72,7 @@ class BackupSettingsActivity : BaseActivity() {
         }
 
         btnExport.setOnClickListener {
+            hapticTapIfEnabled(it)
             val fileName = "asr_keyboard_settings_" +
                 SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault()).format(Date()) +
                 ".json"
@@ -77,6 +80,7 @@ class BackupSettingsActivity : BaseActivity() {
         }
 
         btnImport.setOnClickListener {
+            hapticTapIfEnabled(it)
             importLauncher.launch(arrayOf("application/json", "text/plain"))
         }
     }
@@ -139,8 +143,14 @@ class BackupSettingsActivity : BaseActivity() {
         etUser.addTextChangedListener(SimpleTextWatcher { prefs.webdavUsername = it })
         etPass.addTextChangedListener(SimpleTextWatcher { prefs.webdavPassword = it })
 
-        btnUpload.setOnClickListener { uploadToWebdav() }
-        btnDownload.setOnClickListener { downloadFromWebdav() }
+        btnUpload.setOnClickListener {
+            hapticTapIfEnabled(it)
+            uploadToWebdav()
+        }
+        btnDownload.setOnClickListener {
+            hapticTapIfEnabled(it)
+            downloadFromWebdav()
+        }
     }
 
     private fun uploadToWebdav() {
@@ -201,6 +211,10 @@ class BackupSettingsActivity : BaseActivity() {
                 }
             }
         }
+    }
+
+    private fun hapticTapIfEnabled(view: View?) {
+        HapticFeedbackHelper.performTap(this, prefs, view)
     }
 }
 
