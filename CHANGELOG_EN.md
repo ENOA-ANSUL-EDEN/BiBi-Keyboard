@@ -1,5 +1,28 @@
 # Changelog
 
+## v3.11.2 (2025-01-07)
+
+### New Features
+
+- **Haptic Feedback Intensity Adjustment**: Added haptic feedback intensity level adjustment and completed haptic feedback for various scenarios
+- **Custom Thinking Parameters**: Added custom thinking parameter configuration for AI post-processing models
+- **Foreground Keep-Alive Service**: Added foreground keep-alive service and battery optimization whitelist request entry in Other Settings
+- **Download Source Speed Test**: Added latency speed test display in download source selection dialog for easier fastest mirror selection
+- **Auto Update Check**: Added "Auto Check for Updates" toggle option in About page
+- **New Built-in Post-Processing Models**: Added multiple built-in post-processing models to choose from
+
+### Improvements
+
+- **Preset Channel Model Fetch**: Extended model list fetching to preset channels, no longer limited to custom channels only
+- **Download Mirror Configuration**: Unified download mirror source configuration and simplified calling logic
+
+### Bug Fixes
+
+- Fixed "Configuration Guide" jump button not working for local models
+- Fixed potential loss of already counted ASR characters when syncing total character count
+
+---
+
 ## v3.11.1 (2025-12-30)
 
 ### New Features
