@@ -179,11 +179,8 @@ class AsrRecognitionService : RecognitionService() {
                 }
             }
             AsrVendor.FunAsrNano -> {
-                if (prefs.fnPseudoStreamEnabled) {
-                    SenseVoicePseudoStreamAsrEngine(this, scope, prefs, listener)
-                } else {
-                    SenseVoiceFileAsrEngine(this, scope, prefs, listener)
-                }
+                // FunASR Nano 模型算力开销高：不支持伪流式预览，仅保留整段离线识别
+                FunAsrNanoFileAsrEngine(this, scope, prefs, listener)
             }
             AsrVendor.Telespeech -> {
                 if (prefs.tsPseudoStreamEnabled) {

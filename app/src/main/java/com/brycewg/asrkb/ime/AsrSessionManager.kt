@@ -192,13 +192,8 @@ class AsrSessionManager(
                 }
             }
             AsrVendor.FunAsrNano -> {
-                if (prefs.fnPseudoStreamEnabled) {
-                    // 本地 FunASR Nano：伪流式模式（VAD 分片预览 + 整段离线识别）
-                    SenseVoicePseudoStreamAsrEngine(context, scope, prefs, this, ::onRequestDuration)
-                } else {
-                    // 本地 FunASR Nano：传统文件识别模式
-                    SenseVoiceFileAsrEngine(context, scope, prefs, this, ::onRequestDuration)
-                }
+                // 本地 FunASR Nano：算力开销高，不支持伪流式预览，仅保留整段离线识别
+                FunAsrNanoFileAsrEngine(context, scope, prefs, this, ::onRequestDuration)
             }
             AsrVendor.Telespeech -> {
                 if (prefs.tsPseudoStreamEnabled) {
@@ -259,8 +254,7 @@ class AsrSessionManager(
                 else -> null
             }
             AsrVendor.FunAsrNano -> when (current) {
-                is SenseVoicePseudoStreamAsrEngine -> if (prefs.fnPseudoStreamEnabled) current else null
-                is SenseVoiceFileAsrEngine -> if (!prefs.fnPseudoStreamEnabled) current else null
+                is FunAsrNanoFileAsrEngine -> current
                 else -> null
             }
             AsrVendor.Telespeech -> when (current) {
@@ -330,8 +324,10 @@ class AsrSessionManager(
             ) {
                 val prepared = try {
                     when (prefs.asrVendor) {
+                        AsrVendor.SenseVoice -> com.brycewg.asrkb.asr.isSenseVoicePrepared()
+                        AsrVendor.FunAsrNano -> com.brycewg.asrkb.asr.isFunAsrNanoPrepared()
                         AsrVendor.Telespeech -> com.brycewg.asrkb.asr.isTelespeechPrepared()
-                        else -> com.brycewg.asrkb.asr.isSenseVoicePrepared()
+                        else -> false
                     }
                 } catch (t: Throwable) {
                     Log.e(TAG, "Failed to check local model prepared state", t)
@@ -340,6 +336,14 @@ class AsrSessionManager(
                 if (!prepared) {
                     try {
                         when (prefs.asrVendor) {
+                            AsrVendor.FunAsrNano -> com.brycewg.asrkb.asr.preloadFunAsrNanoIfConfigured(
+                                context,
+                                prefs,
+                                onLoadStart = { onLocalModelLoadStart() },
+                                onLoadDone = { onLocalModelLoadDone() },
+                                suppressToastOnStart = true,
+                                forImmediateUse = true
+                            )
                             AsrVendor.Telespeech -> com.brycewg.asrkb.asr.preloadTelespeechIfConfigured(
                                 context,
                                 prefs,

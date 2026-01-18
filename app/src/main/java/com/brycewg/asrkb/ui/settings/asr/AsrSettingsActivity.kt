@@ -1062,6 +1062,18 @@ class AsrSettingsActivity : BaseActivity() {
     private fun setupFunAsrNanoSettings() {
         setupFnModelVariantSelection()
 
+        findViewById<EditText>(R.id.etFnUserPrompt).apply {
+            setText(prefs.fnUserPrompt)
+            setOnFocusChangeListener { _, hasFocus ->
+                if (!hasFocus) {
+                    val v = text?.toString() ?: ""
+                    if (v != prefs.fnUserPrompt) {
+                        viewModel.updateFnUserPrompt(v)
+                    }
+                }
+            }
+        }
+
         findViewById<Slider>(R.id.sliderFnThreads).apply {
             value = prefs.fnNumThreads.coerceIn(1, 8).toFloat()
             addOnChangeListener { _, value, fromUser ->
@@ -1102,20 +1114,6 @@ class AsrSettingsActivity : BaseActivity() {
                 preferenceKey = "fn_preload_explained",
                 readPref = { prefs.fnPreloadEnabled },
                 writePref = { v -> viewModel.updateFnPreload(v) },
-                hapticFeedback = { hapticTapIfEnabled(it) }
-            )
-        }
-
-        findViewById<MaterialSwitch>(R.id.switchFnPseudoStream).apply {
-            isChecked = prefs.fnPseudoStreamEnabled
-            installExplainedSwitch(
-                context = this@AsrSettingsActivity,
-                titleRes = R.string.label_fn_pseudo_stream,
-                offDescRes = R.string.feature_sv_pseudo_stream_off_desc,
-                onDescRes = R.string.feature_sv_pseudo_stream_on_desc,
-                preferenceKey = "fn_pseudo_stream_explained",
-                readPref = { prefs.fnPseudoStreamEnabled },
-                writePref = { v -> viewModel.updateFnPseudoStream(v) },
                 hapticFeedback = { hapticTapIfEnabled(it) }
             )
         }
@@ -1575,7 +1573,7 @@ class AsrSettingsActivity : BaseActivity() {
                                 }
                             }
                             try {
-                                com.brycewg.asrkb.asr.unloadSenseVoiceRecognizer()
+                                com.brycewg.asrkb.asr.unloadFunAsrNanoRecognizer()
                             } catch (e: Throwable) {
                                 android.util.Log.e(TAG, "Failed to unload local recognizer", e)
                             }

@@ -8,8 +8,9 @@
     <string name="fn_model_nano_int8">FunASR Nano（int8，約690MB）</string>
     <string name="label_fn_threads">執行緒數（1-8）</string>
     <string name="label_fn_use_itn">啟用 ITN（數字/標點規範化）</string>
+    <string name="label_fn_user_prompt">User Prompt（提示詞）</string>
+    <string name="fn_user_prompt_hint">較長的 Prompt 可能會拖慢處理速度。</string>
     <string name="label_fn_preload">首次顯示時預載入模型</string>
-    <string name="label_fn_pseudo_stream">啟用伺流式預覽（依停頓分句）</string>
     <string name="label_fn_keep_alive">模型保留時長</string>
     <string name="btn_fn_download_model">一鍵下載 FunASR Nano 模型</string>
     <string name="btn_fn_import_model">從本機匯入模型</string>

@@ -21,7 +21,7 @@ fun preloadLocalAsrIfConfigured(
             AsrVendor.SenseVoice -> preloadSenseVoiceIfConfigured(
                 context, prefs, onLoadStart, onLoadDone, suppressToastOnStart, forImmediateUse
             )
-            AsrVendor.FunAsrNano -> preloadSenseVoiceIfConfigured(
+            AsrVendor.FunAsrNano -> preloadFunAsrNanoIfConfigured(
                 context, prefs, onLoadStart, onLoadDone, suppressToastOnStart, forImmediateUse
             )
             AsrVendor.Telespeech -> preloadTelespeechIfConfigured(
@@ -44,7 +44,7 @@ fun isLocalAsrPrepared(prefs: Prefs): Boolean {
     return try {
         when (prefs.asrVendor) {
             AsrVendor.SenseVoice -> isSenseVoicePrepared()
-            AsrVendor.FunAsrNano -> isSenseVoicePrepared()
+            AsrVendor.FunAsrNano -> isFunAsrNanoPrepared()
             AsrVendor.Telespeech -> isTelespeechPrepared()
             AsrVendor.Paraformer -> ParaformerOnnxManager.getInstance().isPrepared()
             else -> false

@@ -330,7 +330,7 @@ class ExternalSpeechService : Service() {
                         try { lastRequestDurationMs = ms } catch (t: Throwable) { Log.w(TAG, "set proc ms failed", t) }
                     }
                 )
-                AsrVendor.FunAsrNano -> SenseVoiceFileAsrEngine(
+                AsrVendor.FunAsrNano -> FunAsrNanoFileAsrEngine(
                     context, scope, prefs, this,
                     onRequestDuration = { ms: Long ->
                         try { lastRequestDurationMs = ms } catch (t: Throwable) { Log.w(TAG, "set proc ms failed", t) }
@@ -475,26 +475,18 @@ class ExternalSpeechService : Service() {
                         )
                     }
                 }
-                // FunASR Nano：支持伪流式（VAD 分片预览 + 整段离线识别）
+                // FunASR Nano：整段离线识别（算力开销高，不支持伪流式预览）
                 AsrVendor.FunAsrNano -> {
-                    if (prefs.fnPseudoStreamEnabled) {
-                        com.brycewg.asrkb.asr.SenseVoicePushPcmPseudoStreamAsrEngine(
+                    // FunASR Nano 算力开销高：不支持伪流式预览，仅保留整段离线识别
+                    com.brycewg.asrkb.asr.GenericPushFileAsrAdapter(
+                        context, scope, prefs, this,
+                        com.brycewg.asrkb.asr.FunAsrNanoFileAsrEngine(
                             context, scope, prefs, this,
                             onRequestDuration = { ms: Long ->
                                 try { lastRequestDurationMs = ms } catch (t: Throwable) { Log.w(TAG, "set proc ms failed", t) }
                             }
                         )
-                    } else {
-                        com.brycewg.asrkb.asr.GenericPushFileAsrAdapter(
-                            context, scope, prefs, this,
-                            com.brycewg.asrkb.asr.SenseVoiceFileAsrEngine(
-                                context, scope, prefs, this,
-                                onRequestDuration = { ms: Long ->
-                                    try { lastRequestDurationMs = ms } catch (t: Throwable) { Log.w(TAG, "set proc ms failed", t) }
-                                }
-                            )
-                        )
-                    }
+                    )
                 }
                 // TeleSpeech：支持伪流式（VAD 分片预览 + 整段离线识别）
                 AsrVendor.Telespeech -> {

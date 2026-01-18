@@ -8,8 +8,9 @@
     <string name="fn_model_nano_int8">FunASR Nano (int8, ~690MB)</string>
     <string name="label_fn_threads">Threads (1-8)</string>
     <string name="label_fn_use_itn">Enable ITN (inverse text normalization)</string>
+    <string name="label_fn_user_prompt">User prompt</string>
+    <string name="fn_user_prompt_hint">Long prompts may slow down processing.</string>
     <string name="label_fn_preload">Load model on first show</string>
-    <string name="label_fn_pseudo_stream">Enable pseudo streaming preview</string>
     <string name="label_fn_keep_alive">Model keep-alive duration</string>
     <string name="btn_fn_download_model">One-click download FunASR Nano model</string>
     <string name="btn_fn_import_model">Import model from local file</string>

@@ -750,11 +750,6 @@
             style="@style/SettingsSwitch"
             android:text="@string/label_fn_preload" />
 
-          <com.google.android.material.materialswitch.MaterialSwitch
-            android:id="@+id/switchFnPseudoStream"
-            style="@style/SettingsSwitch"
-            android:text="@string/label_fn_pseudo_stream" />
-
           <TextView
             style="@style/SettingsLabel"
             android:text="@string/label_fn_keep_alive" />
@@ -776,6 +771,19 @@
             android:valueFrom="1"
             android:valueTo="8"
             android:stepSize="1" />
+
+          <com.google.android.material.textfield.TextInputLayout
+            style="@style/SettingsTextInputLayout"
+            android:hint="@string/label_fn_user_prompt">
+
+            <com.google.android.material.textfield.TextInputEditText
+              android:id="@+id/etFnUserPrompt"
+              style="@style/SettingsTextInput.MultiLine" />
+          </com.google.android.material.textfield.TextInputLayout>
+
+          <TextView
+            style="@style/SettingsHint"
+            android:text="@string/fn_user_prompt_hint" />
 
           <LinearLayout
             style="@style/SettingsButtonRow.MarginTop12"

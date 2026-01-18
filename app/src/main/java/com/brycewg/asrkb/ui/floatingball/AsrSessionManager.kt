@@ -389,7 +389,7 @@ class AsrSessionManager(
         val prepared = try {
             when (prefs.asrVendor) {
                 AsrVendor.SenseVoice -> com.brycewg.asrkb.asr.isSenseVoicePrepared()
-                AsrVendor.FunAsrNano -> com.brycewg.asrkb.asr.isSenseVoicePrepared()
+                AsrVendor.FunAsrNano -> com.brycewg.asrkb.asr.isFunAsrNanoPrepared()
                 AsrVendor.Telespeech -> com.brycewg.asrkb.asr.isTelespeechPrepared()
                 else -> true
             }
@@ -420,6 +420,12 @@ class AsrSessionManager(
             }
             val found = com.brycewg.asrkb.asr.findTsModelDir(variantDir)
                 ?: com.brycewg.asrkb.asr.findTsModelDir(probeRoot)
+            found != null
+        } else if (prefs.asrVendor == AsrVendor.FunAsrNano) {
+            val probeRoot = java.io.File(base, "funasr_nano")
+            val variantDir = java.io.File(probeRoot, "nano-int8")
+            val found = com.brycewg.asrkb.asr.findFnModelDir(variantDir)
+                ?: com.brycewg.asrkb.asr.findFnModelDir(probeRoot)
             found != null
         } else {
             val rawVariant = try {
@@ -495,11 +501,8 @@ class AsrSessionManager(
                 }
             }
             AsrVendor.FunAsrNano -> {
-                if (prefs.fnPseudoStreamEnabled) {
-                    SenseVoicePseudoStreamAsrEngine(context, serviceScope, prefs, this, onRequestDuration = ::onRequestDuration)
-                } else {
-                    SenseVoiceFileAsrEngine(context, serviceScope, prefs, this, onRequestDuration = ::onRequestDuration)
-                }
+                // FunASR Nano 算力开销高：不支持伪流式预览，仅保留整段离线识别
+                FunAsrNanoFileAsrEngine(context, serviceScope, prefs, this, onRequestDuration = ::onRequestDuration)
             }
             AsrVendor.Telespeech -> {
                 if (prefs.tsPseudoStreamEnabled) {

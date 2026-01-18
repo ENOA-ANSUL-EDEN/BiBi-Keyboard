@@ -75,11 +75,11 @@ class Prefs(context: Context) {
 
             sp.edit {
                 putString(KEY_FN_MODEL_VARIANT, svVariant)
-                putInt(KEY_FN_NUM_THREADS, sp.getInt(KEY_SV_NUM_THREADS, 2).coerceIn(1, 8))
-                putBoolean(KEY_FN_USE_ITN, sp.getBoolean(KEY_SV_USE_ITN, true))
+                putInt(KEY_FN_NUM_THREADS, sp.getInt(KEY_SV_NUM_THREADS, 4).coerceIn(1, 8))
+                // FunASR Nano：ITN 由 LLM 输出承担即可，默认关闭；仅在用户曾显式开启 SenseVoice ITN 时继承为 true
+                putBoolean(KEY_FN_USE_ITN, sp.getBoolean(KEY_SV_USE_ITN, false))
                 putBoolean(KEY_FN_PRELOAD_ENABLED, sp.getBoolean(KEY_SV_PRELOAD_ENABLED, true))
                 putInt(KEY_FN_KEEP_ALIVE_MINUTES, sp.getInt(KEY_SV_KEEP_ALIVE_MINUTES, -1))
-                putBoolean(KEY_FN_PSEUDO_STREAM_ENABLED, sp.getBoolean(KEY_SV_PSEUDO_STREAM_ENABLED, false))
                 // 若当前选择为 SenseVoice 且使用 nano 变体，自动迁移到 FunASR Nano
                 val currentVendor = sp.getString(KEY_ASR_VENDOR, AsrVendor.SiliconFlow.id) ?: AsrVendor.SiliconFlow.id
                 if (currentVendor == AsrVendor.SenseVoice.id) {
@@ -1168,12 +1168,17 @@ class Prefs(context: Context) {
         set(value) = sp.edit { putString(KEY_FN_MODEL_VARIANT, value.trim().ifBlank { "nano-int8" }) }
 
     var fnNumThreads: Int
-        get() = sp.getInt(KEY_FN_NUM_THREADS, 2).coerceIn(1, 8)
+        get() = sp.getInt(KEY_FN_NUM_THREADS, 4).coerceIn(1, 8)
         set(value) = sp.edit { putInt(KEY_FN_NUM_THREADS, value.coerceIn(1, 8)) }
 
     var fnUseItn: Boolean
-        get() = sp.getBoolean(KEY_FN_USE_ITN, true)
+        get() = sp.getBoolean(KEY_FN_USE_ITN, false)
         set(value) = sp.edit { putBoolean(KEY_FN_USE_ITN, value) }
+
+    // FunASR Nano：LLM user prompt（用于引导转写格式/语言等；较长可能拖慢推理）
+    var fnUserPrompt: String
+        get() = sp.getString(KEY_FN_USER_PROMPT, "语音转写：") ?: "语音转写："
+        set(value) = sp.edit { putString(KEY_FN_USER_PROMPT, value.trim()) }
 
     var fnPreloadEnabled: Boolean
         get() = sp.getBoolean(KEY_FN_PRELOAD_ENABLED, true)
@@ -1182,10 +1187,6 @@ class Prefs(context: Context) {
     var fnKeepAliveMinutes: Int
         get() = sp.getInt(KEY_FN_KEEP_ALIVE_MINUTES, -1)
         set(value) = sp.edit { putInt(KEY_FN_KEEP_ALIVE_MINUTES, value) }
-
-    var fnPseudoStreamEnabled: Boolean
-        get() = sp.getBoolean(KEY_FN_PSEUDO_STREAM_ENABLED, false)
-        set(value) = sp.edit { putBoolean(KEY_FN_PSEUDO_STREAM_ENABLED, value) }
 
     // TeleSpeech（本地 ASR）
     var tsModelVariant: String
@@ -1810,9 +1811,9 @@ class Prefs(context: Context) {
         private const val KEY_FN_MODEL_VARIANT = "fn_model_variant"
         private const val KEY_FN_NUM_THREADS = "fn_num_threads"
         private const val KEY_FN_USE_ITN = "fn_use_itn"
+        private const val KEY_FN_USER_PROMPT = "fn_user_prompt"
         private const val KEY_FN_PRELOAD_ENABLED = "fn_preload_enabled"
         private const val KEY_FN_KEEP_ALIVE_MINUTES = "fn_keep_alive_minutes"
-        private const val KEY_FN_PSEUDO_STREAM_ENABLED = "fn_pseudo_stream_enabled"
         private const val KEY_FN_LEGACY_MODEL_CLEANED = "fn_legacy_model_cleaned"
         // TeleSpeech（本地 ASR）
         private const val KEY_TS_MODEL_VARIANT = "ts_model_variant"
@@ -2234,9 +2235,9 @@ class Prefs(context: Context) {
         o.put(KEY_FN_MODEL_VARIANT, fnModelVariant)
         o.put(KEY_FN_NUM_THREADS, fnNumThreads)
         o.put(KEY_FN_USE_ITN, fnUseItn)
+        o.put(KEY_FN_USER_PROMPT, fnUserPrompt)
         o.put(KEY_FN_PRELOAD_ENABLED, fnPreloadEnabled)
         o.put(KEY_FN_KEEP_ALIVE_MINUTES, fnKeepAliveMinutes)
-        o.put(KEY_FN_PSEUDO_STREAM_ENABLED, fnPseudoStreamEnabled)
         // TeleSpeech（本地 ASR）
         o.put(KEY_TS_MODEL_VARIANT, tsModelVariant)
         o.put(KEY_TS_NUM_THREADS, tsNumThreads)
@@ -2462,9 +2463,9 @@ class Prefs(context: Context) {
             optString(KEY_FN_MODEL_VARIANT)?.let { fnModelVariant = it }
             optInt(KEY_FN_NUM_THREADS)?.let { fnNumThreads = it.coerceIn(1, 8) }
             optBool(KEY_FN_USE_ITN)?.let { fnUseItn = it }
+            optString(KEY_FN_USER_PROMPT)?.let { fnUserPrompt = it }
             optBool(KEY_FN_PRELOAD_ENABLED)?.let { fnPreloadEnabled = it }
             optInt(KEY_FN_KEEP_ALIVE_MINUTES)?.let { fnKeepAliveMinutes = it }
-            optBool(KEY_FN_PSEUDO_STREAM_ENABLED)?.let { fnPseudoStreamEnabled = it }
             // TeleSpeech（本地 ASR）
             optString(KEY_TS_MODEL_VARIANT)?.let { tsModelVariant = it }
             optInt(KEY_TS_NUM_THREADS)?.let { tsNumThreads = it.coerceIn(1, 8) }

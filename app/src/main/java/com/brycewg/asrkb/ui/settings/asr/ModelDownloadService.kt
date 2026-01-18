@@ -647,10 +647,17 @@ class ModelDownloadService : Service() {
     }
 
     // 校验并定位模型目录
-    val modelDir = findModelDir(tmpDir)
-    if (modelDir == null) throw IllegalStateException("model dir not found")
-    val tokens = File(modelDir, "tokens.txt")
-    if (!tokens.exists()) throw IllegalStateException("tokens.txt missing")
+    val modelDir = when (modelType) {
+      // FunASR Nano 不含 tokens.txt；以多个 onnx + tokenizer 目录判定
+      "funasr_nano" -> findFunAsrNanoModelDir(tmpDir)
+      else -> findModelDir(tmpDir)
+    } ?: throw IllegalStateException("model dir not found")
+
+    // 除 FunASR Nano 外，其它离线模型均依赖 tokens.txt
+    if (modelType != "funasr_nano") {
+      val tokens = File(modelDir, "tokens.txt")
+      if (!tokens.exists()) throw IllegalStateException("tokens.txt missing")
+    }
 
     if (modelType == "paraformer") {
       val encInt8 = File(modelDir, "encoder.int8.onnx")
@@ -665,8 +672,25 @@ class ModelDownloadService : Service() {
         throw IllegalStateException("telespeech files missing after extract")
       }
     } else if (modelType == "funasr_nano") {
-      if (!File(modelDir, "model.int8.onnx").exists()) {
+      val encoderAdaptor = File(modelDir, "encoder_adaptor.int8.onnx")
+      val llm = File(modelDir, "llm.int8.onnx")
+      val embedding = File(modelDir, "embedding.int8.onnx")
+      val tokenizerDir = findFunAsrNanoTokenizerDir(modelDir)
+
+      if (!encoderAdaptor.exists() || !llm.exists() || !embedding.exists() || tokenizerDir == null) {
         throw IllegalStateException("funasr_nano files missing after extract")
+      }
+
+      // 粗略下限，避免明显截断（该模型应为数百 MB 量级）
+      val minOnnxBytes = 8L * 1024L * 1024L
+      val minLlmBytes = 32L * 1024L * 1024L
+      if (encoderAdaptor.length() < minOnnxBytes || embedding.length() < minOnnxBytes || llm.length() < minLlmBytes) {
+        throw IllegalStateException("funasr_nano files look truncated after extract")
+      }
+
+      val tokenizerJson = File(tokenizerDir, "tokenizer.json")
+      if (!tokenizerJson.exists() || tokenizerJson.length() < 1024L) {
+        throw IllegalStateException("funasr_nano tokenizer missing after extract")
       }
     } else {
       if (!(File(modelDir, "model.int8.onnx").exists() || File(modelDir, "model.onnx").exists())) {
@@ -943,6 +967,37 @@ class ModelDownloadService : Service() {
         val t = File(f, "tokens.txt")
         if (t.exists()) return f
       }
+    }
+    return null
+  }
+
+  private fun findFunAsrNanoTokenizerDir(modelDir: File): File? {
+    val direct = File(modelDir, "tokenizer.json")
+    if (direct.exists()) return modelDir
+    val qwen = File(modelDir, "Qwen3-0.6B")
+    if (File(qwen, "tokenizer.json").exists()) return qwen
+    val subs = modelDir.listFiles() ?: return null
+    subs.forEach { f ->
+      if (f.isDirectory && File(f, "tokenizer.json").exists()) return f
+    }
+    return null
+  }
+
+  private fun findFunAsrNanoModelDir(root: File): File? {
+    if (!root.exists()) return null
+
+    fun isValid(dir: File): Boolean {
+      val encoderAdaptor = File(dir, "encoder_adaptor.int8.onnx")
+      val llm = File(dir, "llm.int8.onnx")
+      val embedding = File(dir, "embedding.int8.onnx")
+      if (!encoderAdaptor.exists() || !llm.exists() || !embedding.exists()) return false
+      return findFunAsrNanoTokenizerDir(dir) != null
+    }
+
+    if (isValid(root)) return root
+    val subs = root.listFiles() ?: return null
+    subs.forEach { f ->
+      if (f.isDirectory && isValid(f)) return f
     }
     return null
   }

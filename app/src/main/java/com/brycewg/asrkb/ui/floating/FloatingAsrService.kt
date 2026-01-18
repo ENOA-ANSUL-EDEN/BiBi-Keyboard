@@ -956,7 +956,7 @@ class FloatingAsrService : Service(),
                         }
                         if (old == AsrVendor.FunAsrNano && v != AsrVendor.FunAsrNano) {
                             try {
-                                com.brycewg.asrkb.asr.unloadSenseVoiceRecognizer()
+                                com.brycewg.asrkb.asr.unloadFunAsrNanoRecognizer()
                             } catch (e: Throwable) {
                                 Log.e(TAG, "Failed to unload FunASR Nano", e)
                             }
@@ -986,7 +986,7 @@ class FloatingAsrService : Service(),
                         }
                         if (v == AsrVendor.FunAsrNano && prefs.fnPreloadEnabled) {
                             try {
-                                com.brycewg.asrkb.asr.preloadSenseVoiceIfConfigured(this, prefs)
+                                com.brycewg.asrkb.asr.preloadFunAsrNanoIfConfigured(this, prefs)
                             } catch (e: Throwable) {
                                 Log.e(TAG, "Failed to preload FunASR Nano", e)
                             }

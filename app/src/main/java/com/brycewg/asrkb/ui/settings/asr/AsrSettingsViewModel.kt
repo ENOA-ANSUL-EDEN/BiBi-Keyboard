@@ -72,9 +72,9 @@ class AsrSettingsViewModel : ViewModel() {
             fnModelVariant = prefs.fnModelVariant,
             fnNumThreads = prefs.fnNumThreads,
             fnUseItn = prefs.fnUseItn,
+            fnUserPrompt = prefs.fnUserPrompt,
             fnPreloadEnabled = prefs.fnPreloadEnabled,
             fnKeepAliveMinutes = prefs.fnKeepAliveMinutes,
-            fnPseudoStreamEnabled = prefs.fnPseudoStreamEnabled,
             // TeleSpeech settings
             tsModelVariant = prefs.tsModelVariant,
             tsNumThreads = prefs.tsNumThreads,
@@ -101,7 +101,7 @@ class AsrSettingsViewModel : ViewModel() {
             try { com.brycewg.asrkb.asr.unloadSenseVoiceRecognizer() } catch (e: Throwable) { Log.e(TAG, "Failed to unload SenseVoice recognizer", e) }
         }
         if (oldVendor == AsrVendor.FunAsrNano && vendor != AsrVendor.FunAsrNano) {
-            try { com.brycewg.asrkb.asr.unloadSenseVoiceRecognizer() } catch (e: Throwable) { Log.e(TAG, "Failed to unload FunASR Nano recognizer", e) }
+            try { com.brycewg.asrkb.asr.unloadFunAsrNanoRecognizer() } catch (e: Throwable) { Log.e(TAG, "Failed to unload FunASR Nano recognizer", e) }
         }
         if (oldVendor == AsrVendor.Telespeech && vendor != AsrVendor.Telespeech) {
             try { com.brycewg.asrkb.asr.unloadTelespeechRecognizer() } catch (e: Throwable) { Log.e(TAG, "Failed to unload TeleSpeech recognizer", e) }
@@ -134,7 +134,7 @@ class AsrSettingsViewModel : ViewModel() {
         if (vendor == AsrVendor.FunAsrNano && prefs.fnPreloadEnabled) {
             viewModelScope.launch(Dispatchers.Default) {
                 try {
-                    com.brycewg.asrkb.asr.preloadSenseVoiceIfConfigured(
+                    com.brycewg.asrkb.asr.preloadFunAsrNanoIfConfigured(
                         appContext,
                         prefs
                     )
@@ -359,7 +359,7 @@ class AsrSettingsViewModel : ViewModel() {
         prefs.fnModelVariant = variant
         _uiState.value = _uiState.value.copy(fnModelVariant = variant)
         try {
-            com.brycewg.asrkb.asr.unloadSenseVoiceRecognizer()
+            com.brycewg.asrkb.asr.unloadFunAsrNanoRecognizer()
         } catch (e: Throwable) {
             Log.e(TAG, "Failed to unload FunASR Nano recognizer after variant change", e)
         }
@@ -370,7 +370,7 @@ class AsrSettingsViewModel : ViewModel() {
         prefs.fnNumThreads = threads
         _uiState.value = _uiState.value.copy(fnNumThreads = threads)
         try {
-            com.brycewg.asrkb.asr.unloadSenseVoiceRecognizer()
+            com.brycewg.asrkb.asr.unloadFunAsrNanoRecognizer()
         } catch (e: Throwable) {
             Log.e(TAG, "Failed to unload FunASR Nano recognizer after threads change", e)
         }
@@ -382,12 +382,25 @@ class AsrSettingsViewModel : ViewModel() {
             prefs.fnUseItn = enabled
             _uiState.value = _uiState.value.copy(fnUseItn = enabled)
             try {
-                com.brycewg.asrkb.asr.unloadSenseVoiceRecognizer()
+                com.brycewg.asrkb.asr.unloadFunAsrNanoRecognizer()
             } catch (e: Throwable) {
                 Log.e(TAG, "Failed to unload FunASR Nano recognizer after ITN change", e)
             }
             triggerFnPreloadIfEnabledAndActive("ITN change")
         }
+    }
+
+    fun updateFnUserPrompt(prompt: String) {
+        val newPrompt = prompt.trim()
+        if (prefs.fnUserPrompt == newPrompt) return
+        prefs.fnUserPrompt = newPrompt
+        _uiState.value = _uiState.value.copy(fnUserPrompt = newPrompt)
+        try {
+            com.brycewg.asrkb.asr.unloadFunAsrNanoRecognizer()
+        } catch (e: Throwable) {
+            Log.e(TAG, "Failed to unload FunASR Nano recognizer after userPrompt change", e)
+        }
+        triggerFnPreloadIfEnabledAndActive("userPrompt change")
     }
 
     fun updateFnPreload(enabled: Boolean) {
@@ -397,7 +410,7 @@ class AsrSettingsViewModel : ViewModel() {
         if (enabled && prefs.asrVendor == AsrVendor.FunAsrNano) {
             viewModelScope.launch(Dispatchers.Default) {
                 try {
-                    com.brycewg.asrkb.asr.preloadSenseVoiceIfConfigured(
+                    com.brycewg.asrkb.asr.preloadFunAsrNanoIfConfigured(
                         appContext,
                         prefs
                     )
@@ -406,11 +419,6 @@ class AsrSettingsViewModel : ViewModel() {
                 }
             }
         }
-    }
-
-    fun updateFnPseudoStream(enabled: Boolean) {
-        prefs.fnPseudoStreamEnabled = enabled
-        _uiState.value = _uiState.value.copy(fnPseudoStreamEnabled = enabled)
     }
 
     fun updateTsModelVariant(variant: String) {
@@ -505,7 +513,7 @@ class AsrSettingsViewModel : ViewModel() {
         if (prefs.fnPreloadEnabled && prefs.asrVendor == AsrVendor.FunAsrNano) {
             viewModelScope.launch(Dispatchers.Default) {
                 try {
-                    com.brycewg.asrkb.asr.preloadSenseVoiceIfConfigured(appContext, prefs)
+                    com.brycewg.asrkb.asr.preloadFunAsrNanoIfConfigured(appContext, prefs)
                 } catch (t: Throwable) {
                     Log.e(TAG, "Failed to preload FunASR Nano after $reason", t)
                 }
@@ -585,13 +593,16 @@ class AsrSettingsViewModel : ViewModel() {
     fun checkFnModelDownloaded(context: Context): Boolean {
         val base = context.getExternalFilesDir(null) ?: context.filesDir
         val root = File(base, "funasr_nano")
-        val variant = prefs.fnModelVariant
-        val dirName = if (variant == "nano-full") "nano-full" else "nano-int8"
+        val dirName = "nano-int8"
         val dir = File(root, dirName)
-        val modelDir = findModelDir(dir) ?: findModelDir(root)
+        val modelDir = com.brycewg.asrkb.asr.findFnModelDir(dir) ?: com.brycewg.asrkb.asr.findFnModelDir(root)
+        val tokenizerDir = modelDir?.let { com.brycewg.asrkb.asr.findFnTokenizerDir(it) }
         return modelDir != null &&
-                File(modelDir, "tokens.txt").exists() &&
-                (File(modelDir, "model.int8.onnx").exists() || File(modelDir, "model.onnx").exists())
+                File(modelDir, "encoder_adaptor.int8.onnx").exists() &&
+                File(modelDir, "llm.int8.onnx").exists() &&
+                File(modelDir, "embedding.int8.onnx").exists() &&
+                tokenizerDir != null &&
+                File(tokenizerDir, "tokenizer.json").exists()
     }
 
     fun checkTsModelDownloaded(context: Context): Boolean {
@@ -676,10 +687,10 @@ data class AsrSettingsUiState(
     // FunASR Nano settings
     val fnModelVariant: String = "nano-int8",
     val fnNumThreads: Int = 2,
-    val fnUseItn: Boolean = true,
+    val fnUseItn: Boolean = false,
+    val fnUserPrompt: String = "语音转写：",
     val fnPreloadEnabled: Boolean = false,
     val fnKeepAliveMinutes: Int = -1,
-    val fnPseudoStreamEnabled: Boolean = false,
     // TeleSpeech settings
     val tsModelVariant: String = "int8",
     val tsNumThreads: Int = 2,

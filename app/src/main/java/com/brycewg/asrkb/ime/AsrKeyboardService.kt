@@ -1914,7 +1914,7 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
             DebugLogManager.log("ime", "asr_not_ready", mapOf("reason" to "keys"))
             return false
         }
-        if (prefs.asrVendor == AsrVendor.SenseVoice || prefs.asrVendor == AsrVendor.FunAsrNano) {
+        if (prefs.asrVendor == AsrVendor.SenseVoice) {
             val prepared = com.brycewg.asrkb.asr.isSenseVoicePrepared()
             if (!prepared) {
                 val base = getExternalFilesDir(null) ?: filesDir
@@ -1931,6 +1931,20 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
                 if (found == null) {
                     clearStatusTextStyle()
                     txtStatusText?.text = getString(R.string.error_sensevoice_model_missing)
+                    return false
+                }
+            }
+        } else if (prefs.asrVendor == AsrVendor.FunAsrNano) {
+            val prepared = com.brycewg.asrkb.asr.isFunAsrNanoPrepared()
+            if (!prepared) {
+                val base = getExternalFilesDir(null) ?: filesDir
+                val probeRoot = java.io.File(base, "funasr_nano")
+                val variantDir = java.io.File(probeRoot, "nano-int8")
+                val found = com.brycewg.asrkb.asr.findFnModelDir(variantDir)
+                    ?: com.brycewg.asrkb.asr.findFnModelDir(probeRoot)
+                if (found == null) {
+                    clearStatusTextStyle()
+                    txtStatusText?.text = getString(R.string.error_funasr_model_missing)
                     return false
                 }
             }
@@ -2236,7 +2250,7 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
                         com.brycewg.asrkb.asr.unloadSenseVoiceRecognizer()
                     }
                     if (old == com.brycewg.asrkb.asr.AsrVendor.FunAsrNano && vendor != com.brycewg.asrkb.asr.AsrVendor.FunAsrNano) {
-                        com.brycewg.asrkb.asr.unloadSenseVoiceRecognizer()
+                        com.brycewg.asrkb.asr.unloadFunAsrNanoRecognizer()
                     }
                     if (old == com.brycewg.asrkb.asr.AsrVendor.Telespeech && vendor != com.brycewg.asrkb.asr.AsrVendor.Telespeech) {
                         com.brycewg.asrkb.asr.unloadTelespeechRecognizer()
@@ -2257,7 +2271,7 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
                 try {
                     when (vendor) {
                         com.brycewg.asrkb.asr.AsrVendor.SenseVoice -> if (prefs.svPreloadEnabled) com.brycewg.asrkb.asr.preloadSenseVoiceIfConfigured(this, prefs)
-                        com.brycewg.asrkb.asr.AsrVendor.FunAsrNano -> if (prefs.fnPreloadEnabled) com.brycewg.asrkb.asr.preloadSenseVoiceIfConfigured(this, prefs)
+                        com.brycewg.asrkb.asr.AsrVendor.FunAsrNano -> if (prefs.fnPreloadEnabled) com.brycewg.asrkb.asr.preloadFunAsrNanoIfConfigured(this, prefs)
                         com.brycewg.asrkb.asr.AsrVendor.Telespeech -> if (prefs.tsPreloadEnabled) com.brycewg.asrkb.asr.preloadTelespeechIfConfigured(this, prefs)
                         com.brycewg.asrkb.asr.AsrVendor.Paraformer -> if (prefs.pfPreloadEnabled) com.brycewg.asrkb.asr.preloadParaformerIfConfigured(this, prefs)
                         else -> {}
