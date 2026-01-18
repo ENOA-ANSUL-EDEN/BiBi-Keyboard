@@ -141,13 +141,6 @@ class SenseVoiceFileAsrEngine(
             val keepMs = if (keepMinutes <= 0) 0L else keepMinutes.toLong() * 60_000L
             val alwaysKeep = keepMinutes < 0
 
-            val ruleFsts = try {
-                if (prefs.svUseItn) ItnAssets.ensureItnFstPath(context) else null
-            } catch (t: Throwable) {
-                Log.e("SenseVoiceFileAsrEngine", "Failed to resolve ITN FST path", t)
-                null
-            }
-
             val text = manager.decodeOffline(
                 assetManager = null,
                 tokens = tokensPath,
@@ -167,7 +160,6 @@ class SenseVoiceFileAsrEngine(
                     Log.w("SenseVoiceFileAsrEngine", "Failed to get num threads", t)
                     2
                 },
-                ruleFsts = ruleFsts,
                 samples = samples,
                 sampleRate = sampleRate,
                 keepAliveMs = keepMs,
@@ -283,12 +275,6 @@ fun preloadSenseVoiceIfConfigured(
         }
         val keepMs = if (keepMinutes <= 0) 0L else keepMinutes.toLong() * 60_000L
         val alwaysKeep = keepMinutes < 0
-        val ruleFsts = try {
-            if (prefs.svUseItn) ItnAssets.ensureItnFstPath(context) else null
-        } catch (t: Throwable) {
-            Log.e("SenseVoiceFileAsrEngine", "Failed to resolve ITN FST path for preload", t)
-            null
-        }
         // 在后台协程触发预加载，避免直接在调用线程（可能是主线程）阻塞
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launch {
             val t0 = try { android.os.SystemClock.uptimeMillis() } catch (_: Throwable) { 0L }
@@ -311,7 +297,6 @@ fun preloadSenseVoiceIfConfigured(
                     Log.w("SenseVoiceFileAsrEngine", "Failed to get num threads", t)
                     2
                 },
-                ruleFsts = ruleFsts,
                 keepAliveMs = keepMs,
                 alwaysKeep = alwaysKeep,
                 onLoadStart = {
@@ -419,10 +404,9 @@ private data class RecognizerConfig(
     val language: String,
     val useItn: Boolean,
     val provider: String,
-    val numThreads: Int,
-    val ruleFsts: String?
+    val numThreads: Int
 ) {
-    fun toCacheKey(): String = listOf(tokens, model, language, useItn, provider, numThreads, ruleFsts ?: "").joinToString("|")
+    fun toCacheKey(): String = listOf(tokens, model, language, useItn, provider, numThreads).joinToString("|")
 }
 
 /**
@@ -627,12 +611,6 @@ class SenseVoiceOnnxManager private constructor() {
         if (!trySetField(recConfig, "modelConfig", modelConfig)) {
             trySetField(recConfig, "model_config", modelConfig)
         }
-        // FST ITN：如提供了 ruleFsts，则透传给 OfflineRecognizerConfig（字段名可能为 ruleFsts 或 rule_fsts）
-        if (!config.ruleFsts.isNullOrBlank()) {
-            if (!trySetField(recConfig, "ruleFsts", config.ruleFsts)) {
-                trySetField(recConfig, "rule_fsts", config.ruleFsts)
-            }
-        }
         return recConfig
     }
 
@@ -716,7 +694,6 @@ class SenseVoiceOnnxManager private constructor() {
         useItn: Boolean,
         provider: String,
         numThreads: Int,
-        ruleFsts: String? = null,
         samples: FloatArray,
         sampleRate: Int,
         keepAliveMs: Long,
@@ -727,7 +704,7 @@ class SenseVoiceOnnxManager private constructor() {
         try {
             initClasses()
 
-            val config = RecognizerConfig(tokens, model, language, useItn, provider, numThreads, ruleFsts)
+            val config = RecognizerConfig(tokens, model, language, useItn, provider, numThreads)
             var recognizer = cachedRecognizer
 
             if (cachedConfig != config || recognizer == null) {
@@ -777,7 +754,6 @@ class SenseVoiceOnnxManager private constructor() {
         useItn: Boolean,
         provider: String,
         numThreads: Int,
-        ruleFsts: String? = null,
         keepAliveMs: Long,
         alwaysKeep: Boolean,
         onLoadStart: (() -> Unit)? = null,
@@ -786,7 +762,7 @@ class SenseVoiceOnnxManager private constructor() {
         try {
             initClasses()
 
-            val config = RecognizerConfig(tokens, model, language, useItn, provider, numThreads, ruleFsts)
+            val config = RecognizerConfig(tokens, model, language, useItn, provider, numThreads)
             var recognizer = cachedRecognizer
 
             if (cachedConfig != config || recognizer == null) {
@@ -840,7 +816,6 @@ object SenseVoiceOnnxBridge {
         useItn: Boolean,
         provider: String,
         numThreads: Int,
-        ruleFsts: String? = null,
         samples: FloatArray,
         sampleRate: Int,
         keepAliveMs: Long,
@@ -848,7 +823,7 @@ object SenseVoiceOnnxBridge {
         onLoadStart: (() -> Unit)? = null,
         onLoadDone: (() -> Unit)? = null
     ): String? = manager.decodeOffline(
-        assetManager, tokens, model, language, useItn, provider, numThreads, ruleFsts,
+        assetManager, tokens, model, language, useItn, provider, numThreads,
         samples, sampleRate, keepAliveMs, alwaysKeep, onLoadStart, onLoadDone
     )
 
@@ -860,13 +835,12 @@ object SenseVoiceOnnxBridge {
         useItn: Boolean,
         provider: String,
         numThreads: Int,
-        ruleFsts: String? = null,
         keepAliveMs: Long,
         alwaysKeep: Boolean,
         onLoadStart: (() -> Unit)? = null,
         onLoadDone: (() -> Unit)? = null
     ): Boolean = manager.prepare(
-        assetManager, tokens, model, language, useItn, provider, numThreads, ruleFsts,
+        assetManager, tokens, model, language, useItn, provider, numThreads,
         keepAliveMs, alwaysKeep, onLoadStart, onLoadDone
     )
 }
