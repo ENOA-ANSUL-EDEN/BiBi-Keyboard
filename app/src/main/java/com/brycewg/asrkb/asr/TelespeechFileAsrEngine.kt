@@ -155,13 +155,6 @@ class TelespeechFileAsrEngine(
       val keepMs = if (keepMinutes <= 0) 0L else keepMinutes.toLong() * 60_000L
       val alwaysKeep = keepMinutes < 0
 
-      val ruleFsts = try {
-        if (prefs.tsUseItn) ItnAssets.ensureItnFstPath(context) else null
-      } catch (t: Throwable) {
-        Log.e("TelespeechFileAsrEngine", "Failed to resolve ITN FST path", t)
-        null
-      }
-
       val text = manager.decodeOffline(
         assetManager = null,
         tokens = tokensPath,
@@ -173,7 +166,6 @@ class TelespeechFileAsrEngine(
           Log.w("TelespeechFileAsrEngine", "Failed to get num threads", t)
           2
         },
-        ruleFsts = ruleFsts,
         samples = samples,
         sampleRate = sampleRate,
         keepAliveMs = keepMs,
@@ -186,11 +178,18 @@ class TelespeechFileAsrEngine(
         listener.onError(context.getString(R.string.error_asr_empty_result))
       } else {
         val raw = text.trim()
+        val useItn = try {
+          prefs.tsUseItn
+        } catch (t: Throwable) {
+          Log.w("TelespeechFileAsrEngine", "Failed to get tsUseItn", t)
+          false
+        }
+        val normalized = if (useItn) ChineseItn.normalize(raw) else raw
         val finalText = try {
-          SherpaPunctuationManager.getInstance().addOfflinePunctuation(context, raw)
+          SherpaPunctuationManager.getInstance().addOfflinePunctuation(context, normalized)
         } catch (t: Throwable) {
           Log.e("TelespeechFileAsrEngine", "Failed to apply offline punctuation", t)
-          raw
+          normalized
         }
         listener.onFinal(finalText)
       }
@@ -351,7 +350,6 @@ class TelespeechOnnxManager private constructor() {
     val model: String,
     val provider: String,
     val numThreads: Int,
-    val ruleFsts: String?,
     val sampleRate: Int,
     val featureDim: Int
   )
@@ -419,10 +417,6 @@ class TelespeechOnnxManager private constructor() {
     if (!trySetField(recConfig, "featConfig", featConfig)) {
       trySetField(recConfig, "feat_config", featConfig)
     }
-    // ITN：如提供了 ruleFsts，则透传给 OfflineRecognizerConfig
-    if (!config.ruleFsts.isNullOrBlank()) {
-      trySetField(recConfig, "ruleFsts", config.ruleFsts)
-    }
     trySetField(recConfig, "decodingMethod", "greedy_search")
     trySetField(recConfig, "maxActivePaths", 4)
     return recConfig
@@ -463,7 +457,6 @@ class TelespeechOnnxManager private constructor() {
     model: String,
     provider: String,
     numThreads: Int,
-    ruleFsts: String? = null,
     samples: FloatArray,
     sampleRate: Int,
     keepAliveMs: Long,
@@ -478,7 +471,6 @@ class TelespeechOnnxManager private constructor() {
         model = model,
         provider = provider,
         numThreads = numThreads,
-        ruleFsts = ruleFsts,
         sampleRate = sampleRate,
         featureDim = 40
       )
@@ -523,7 +515,6 @@ class TelespeechOnnxManager private constructor() {
     model: String,
     provider: String,
     numThreads: Int,
-    ruleFsts: String? = null,
     keepAliveMs: Long,
     alwaysKeep: Boolean,
     onLoadStart: (() -> Unit)? = null,
@@ -536,7 +527,6 @@ class TelespeechOnnxManager private constructor() {
         model = model,
         provider = provider,
         numThreads = numThreads,
-        ruleFsts = ruleFsts,
         sampleRate = 16000,
         featureDim = 40
       )
@@ -628,13 +618,6 @@ fun preloadTelespeechIfConfigured(
     val keepMs = if (keepMinutes <= 0) 0L else keepMinutes.toLong() * 60_000L
     val alwaysKeep = keepMinutes < 0
 
-    val ruleFsts = try {
-      if (prefs.tsUseItn) ItnAssets.ensureItnFstPath(context) else null
-    } catch (t: Throwable) {
-      Log.e("TelespeechFileAsrEngine", "Failed to resolve ITN FST path for preload", t)
-      null
-    }
-
     CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launch {
       val t0 = try {
         android.os.SystemClock.uptimeMillis()
@@ -652,7 +635,6 @@ fun preloadTelespeechIfConfigured(
           Log.w("TelespeechFileAsrEngine", "Failed to get num threads", t)
           2
         },
-        ruleFsts = ruleFsts,
         keepAliveMs = keepMs,
         alwaysKeep = alwaysKeep,
         onLoadStart = {

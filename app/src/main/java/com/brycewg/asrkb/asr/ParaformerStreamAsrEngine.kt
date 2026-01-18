@@ -45,6 +45,7 @@ class ParaformerStreamAsrEngine(
     private val closing = AtomicBoolean(false)
     private val finalizeOnce = AtomicBoolean(false)
     private val closeSilently = AtomicBoolean(false)
+    @Volatile private var useItnForSession: Boolean = false
     private var audioJob: Job? = null
     private val mgr = ParaformerOnnxManager.getInstance()
     @Volatile private var currentStream: Any? = null
@@ -88,6 +89,13 @@ class ParaformerStreamAsrEngine(
             return
         }
 
+        useItnForSession = try {
+            prefs.pfUseItn
+        } catch (t: Throwable) {
+            Log.w(TAG, "Failed to read pfUseItn", t)
+            false
+        }
+
         // 若通用标点模型未安装，给出一次性提示（不阻断识别）
         try {
             SherpaPunctuationManager.maybeWarnModelMissing(context)
@@ -127,12 +135,10 @@ class ParaformerStreamAsrEngine(
             val keepMs = if (keepMinutes <= 0) 0L else keepMinutes.toLong() * 60_000L
             val alwaysKeep = keepMinutes < 0
 
-            val ruleFsts = try { if (prefs.pfUseItn) ItnAssets.ensureItnFstPath(context) else null } catch (_: Throwable) { null }
             val ok = mgr.prepare(
                 tokens = tokensPath,
                 encoder = enc.absolutePath,
                 decoder = dec.absolutePath,
-                ruleFsts = ruleFsts,
                 numThreads = prefs.pfNumThreads,
                 keepAliveMs = keepMs,
                 alwaysKeep = alwaysKeep,
@@ -340,11 +346,12 @@ class ParaformerStreamAsrEngine(
         val now = SystemClock.uptimeMillis()
         if (!partial.isNullOrBlank() && running.get() && !closing.get()) {
             val trimmed = partial!!.trim()
-            val needEmit = (now - lastEmitUptimeMs) >= FRAME_MS && trimmed != lastEmittedText
+            val normalized = if (useItnForSession) ChineseItn.normalize(trimmed) else trimmed
+            val needEmit = (now - lastEmitUptimeMs) >= FRAME_MS && normalized != lastEmittedText
             if (needEmit) {
-                try { listener.onPartial(trimmed) } catch (t: Throwable) { Log.e(TAG, "notify partial failed", t) }
+                try { listener.onPartial(normalized) } catch (t: Throwable) { Log.e(TAG, "notify partial failed", t) }
                 lastEmitUptimeMs = now
-                lastEmittedText = trimmed
+                lastEmittedText = normalized
             }
         }
     }
@@ -374,6 +381,9 @@ class ParaformerStreamAsrEngine(
         }
         var out = text?.trim().orEmpty()
         if (out.isEmpty()) return out
+        if (useItnForSession) {
+            out = ChineseItn.normalize(out)
+        }
         out = try {
             SherpaPunctuationManager.getInstance().addOfflinePunctuation(context, out)
         } catch (t: Throwable) {
@@ -645,14 +655,13 @@ class ParaformerOnnxManager private constructor() {
         val tokens: String,
         val encoder: String,
         val decoder: String,
-        val ruleFsts: String?,
         val numThreads: Int,
         val provider: String = "cpu",
         val sampleRate: Int = 16000,
         val featureDim: Int = 80,
         val debug: Boolean = false
     ) {
-        fun toCacheKey(): String = listOf(tokens, encoder, decoder, ruleFsts.orEmpty(), numThreads, provider, sampleRate, featureDim, debug).joinToString("|")
+        fun toCacheKey(): String = listOf(tokens, encoder, decoder, numThreads, provider, sampleRate, featureDim, debug).joinToString("|")
     }
 
     private fun buildModelConfig(tokens: String, encoder: String, decoder: String, numThreads: Int, provider: String, debug: Boolean): Any {
@@ -685,10 +694,6 @@ class ParaformerOnnxManager private constructor() {
         trySetField(rec, "decodingMethod", "greedy_search")
         trySetField(rec, "enableEndpoint", true)
         trySetField(rec, "maxActivePaths", 4)
-        // ITN：若给定 ruleFsts 路径，则直接设置。资产文件已由调用方拷贝到 files/itn。
-        if (!config.ruleFsts.isNullOrBlank()) {
-            trySetField(rec, "ruleFsts", config.ruleFsts)
-        }
         return rec
     }
 
@@ -704,7 +709,6 @@ class ParaformerOnnxManager private constructor() {
         tokens: String,
         encoder: String,
         decoder: String,
-        ruleFsts: String?,
         numThreads: Int,
         keepAliveMs: Long,
         alwaysKeep: Boolean,
@@ -716,7 +720,7 @@ class ParaformerOnnxManager private constructor() {
             unloadJob?.cancel()
             unloadJob = null
             initClasses()
-            val config = RecognizerConfig(tokens, encoder, decoder, ruleFsts, numThreads)
+            val config = RecognizerConfig(tokens, encoder, decoder, numThreads)
             val same = (cachedConfig == config)
             if (!same || cachedRecognizer == null) {
                 if (!same && cachedRecognizer != null && activeStreams.get() > 0) {
@@ -862,12 +866,10 @@ fun preloadParaformerIfConfigured(
 
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launch {
             val t0 = try { android.os.SystemClock.uptimeMillis() } catch (_: Throwable) { 0L }
-            val ruleFsts = try { if (prefs.pfUseItn) ItnAssets.ensureItnFstPath(context) else null } catch (_: Throwable) { null }
             val ok = manager.prepare(
                 tokens = tokensPath,
                 encoder = enc.absolutePath,
                 decoder = dec.absolutePath,
-                ruleFsts = ruleFsts,
                 numThreads = prefs.pfNumThreads,
                 keepAliveMs = keepMs,
                 alwaysKeep = alwaysKeep,

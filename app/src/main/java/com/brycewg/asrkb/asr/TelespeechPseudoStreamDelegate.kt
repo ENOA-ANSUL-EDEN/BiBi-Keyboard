@@ -52,11 +52,18 @@ internal class TelespeechPseudoStreamDelegate(
             val trimmed = text.trim()
             if (trimmed.isEmpty()) return@launch
 
+            val useItn = try {
+                prefs.tsUseItn
+            } catch (t: Throwable) {
+                Log.w(tag, "Failed to get tsUseItn for segment", t)
+                false
+            }
+            val segmentText = if (useItn) ChineseItn.normalize(trimmed) else trimmed
             val normalizedSegment = try {
-                TextSanitizer.trimTrailingPunctAndEmoji(trimmed)
+                TextSanitizer.trimTrailingPunctAndEmoji(segmentText)
             } catch (t: Throwable) {
                 Log.w(tag, "trimTrailingPunctAndEmoji failed for segment, fallback to raw trimmed text", t)
-                trimmed
+                segmentText
             }
             if (normalizedSegment.isEmpty()) return@launch
 
@@ -101,11 +108,18 @@ internal class TelespeechPseudoStreamDelegate(
                 }
             } else {
                 val raw = text.trim()
+                val useItn = try {
+                    prefs.tsUseItn
+                } catch (t: Throwable) {
+                    Log.w(tag, "Failed to get tsUseItn for final", t)
+                    false
+                }
+                val normalized = if (useItn) ChineseItn.normalize(raw) else raw
                 val finalText = try {
-                    SherpaPunctuationManager.getInstance().addOfflinePunctuation(context, raw)
+                    SherpaPunctuationManager.getInstance().addOfflinePunctuation(context, normalized)
                 } catch (t: Throwable) {
                     Log.e(tag, "Failed to apply offline punctuation", t)
-                    raw
+                    normalized
                 }
                 try {
                     listener.onFinal(finalText)
@@ -269,13 +283,6 @@ internal class TelespeechPseudoStreamDelegate(
         val keepMs = if (keepMinutes <= 0) 0L else keepMinutes.toLong() * 60_000L
         val alwaysKeep = keepMinutes < 0
 
-        val ruleFsts = try {
-            if (prefs.tsUseItn) ItnAssets.ensureItnFstPath(context) else null
-        } catch (t: Throwable) {
-            Log.e(tag, "Failed to resolve ITN FST path for pseudo-stream", t)
-            null
-        }
-
         val text = manager.decodeOffline(
             assetManager = null,
             tokens = tokensPath,
@@ -287,7 +294,6 @@ internal class TelespeechPseudoStreamDelegate(
                 Log.w(tag, "Failed to get num threads", t)
                 2
             },
-            ruleFsts = ruleFsts,
             samples = samples,
             sampleRate = sampleRate,
             keepAliveMs = keepMs,
