@@ -9,11 +9,14 @@ import android.util.Log
 import androidx.core.content.ContextCompat
 import com.brycewg.asrkb.R
 import com.brycewg.asrkb.store.Prefs
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -468,19 +471,14 @@ fun findPfModelDir(root: java.io.File?): java.io.File? {
  * 释放 Paraformer 识别器（供设置页或切换供应商时手工卸载）
  */
 fun unloadParaformerRecognizer() {
-    try { ParaformerOnnxManager.getInstance().unload() } catch (t: Throwable) {
-        Log.e("ParaformerStreamAsrEngine", "Failed to unload paraformer recognizer", t)
-    }
+    LocalModelLoadCoordinator.cancel()
+    ParaformerOnnxManager.getInstance().unload()
 }
 
-// 判断是否已有缓存的本地 Paraformer 识别器（已加载模型）
+// 判断是否已有缓存的本地 Paraformer 识别器（已加载或正在加载中）
 fun isParaformerPrepared(): Boolean {
-    return try {
-        ParaformerOnnxManager.getInstance().isPrepared()
-    } catch (t: Throwable) {
-        Log.e("ParaformerStreamAsrEngine", "Failed to check paraformer prepared", t)
-        false
-    }
+    val manager = ParaformerOnnxManager.getInstance()
+    return manager.isPrepared() || manager.isPreparing()
 }
 
 // ===== 反射式在线识别管理器 =====
@@ -560,6 +558,7 @@ class ParaformerOnnxManager private constructor() {
 
     @Volatile private var cachedConfig: RecognizerConfig? = null
     @Volatile private var cachedRecognizer: ReflectiveOnlineRecognizer? = null
+    @Volatile private var preparing: Boolean = false
     @Volatile private var clsOnlineRecognizer: Class<*>? = null
     @Volatile private var clsOnlineRecognizerConfig: Class<*>? = null
     @Volatile private var clsOnlineModelConfig: Class<*>? = null
@@ -590,7 +589,18 @@ class ParaformerOnnxManager private constructor() {
     }
 
     fun isPrepared(): Boolean = cachedRecognizer != null
+	
+    fun isPreparing(): Boolean = preparing
 
+    private fun invokeCallbackSafely(name: String, callback: (() -> Unit)?) {
+        if (callback == null) return
+        try {
+            callback()
+        } catch (t: Throwable) {
+            Log.e(TAG, "$name callback failed", t)
+        }
+    }
+	
     private suspend fun tryUnloadIfIdle() {
         mutex.withLock {
             if (!pendingUnload) return@withLock
@@ -721,27 +731,65 @@ class ParaformerOnnxManager private constructor() {
             unloadJob = null
             initClasses()
             val config = RecognizerConfig(tokens, encoder, decoder, numThreads)
-            val same = (cachedConfig == config)
-            if (!same || cachedRecognizer == null) {
-                if (!same && cachedRecognizer != null && activeStreams.get() > 0) {
-                    Log.w(TAG, "prepare skipped: ${activeStreams.get()} active streams")
-                    lastKeepAliveMs = keepAliveMs
-                    lastAlwaysKeep = alwaysKeep
-                    return@withLock true
-                }
-                try { onLoadStart?.invoke() } catch (t: Throwable) { Log.e(TAG, "onLoadStart failed", t) }
-                val recConfig = buildRecognizerConfig(config)
-                val inst = synchronized(runtimeLock) { createRecognizer(recConfig) }
-                synchronized(runtimeLock) { cachedRecognizer?.release() }
-                cachedRecognizer = ReflectiveOnlineRecognizer(inst, clsOnlineRecognizer!!)
-                cachedConfig = config
-                try { onLoadDone?.invoke() } catch (t: Throwable) { Log.e(TAG, "onLoadDone failed", t) }
+
+            val cached = cachedRecognizer
+            val sameConfig = cachedConfig == config
+            if (sameConfig && cached != null) {
+                lastKeepAliveMs = keepAliveMs
+                lastAlwaysKeep = alwaysKeep
+                return@withLock true
             }
-            lastKeepAliveMs = keepAliveMs
-            lastAlwaysKeep = alwaysKeep
-            true
+
+            if (!sameConfig && cached != null && activeStreams.get() > 0) {
+                Log.w(TAG, "prepare skipped: ${activeStreams.get()} active streams")
+                lastKeepAliveMs = keepAliveMs
+                lastAlwaysKeep = alwaysKeep
+                return@withLock true
+            }
+
+            preparing = true
+            var newRecognizer: ReflectiveOnlineRecognizer? = null
+            try {
+                invokeCallbackSafely("onLoadStart", onLoadStart)
+                currentCoroutineContext().ensureActive()
+
+                val recConfig = buildRecognizerConfig(config)
+                currentCoroutineContext().ensureActive()
+                val inst = synchronized(runtimeLock) { createRecognizer(recConfig) }
+                newRecognizer = ReflectiveOnlineRecognizer(inst, clsOnlineRecognizer!!)
+
+                currentCoroutineContext().ensureActive()
+                val oldRecognizer = cachedRecognizer
+                synchronized(runtimeLock) { cachedRecognizer = newRecognizer }
+                cachedConfig = config
+                newRecognizer = null
+
+                invokeCallbackSafely("onLoadDone", onLoadDone)
+                if (oldRecognizer != null) {
+                    synchronized(runtimeLock) { oldRecognizer.release() }
+                }
+
+                lastKeepAliveMs = keepAliveMs
+                lastAlwaysKeep = alwaysKeep
+                true
+            } catch (t: CancellationException) {
+                if (newRecognizer != null) {
+                    synchronized(runtimeLock) { newRecognizer!!.release() }
+                }
+                throw t
+            } catch (t: Throwable) {
+                if (newRecognizer != null) {
+                    synchronized(runtimeLock) { newRecognizer!!.release() }
+                }
+                throw t
+            } finally {
+                preparing = false
+            }
+        } catch (t: CancellationException) {
+            throw t
         } catch (t: Throwable) {
-            Log.e(TAG, "prepare failed", t); false
+            Log.e(TAG, "prepare failed", t)
+            false
         }
     }
 
@@ -864,54 +912,43 @@ fun preloadParaformerIfConfigured(
         val keepMs = if (keepMinutes <= 0) 0L else keepMinutes.toLong() * 60_000L
         val alwaysKeep = keepMinutes < 0
 
-        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launch {
-            val t0 = try { android.os.SystemClock.uptimeMillis() } catch (_: Throwable) { 0L }
+        val numThreads = prefs.pfNumThreads
+        val key = "paraformer|tokens=$tokensPath|encoder=${enc.absolutePath}|decoder=${dec.absolutePath}|threads=$numThreads"
+
+        val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        LocalModelLoadCoordinator.request(key) {
+            val t0 = android.os.SystemClock.uptimeMillis()
             val ok = manager.prepare(
                 tokens = tokensPath,
                 encoder = enc.absolutePath,
                 decoder = dec.absolutePath,
-                numThreads = prefs.pfNumThreads,
+                numThreads = numThreads,
                 keepAliveMs = keepMs,
                 alwaysKeep = alwaysKeep,
                 onLoadStart = {
-                    try { onLoadStart?.invoke() } catch (t: Throwable) { Log.e("ParaformerPreload", "onLoadStart failed", t) }
                     if (!suppressToastOnStart) {
-                        try {
-                            android.os.Handler(android.os.Looper.getMainLooper()).post {
-                                try { android.widget.Toast.makeText(context, context.getString(com.brycewg.asrkb.R.string.pf_loading_model), android.widget.Toast.LENGTH_SHORT).show() } catch (t: Throwable) {
-                                    Log.e("ParaformerPreload", "Show toast failed", t)
-                                }
-                            }
-                        } catch (t: Throwable) {
-                            Log.e("ParaformerPreload", "Post toast failed", t)
+                        mainHandler.post {
+                            android.widget.Toast.makeText(
+                                context,
+                                context.getString(com.brycewg.asrkb.R.string.pf_loading_model),
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
                         }
                     }
+                    onLoadStart?.invoke()
                 },
                 onLoadDone = onLoadDone,
             )
             if (ok && !forImmediateUse) {
-                // 加载完成后显示 Toast，并报告加载用时
-                val dt = try {
-                    val now = android.os.SystemClock.uptimeMillis()
-                    if (t0 > 0L && now >= t0) now - t0 else -1L
-                } catch (_: Throwable) { -1L }
-                try {
-                    android.os.Handler(android.os.Looper.getMainLooper()).post {
-                        try {
-                            val text = if (dt > 0) {
-                                context.getString(com.brycewg.asrkb.R.string.sv_model_ready_with_ms, dt)
-                            } else context.getString(com.brycewg.asrkb.R.string.sv_model_ready)
-                            android.widget.Toast.makeText(context, text, android.widget.Toast.LENGTH_SHORT).show()
-                        } catch (t: Throwable) {
-                            Log.e("ParaformerPreload", "Show load-done toast failed", t)
-                        }
-                    }
-                } catch (t: Throwable) {
-                    Log.e("ParaformerPreload", "Post load-done toast failed", t)
+                val dt = (android.os.SystemClock.uptimeMillis() - t0).coerceAtLeast(0)
+                mainHandler.post {
+                    android.widget.Toast.makeText(
+                        context,
+                        context.getString(com.brycewg.asrkb.R.string.sv_model_ready_with_ms, dt),
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
                 }
-                try { manager.scheduleUnloadIfIdle() } catch (t: Throwable) {
-                    Log.e("ParaformerPreload", "scheduleUnloadIfIdle failed", t)
-                }
+                manager.scheduleUnloadIfIdle()
             }
         }
     } catch (t: Throwable) {

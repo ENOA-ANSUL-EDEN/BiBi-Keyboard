@@ -7,10 +7,13 @@ import android.util.Log
 import android.widget.Toast
 import com.brycewg.asrkb.R
 import com.brycewg.asrkb.store.Prefs
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -208,11 +211,8 @@ class SenseVoiceFileAsrEngine(
 
 // 公开卸载入口：供设置页在清除模型后释放本地识别器内存
 fun unloadSenseVoiceRecognizer() {
-    try {
-        SenseVoiceOnnxManager.getInstance().unload()
-    } catch (t: Throwable) {
-        Log.e("SenseVoiceFileAsrEngine", "Failed to unload recognizer", t)
-    }
+    LocalModelLoadCoordinator.cancel()
+    SenseVoiceOnnxManager.getInstance().unload()
 }
 
 // 预加载：根据当前配置尝试构建本地识别器，便于降低首次点击等待
@@ -231,104 +231,60 @@ fun preloadSenseVoiceIfConfigured(
     try {
         val manager = SenseVoiceOnnxManager.getInstance()
         if (!manager.isOnnxAvailable()) return
-        // 读取保留时长：预加载阶段不再据此直接卸载，由实际使用时机决定
-        val keepMinutesGuard = try { prefs.svKeepAliveMinutes } catch (t: Throwable) {
-            Log.w("SenseVoiceFileAsrEngine", "Failed to get keep alive minutes", t)
-            -1
-        }
-        val base = try { context.getExternalFilesDir(null) } catch (t: Throwable) {
-            Log.w("SenseVoiceFileAsrEngine", "Failed to get external files dir", t)
-            null
-        } ?: context.filesDir
+
+        val base = context.getExternalFilesDir(null) ?: context.filesDir
         val probeRoot = java.io.File(base, "sensevoice")
-        val rawVariant = try { prefs.svModelVariant } catch (t: Throwable) {
-            Log.w("SenseVoiceFileAsrEngine", "Failed to get model variant", t)
-            "small-int8"
-        }
-        val variant = if (rawVariant == "small-full") "small-full" else "small-int8"
-        val variantDir = if (variant == "small-full") {
-            java.io.File(probeRoot, "small-full")
-        } else {
-            java.io.File(probeRoot, "small-int8")
-        }
-        val auto = findSvModelDir(variantDir) ?: findSvModelDir(probeRoot) ?: return
-        val dir = auto.absolutePath
-        val tokensPath = java.io.File(auto, "tokens.txt").absolutePath
-        val modelFile = selectSvModelFile(auto, variant) ?: return
-        val modelPath = modelFile.absolutePath
+        val variant = if (prefs.svModelVariant == "small-full") "small-full" else "small-int8"
+        val variantDir = java.io.File(probeRoot, variant)
+        val modelDir = findSvModelDir(variantDir) ?: findSvModelDir(probeRoot) ?: return
+
+        val tokensPath = java.io.File(modelDir, "tokens.txt").absolutePath
+        val modelFile = selectSvModelFile(modelDir, variant) ?: return
         val minBytes = 8L * 1024L * 1024L
         if (!java.io.File(tokensPath).exists() || modelFile.length() < minBytes) return
-        val keepMinutes = try { prefs.svKeepAliveMinutes } catch (t: Throwable) {
-            Log.w("SenseVoiceFileAsrEngine", "Failed to get keep alive minutes", t)
-            -1
-        }
+
+        val keepMinutes = prefs.svKeepAliveMinutes
         val keepMs = if (keepMinutes <= 0) 0L else keepMinutes.toLong() * 60_000L
         val alwaysKeep = keepMinutes < 0
-        // 在后台协程触发预加载，避免直接在调用线程（可能是主线程）阻塞
-        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launch {
-            val t0 = try { android.os.SystemClock.uptimeMillis() } catch (_: Throwable) { 0L }
+
+        val language = resolveSvLanguageForVariant(prefs.svLanguage, variant)
+        val useItn = prefs.svUseItn
+        val numThreads = prefs.svNumThreads
+
+        val modelPath = modelFile.absolutePath
+        val key = "sensevoice|tokens=$tokensPath|model=$modelPath|lang=$language|itn=$useItn|provider=cpu|threads=$numThreads"
+        val mainHandler = Handler(Looper.getMainLooper())
+
+        LocalModelLoadCoordinator.request(key) {
+            val t0 = android.os.SystemClock.uptimeMillis()
             val ok = manager.prepare(
                 assetManager = null,
                 tokens = tokensPath,
                 model = modelPath,
-                language = try {
-                    resolveSvLanguageForVariant(prefs.svLanguage, variant)
-                } catch (t: Throwable) {
-                    Log.w("SenseVoiceFileAsrEngine", "Failed to get language", t)
-                    "auto"
-                },
-                useItn = try { prefs.svUseItn } catch (t: Throwable) {
-                    Log.w("SenseVoiceFileAsrEngine", "Failed to get useItn", t)
-                    false
-                },
+                language = language,
+                useItn = useItn,
                 provider = "cpu",
-                numThreads = try { prefs.svNumThreads } catch (t: Throwable) {
-                    Log.w("SenseVoiceFileAsrEngine", "Failed to get num threads", t)
-                    2
-                },
+                numThreads = numThreads,
                 keepAliveMs = keepMs,
                 alwaysKeep = alwaysKeep,
                 onLoadStart = {
-                    try { onLoadStart?.invoke() } catch (t: Throwable) {
-                        Log.e("SenseVoiceFileAsrEngine", "onLoadStart callback failed", t)
-                    }
                     if (!suppressToastOnStart) {
-                        // 确保在主线程弹出 Toast，避免后台线程直接触发导致异常或卡顿
-                        try {
-                            val mh = Handler(Looper.getMainLooper())
-                            mh.post {
-                                try {
-                                    Toast.makeText(context, context.getString(R.string.sv_loading_model), Toast.LENGTH_SHORT).show()
-                                } catch (t: Throwable) {
-                                    Log.e("SenseVoiceFileAsrEngine", "Failed to show toast", t)
-                                }
-                            }
-                        } catch (t: Throwable) {
-                            Log.e("SenseVoiceFileAsrEngine", "Failed to post toast", t)
+                        mainHandler.post {
+                            Toast.makeText(context, context.getString(R.string.sv_loading_model), Toast.LENGTH_SHORT).show()
                         }
                     }
+                    onLoadStart?.invoke()
                 },
                 onLoadDone = onLoadDone,
             )
             if (ok && !forImmediateUse) {
-                // 加载完成后显示 Toast，并报告加载用时
-                val dt = try {
-                    val now = android.os.SystemClock.uptimeMillis()
-                    if (t0 > 0L && now >= t0) now - t0 else -1L
-                } catch (_: Throwable) { -1L }
-                try {
-                    android.os.Handler(android.os.Looper.getMainLooper()).post {
-                        try {
-                            val text = if (dt > 0) {
-                                context.getString(R.string.sv_model_ready_with_ms, dt)
-                            } else context.getString(R.string.sv_model_ready)
-                            android.widget.Toast.makeText(context, text, android.widget.Toast.LENGTH_SHORT).show()
-                        } catch (t: Throwable) {
-                            Log.e("SenseVoiceFileAsrEngine", "Failed to show load-done toast", t)
-                        }
-                    }
-                } catch (t: Throwable) {
-                    Log.e("SenseVoiceFileAsrEngine", "Post load-done toast failed", t)
+                val dt = (android.os.SystemClock.uptimeMillis() - t0).coerceAtLeast(0)
+                mainHandler.post {
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.sv_model_ready_with_ms, dt),
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
             }
         }
@@ -493,6 +449,7 @@ class SenseVoiceOnnxManager private constructor() {
 
     @Volatile private var cachedConfig: RecognizerConfig? = null
     @Volatile private var cachedRecognizer: ReflectiveRecognizer? = null
+    @Volatile private var preparing: Boolean = false
     @Volatile private var clsOfflineRecognizer: Class<*>? = null
     @Volatile private var clsOfflineRecognizerConfig: Class<*>? = null
     @Volatile private var clsOfflineModelConfig: Class<*>? = null
@@ -510,13 +467,22 @@ class SenseVoiceOnnxManager private constructor() {
     }
 
     fun unload() {
+        val snapshot = cachedRecognizer ?: return
         scope.launch {
-            mutex.withLock {
-                val recognizer = cachedRecognizer
+            val shouldRelease = mutex.withLock {
+                if (cachedRecognizer !== snapshot) return@withLock false
                 cachedRecognizer = null
                 cachedConfig = null
-
-                recognizer?.release()
+                unloadJob?.cancel()
+                unloadJob = null
+                true
+            }
+            if (shouldRelease) {
+                try {
+                    snapshot.release()
+                } catch (t: Throwable) {
+                    Log.e(TAG, "Failed to release recognizer on unload", t)
+                }
                 Log.d(TAG, "Recognizer unloaded")
             }
         }
@@ -525,6 +491,8 @@ class SenseVoiceOnnxManager private constructor() {
     fun isPrepared(): Boolean {
         return cachedRecognizer != null
     }
+
+    fun isPreparing(): Boolean = preparing
 
     // 记录最近一次配置，用于解码完成后按用户设置调度卸载
     @Volatile private var lastKeepAliveMs: Long = 0L
@@ -669,6 +637,71 @@ class SenseVoiceOnnxManager private constructor() {
         }
     }
 
+    private fun releaseRecognizerSafely(recognizer: ReflectiveRecognizer?, reason: String) {
+        if (recognizer == null) return
+        try {
+            recognizer.release()
+        } catch (t: Throwable) {
+            Log.e(TAG, "Failed to release recognizer ($reason)", t)
+        }
+    }
+
+    private fun invokeCallbackSafely(name: String, callback: (() -> Unit)?) {
+        if (callback == null) return
+        try {
+            callback()
+        } catch (t: Throwable) {
+            Log.e(TAG, "$name callback failed", t)
+        }
+    }
+
+    private suspend fun ensurePreparedLocked(
+        assetManager: android.content.res.AssetManager?,
+        config: RecognizerConfig,
+        onLoadStart: (() -> Unit)?,
+        onLoadDone: (() -> Unit)?
+    ): ReflectiveRecognizer? {
+        initClasses()
+
+        val cached = cachedRecognizer
+        if (cached != null && cachedConfig == config) return cached
+
+        preparing = true
+        unloadJob?.cancel()
+        unloadJob = null
+
+        var newRecognizer: ReflectiveRecognizer? = null
+        try {
+            currentCoroutineContext().ensureActive()
+            invokeCallbackSafely("onLoadStart", onLoadStart)
+            currentCoroutineContext().ensureActive()
+
+            val recConfig = buildRecognizerConfig(config)
+            currentCoroutineContext().ensureActive()
+            val rawRecognizer = createRecognizer(assetManager, recConfig)
+            newRecognizer = ReflectiveRecognizer(rawRecognizer, clsOfflineRecognizer!!)
+            currentCoroutineContext().ensureActive()
+
+            val oldRecognizer = cachedRecognizer
+            cachedRecognizer = newRecognizer
+            cachedConfig = config
+
+            invokeCallbackSafely("onLoadDone", onLoadDone)
+            if (oldRecognizer != null && oldRecognizer !== newRecognizer) {
+                releaseRecognizerSafely(oldRecognizer, "old")
+            }
+            return newRecognizer
+        } catch (t: CancellationException) {
+            releaseRecognizerSafely(newRecognizer, "canceled")
+            throw t
+        } catch (t: Throwable) {
+            releaseRecognizerSafely(newRecognizer, "failed")
+            throw t
+        } finally {
+            preparing = false
+        }
+    }
+
     /**
      * 通过反射完成一次离线解码。依赖于 sherpa-onnx Kotlin API 在运行时可用。
      */
@@ -688,27 +721,9 @@ class SenseVoiceOnnxManager private constructor() {
         onLoadDone: (() -> Unit)? = null
     ): String? = mutex.withLock {
         try {
-            initClasses()
-
             val config = RecognizerConfig(tokens, model, language, useItn, provider, numThreads)
-            var recognizer = cachedRecognizer
-
-            if (cachedConfig != config || recognizer == null) {
-                try { onLoadStart?.invoke() } catch (t: Throwable) {
-                    Log.e(TAG, "onLoadStart callback failed", t)
-                }
-
-                val recConfig = buildRecognizerConfig(config)
-                val rawRecognizer = createRecognizer(assetManager, recConfig)
-
-                recognizer = ReflectiveRecognizer(rawRecognizer, clsOfflineRecognizer!!)
-                cachedRecognizer = recognizer
-                cachedConfig = config
-
-                try { onLoadDone?.invoke() } catch (t: Throwable) {
-                    Log.e(TAG, "onLoadDone callback failed", t)
-                }
-            }
+            val recognizer = ensurePreparedLocked(assetManager, config, onLoadStart, onLoadDone)
+                ?: return@withLock null
 
             // 记录本次配置
             lastKeepAliveMs = keepAliveMs
@@ -723,6 +738,8 @@ class SenseVoiceOnnxManager private constructor() {
             } finally {
                 stream.release()
             }
+        } catch (t: CancellationException) {
+            throw t
         } catch (t: Throwable) {
             Log.e(TAG, "Failed to decode offline: ${t.message}", t)
             return@withLock null
@@ -746,32 +763,16 @@ class SenseVoiceOnnxManager private constructor() {
         onLoadDone: (() -> Unit)? = null
     ): Boolean = mutex.withLock {
         try {
-            initClasses()
-
             val config = RecognizerConfig(tokens, model, language, useItn, provider, numThreads)
-            var recognizer = cachedRecognizer
-
-            if (cachedConfig != config || recognizer == null) {
-                try { onLoadStart?.invoke() } catch (t: Throwable) {
-                    Log.e(TAG, "onLoadStart callback failed", t)
-                }
-
-                val recConfig = buildRecognizerConfig(config)
-                val rawRecognizer = createRecognizer(assetManager, recConfig)
-
-                recognizer = ReflectiveRecognizer(rawRecognizer, clsOfflineRecognizer!!)
-                cachedRecognizer = recognizer
-                cachedConfig = config
-
-                try { onLoadDone?.invoke() } catch (t: Throwable) {
-                    Log.e(TAG, "onLoadDone callback failed", t)
-                }
-            }
+            val ok = ensurePreparedLocked(assetManager, config, onLoadStart, onLoadDone) != null
+            if (!ok) return@withLock false
             // 记录本次配置。注意：不在预加载时立即调度卸载，
             // 将在实际使用（decodeOffline）后再依据设置调度。
             lastKeepAliveMs = keepAliveMs
             lastAlwaysKeep = alwaysKeep
             return@withLock true
+        } catch (t: CancellationException) {
+            throw t
         } catch (t: Throwable) {
             Log.e(TAG, "Failed to prepare recognizer: ${t.message}", t)
             return@withLock false
@@ -831,12 +832,8 @@ object SenseVoiceOnnxBridge {
     )
 }
 
-// 判断是否已有缓存的本地识别器（已加载模型）
+// 判断是否已有缓存的本地识别器（已加载或正在加载中）
 fun isSenseVoicePrepared(): Boolean {
-    return try {
-        SenseVoiceOnnxManager.getInstance().isPrepared()
-    } catch (t: Throwable) {
-        Log.e("SenseVoiceFileAsrEngine", "Failed to check if prepared", t)
-        false
-    }
+    val manager = SenseVoiceOnnxManager.getInstance()
+    return manager.isPrepared() || manager.isPreparing()
 }

@@ -7,10 +7,13 @@ import android.util.Log
 import android.widget.Toast
 import com.brycewg.asrkb.R
 import com.brycewg.asrkb.store.Prefs
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -229,21 +232,14 @@ class TelespeechFileAsrEngine(
 
 // 公开卸载入口：供设置页在清除模型后释放本地识别器内存
 fun unloadTelespeechRecognizer() {
-  try {
-    TelespeechOnnxManager.getInstance().unload()
-  } catch (t: Throwable) {
-    Log.e("TelespeechFileAsrEngine", "Failed to unload recognizer", t)
-  }
+  LocalModelLoadCoordinator.cancel()
+  TelespeechOnnxManager.getInstance().unload()
 }
 
-// 判断是否已有缓存的本地识别器（已加载模型）
+// 判断是否已有缓存的本地识别器（已加载或正在加载中）
 fun isTelespeechPrepared(): Boolean {
-  return try {
-    TelespeechOnnxManager.getInstance().isPrepared()
-  } catch (t: Throwable) {
-    Log.e("TelespeechFileAsrEngine", "Failed to check if prepared", t)
-    false
-  }
+  val manager = TelespeechOnnxManager.getInstance()
+  return manager.isPrepared() || manager.isPreparing()
 }
 
 // TeleSpeech 模型目录探测：与 SenseVoice 一致，查找含 tokens.txt 的目录
@@ -286,6 +282,9 @@ class TelespeechOnnxManager private constructor() {
   private var cachedConfig: RecognizerConfig? = null
   @Volatile
   private var cachedRecognizer: ReflectiveRecognizer? = null
+
+  @Volatile
+  private var preparing: Boolean = false
   @Volatile
   private var clsOfflineRecognizer: Class<*>? = null
   @Volatile
@@ -313,18 +312,30 @@ class TelespeechOnnxManager private constructor() {
   }
 
   fun unload() {
+    val snapshot = cachedRecognizer ?: return
     scope.launch {
-      mutex.withLock {
-        val recognizer = cachedRecognizer
+      val shouldRelease = mutex.withLock {
+        if (cachedRecognizer !== snapshot) return@withLock false
         cachedRecognizer = null
         cachedConfig = null
-        recognizer?.release()
+        unloadJob?.cancel()
+        unloadJob = null
+        true
+      }
+      if (shouldRelease) {
+        try {
+          snapshot.release()
+        } catch (t: Throwable) {
+          Log.e(TAG, "Failed to release recognizer on unload", t)
+        }
         Log.d(TAG, "Recognizer unloaded")
       }
     }
   }
 
   fun isPrepared(): Boolean = cachedRecognizer != null
+
+  fun isPreparing(): Boolean = preparing
 
   private fun scheduleAutoUnload(keepAliveMs: Long, alwaysKeep: Boolean) {
     unloadJob?.cancel()
@@ -451,6 +462,69 @@ class TelespeechOnnxManager private constructor() {
     }
   }
 
+  private fun releaseRecognizerSafely(recognizer: ReflectiveRecognizer?, reason: String) {
+    if (recognizer == null) return
+    try {
+      recognizer.release()
+    } catch (t: Throwable) {
+      Log.e(TAG, "Failed to release recognizer ($reason)", t)
+    }
+  }
+
+  private fun invokeCallbackSafely(name: String, callback: (() -> Unit)?) {
+    if (callback == null) return
+    try {
+      callback()
+    } catch (t: Throwable) {
+      Log.e(TAG, "$name callback failed", t)
+    }
+  }
+
+  private suspend fun ensurePreparedLocked(
+    assetManager: android.content.res.AssetManager?,
+    cfg: RecognizerConfig,
+    onLoadStart: (() -> Unit)?,
+    onLoadDone: (() -> Unit)?
+  ): ReflectiveRecognizer? {
+    initClasses()
+    val cached = cachedRecognizer
+    if (cached != null && cachedConfig == cfg) return cached
+
+    preparing = true
+    unloadJob?.cancel()
+    unloadJob = null
+
+    var newRecognizer: ReflectiveRecognizer? = null
+    try {
+      currentCoroutineContext().ensureActive()
+      invokeCallbackSafely("onLoadStart", onLoadStart)
+      currentCoroutineContext().ensureActive()
+
+      val recConfig = buildRecognizerConfig(cfg)
+      currentCoroutineContext().ensureActive()
+      val raw = createRecognizer(assetManager, recConfig)
+      newRecognizer = ReflectiveRecognizer(raw, clsOfflineRecognizer!!)
+      currentCoroutineContext().ensureActive()
+
+      val oldRecognizer = cachedRecognizer
+      cachedRecognizer = newRecognizer
+      cachedConfig = cfg
+      invokeCallbackSafely("onLoadDone", onLoadDone)
+      if (oldRecognizer != null && oldRecognizer !== newRecognizer) {
+        releaseRecognizerSafely(oldRecognizer, "old")
+      }
+      return newRecognizer
+    } catch (t: CancellationException) {
+      releaseRecognizerSafely(newRecognizer, "canceled")
+      throw t
+    } catch (t: Throwable) {
+      releaseRecognizerSafely(newRecognizer, "failed")
+      throw t
+    } finally {
+      preparing = false
+    }
+  }
+
   suspend fun decodeOffline(
     assetManager: android.content.res.AssetManager?,
     tokens: String,
@@ -465,7 +539,6 @@ class TelespeechOnnxManager private constructor() {
     onLoadDone: (() -> Unit)? = null
   ): String? = mutex.withLock {
     try {
-      initClasses()
       val cfg = RecognizerConfig(
         tokens = tokens,
         model = model,
@@ -474,24 +547,8 @@ class TelespeechOnnxManager private constructor() {
         sampleRate = sampleRate,
         featureDim = 40
       )
-      var recognizer = cachedRecognizer
-      if (cachedConfig != cfg || recognizer == null) {
-        try {
-          onLoadStart?.invoke()
-        } catch (t: Throwable) {
-          Log.e(TAG, "onLoadStart callback failed", t)
-        }
-        val recConfig = buildRecognizerConfig(cfg)
-        val raw = createRecognizer(assetManager, recConfig)
-        recognizer = ReflectiveRecognizer(raw, clsOfflineRecognizer!!)
-        cachedRecognizer = recognizer
-        cachedConfig = cfg
-        try {
-          onLoadDone?.invoke()
-        } catch (t: Throwable) {
-          Log.e(TAG, "onLoadDone callback failed", t)
-        }
-      }
+      val recognizer = ensurePreparedLocked(assetManager, cfg, onLoadStart, onLoadDone)
+        ?: return@withLock null
       lastKeepAliveMs = keepAliveMs
       lastAlwaysKeep = alwaysKeep
       val stream = recognizer.createStream()
@@ -503,6 +560,8 @@ class TelespeechOnnxManager private constructor() {
       } finally {
         stream.release()
       }
+    } catch (t: CancellationException) {
+      throw t
     } catch (t: Throwable) {
       Log.e(TAG, "Failed to decode offline TeleSpeech: ${t.message}", t)
       return@withLock null
@@ -521,7 +580,6 @@ class TelespeechOnnxManager private constructor() {
     onLoadDone: (() -> Unit)? = null
   ): Boolean = mutex.withLock {
     try {
-      initClasses()
       val cfg = RecognizerConfig(
         tokens = tokens,
         model = model,
@@ -530,27 +588,13 @@ class TelespeechOnnxManager private constructor() {
         sampleRate = 16000,
         featureDim = 40
       )
-      var recognizer = cachedRecognizer
-      if (cachedConfig != cfg || recognizer == null) {
-        try {
-          onLoadStart?.invoke()
-        } catch (t: Throwable) {
-          Log.e(TAG, "onLoadStart callback failed", t)
-        }
-        val recConfig = buildRecognizerConfig(cfg)
-        val raw = createRecognizer(assetManager, recConfig)
-        recognizer = ReflectiveRecognizer(raw, clsOfflineRecognizer!!)
-        cachedRecognizer = recognizer
-        cachedConfig = cfg
-        try {
-          onLoadDone?.invoke()
-        } catch (t: Throwable) {
-          Log.e(TAG, "onLoadDone callback failed", t)
-        }
-      }
+      val ok = ensurePreparedLocked(assetManager, cfg, onLoadStart, onLoadDone) != null
+      if (!ok) return@withLock false
       lastKeepAliveMs = keepAliveMs
       lastAlwaysKeep = alwaysKeep
       true
+    } catch (t: CancellationException) {
+      throw t
     } catch (t: Throwable) {
       Log.e(TAG, "Failed to prepare TeleSpeech recognizer: ${t.message}", t)
       false
@@ -573,34 +617,16 @@ fun preloadTelespeechIfConfigured(
     val manager = TelespeechOnnxManager.getInstance()
     if (!manager.isOnnxAvailable()) return
 
-    val keepMinutesGuard = try {
-      prefs.tsKeepAliveMinutes
-    } catch (t: Throwable) {
-      Log.w("TelespeechFileAsrEngine", "Failed to get keep alive minutes", t)
-      -1
-    }
-    val base = try {
-      context.getExternalFilesDir(null)
-    } catch (t: Throwable) {
-      Log.w("TelespeechFileAsrEngine", "Failed to get external files dir", t)
-      null
-    } ?: context.filesDir
+    val base = context.getExternalFilesDir(null) ?: context.filesDir
     val probeRoot = java.io.File(base, "telespeech")
-    val variant = try {
-      prefs.tsModelVariant
-    } catch (t: Throwable) {
-      Log.w("TelespeechFileAsrEngine", "Failed to get TeleSpeech variant", t)
-      "int8"
-    }
-    val variantDir = when (variant) {
+    val variantDir = when (prefs.tsModelVariant) {
       "full" -> java.io.File(probeRoot, "full")
       else -> java.io.File(probeRoot, "int8")
     }
-    val auto = findTsModelDir(variantDir) ?: findTsModelDir(probeRoot) ?: return
-    val dir = auto.absolutePath
-    val tokensPath = java.io.File(dir, "tokens.txt").absolutePath
-    val int8File = java.io.File(dir, "model.int8.onnx")
-    val f32File = java.io.File(dir, "model.onnx")
+    val modelDir = findTsModelDir(variantDir) ?: findTsModelDir(probeRoot) ?: return
+    val tokensPath = java.io.File(modelDir, "tokens.txt").absolutePath
+    val int8File = java.io.File(modelDir, "model.int8.onnx")
+    val f32File = java.io.File(modelDir, "model.onnx")
     val modelFile = when {
       int8File.exists() -> int8File
       f32File.exists() -> f32File
@@ -609,84 +635,46 @@ fun preloadTelespeechIfConfigured(
     val modelPath = modelFile.absolutePath
     val minBytes = 8L * 1024L * 1024L
     if (!java.io.File(tokensPath).exists() || modelFile.length() < minBytes) return
-    val keepMinutes = try {
-      prefs.tsKeepAliveMinutes
-    } catch (t: Throwable) {
-      Log.w("TelespeechFileAsrEngine", "Failed to get keep alive minutes", t)
-      -1
-    }
+    val keepMinutes = prefs.tsKeepAliveMinutes
     val keepMs = if (keepMinutes <= 0) 0L else keepMinutes.toLong() * 60_000L
     val alwaysKeep = keepMinutes < 0
 
-    CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launch {
-      val t0 = try {
-        android.os.SystemClock.uptimeMillis()
-      } catch (_: Throwable) {
-        0L
-      }
+    val numThreads = prefs.tsNumThreads
+    val key = "telespeech|tokens=$tokensPath|model=$modelPath|provider=cpu|threads=$numThreads"
+
+    val mainHandler = Handler(Looper.getMainLooper())
+    LocalModelLoadCoordinator.request(key) {
+      val t0 = android.os.SystemClock.uptimeMillis()
       val ok = manager.prepare(
         assetManager = null,
         tokens = tokensPath,
         model = modelPath,
         provider = "cpu",
-        numThreads = try {
-          prefs.tsNumThreads
-        } catch (t: Throwable) {
-          Log.w("TelespeechFileAsrEngine", "Failed to get num threads", t)
-          2
-        },
+        numThreads = numThreads,
         keepAliveMs = keepMs,
         alwaysKeep = alwaysKeep,
         onLoadStart = {
-          try {
-            onLoadStart?.invoke()
-          } catch (t: Throwable) {
-            Log.e("TelespeechFileAsrEngine", "onLoadStart callback failed", t)
-          }
           if (!suppressToastOnStart) {
-            try {
-              val mh = Handler(Looper.getMainLooper())
-              mh.post {
-                try {
-                  Toast.makeText(
-                    context,
-                    context.getString(R.string.sv_loading_model),
-                    Toast.LENGTH_SHORT
-                  ).show()
-                } catch (t: Throwable) {
-                  Log.e("TelespeechFileAsrEngine", "Failed to show toast", t)
-                }
-              }
-            } catch (t: Throwable) {
-              Log.e("TelespeechFileAsrEngine", "Failed to post toast", t)
+            mainHandler.post {
+              Toast.makeText(
+                context,
+                context.getString(R.string.sv_loading_model),
+                Toast.LENGTH_SHORT
+              ).show()
             }
           }
+          onLoadStart?.invoke()
         },
         onLoadDone = onLoadDone
       )
       if (ok && !forImmediateUse) {
-        val dt = try {
-          android.os.SystemClock.uptimeMillis() - t0
-        } catch (_: Throwable) {
-          0L
-        }
-        if (dt > 0) {
-          try {
-            val mh = Handler(Looper.getMainLooper())
-            mh.post {
-              try {
-                Toast.makeText(
-                  context,
-                  context.getString(R.string.sv_model_ready_with_ms, dt),
-                  Toast.LENGTH_SHORT
-                ).show()
-              } catch (t: Throwable) {
-                Log.e("TelespeechFileAsrEngine", "Failed to show done toast", t)
-              }
-            }
-          } catch (t: Throwable) {
-            Log.e("TelespeechFileAsrEngine", "Failed to post done toast", t)
-          }
+        val dt = (android.os.SystemClock.uptimeMillis() - t0).coerceAtLeast(0)
+        mainHandler.post {
+          Toast.makeText(
+            context,
+            context.getString(R.string.sv_model_ready_with_ms, dt),
+            Toast.LENGTH_SHORT
+          ).show()
         }
       }
     }

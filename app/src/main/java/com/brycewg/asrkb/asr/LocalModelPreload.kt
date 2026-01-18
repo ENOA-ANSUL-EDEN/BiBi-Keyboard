@@ -38,7 +38,7 @@ fun preloadLocalAsrIfConfigured(
 }
 
 /**
- * 统一检查本地 ASR 是否已准备（模型已加载）
+ * 统一检查本地 ASR 是否已准备（模型已加载或正在加载中）
  */
 fun isLocalAsrPrepared(prefs: Prefs): Boolean {
     return try {
@@ -46,7 +46,7 @@ fun isLocalAsrPrepared(prefs: Prefs): Boolean {
             AsrVendor.SenseVoice -> isSenseVoicePrepared()
             AsrVendor.FunAsrNano -> isFunAsrNanoPrepared()
             AsrVendor.Telespeech -> isTelespeechPrepared()
-            AsrVendor.Paraformer -> ParaformerOnnxManager.getInstance().isPrepared()
+            AsrVendor.Paraformer -> isParaformerPrepared()
             else -> false
         }
     } catch (t: Throwable) {

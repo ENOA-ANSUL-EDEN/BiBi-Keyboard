@@ -7,10 +7,13 @@ import android.util.Log
 import android.widget.Toast
 import com.brycewg.asrkb.R
 import com.brycewg.asrkb.store.Prefs
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -223,21 +226,14 @@ class FunAsrNanoFileAsrEngine(
 
 // 公开卸载入口：供设置页在清除模型后释放本地识别器内存
 fun unloadFunAsrNanoRecognizer() {
-  try {
-    FunAsrNanoOnnxManager.getInstance().unload()
-  } catch (t: Throwable) {
-    Log.e("FunAsrNanoFileAsrEngine", "Failed to unload recognizer", t)
-  }
+  LocalModelLoadCoordinator.cancel()
+  FunAsrNanoOnnxManager.getInstance().unload()
 }
 
-// 判断是否已有缓存的本地识别器（已加载模型）
+// 判断是否已有缓存的本地识别器（已加载或正在加载中）
 fun isFunAsrNanoPrepared(): Boolean {
-  return try {
-    FunAsrNanoOnnxManager.getInstance().isPrepared()
-  } catch (t: Throwable) {
-    Log.e("FunAsrNanoFileAsrEngine", "Failed to check if prepared", t)
-    false
-  }
+  val manager = FunAsrNanoOnnxManager.getInstance()
+  return manager.isPrepared() || manager.isPreparing()
 }
 
 // FunASR Nano 模型目录探测：
@@ -300,6 +296,9 @@ class FunAsrNanoOnnxManager private constructor() {
   private var cachedRecognizer: ReflectiveRecognizer? = null
 
   @Volatile
+  private var preparing: Boolean = false
+
+  @Volatile
   private var clsOfflineRecognizer: Class<*>? = null
 
   @Volatile
@@ -335,18 +334,30 @@ class FunAsrNanoOnnxManager private constructor() {
   }
 
   fun unload() {
+    val snapshot = cachedRecognizer ?: return
     scope.launch {
-      mutex.withLock {
-        val recognizer = cachedRecognizer
+      val shouldRelease = mutex.withLock {
+        if (cachedRecognizer !== snapshot) return@withLock false
         cachedRecognizer = null
         cachedConfig = null
-        recognizer?.release()
+        unloadJob?.cancel()
+        unloadJob = null
+        true
+      }
+      if (shouldRelease) {
+        try {
+          snapshot.release()
+        } catch (t: Throwable) {
+          Log.e(TAG, "Failed to release recognizer on unload", t)
+        }
         Log.d(TAG, "Recognizer unloaded")
       }
     }
   }
 
   fun isPrepared(): Boolean = cachedRecognizer != null
+
+  fun isPreparing(): Boolean = preparing
 
   private fun scheduleAutoUnload(keepAliveMs: Long, alwaysKeep: Boolean) {
     unloadJob?.cancel()
@@ -512,6 +523,70 @@ class FunAsrNanoOnnxManager private constructor() {
     }
   }
 
+  private fun releaseRecognizerSafely(recognizer: ReflectiveRecognizer?, reason: String) {
+    if (recognizer == null) return
+    try {
+      recognizer.release()
+    } catch (t: Throwable) {
+      Log.e(TAG, "Failed to release recognizer ($reason)", t)
+    }
+  }
+
+  private fun invokeCallbackSafely(name: String, callback: (() -> Unit)?) {
+    if (callback == null) return
+    try {
+      callback()
+    } catch (t: Throwable) {
+      Log.e(TAG, "$name callback failed", t)
+    }
+  }
+
+  private suspend fun ensurePreparedLocked(
+    assetManager: android.content.res.AssetManager?,
+    config: RecognizerConfig,
+    onLoadStart: (() -> Unit)?,
+    onLoadDone: (() -> Unit)?
+  ): ReflectiveRecognizer? {
+    initClasses()
+    val cached = cachedRecognizer
+    if (cached != null && cachedConfig == config) return cached
+
+    preparing = true
+    unloadJob?.cancel()
+    unloadJob = null
+
+    var newRecognizer: ReflectiveRecognizer? = null
+    try {
+      currentCoroutineContext().ensureActive()
+      invokeCallbackSafely("onLoadStart", onLoadStart)
+      currentCoroutineContext().ensureActive()
+
+      val recConfig = buildRecognizerConfig(config)
+      currentCoroutineContext().ensureActive()
+      val raw = createRecognizer(assetManager, recConfig)
+      newRecognizer = ReflectiveRecognizer(raw, clsOfflineRecognizer!!)
+      currentCoroutineContext().ensureActive()
+
+      val oldRecognizer = cachedRecognizer
+      cachedRecognizer = newRecognizer
+      cachedConfig = config
+      invokeCallbackSafely("onLoadDone", onLoadDone)
+
+      if (oldRecognizer != null && oldRecognizer !== newRecognizer) {
+        releaseRecognizerSafely(oldRecognizer, "old")
+      }
+      return newRecognizer
+    } catch (t: CancellationException) {
+      releaseRecognizerSafely(newRecognizer, "canceled")
+      throw t
+    } catch (t: Throwable) {
+      releaseRecognizerSafely(newRecognizer, "failed")
+      throw t
+    } finally {
+      preparing = false
+    }
+  }
+
   suspend fun decodeOffline(
     assetManager: android.content.res.AssetManager?,
     encoderAdaptor: String,
@@ -529,7 +604,6 @@ class FunAsrNanoOnnxManager private constructor() {
     onLoadDone: (() -> Unit)? = null
   ): String? = mutex.withLock {
     try {
-      initClasses()
       val cfg = RecognizerConfig(
         encoderAdaptor = encoderAdaptor,
         llm = llm,
@@ -541,24 +615,8 @@ class FunAsrNanoOnnxManager private constructor() {
         sampleRate = sampleRate,
         featureDim = 80
       )
-      var recognizer = cachedRecognizer
-      if (cachedConfig != cfg || recognizer == null) {
-        try {
-          onLoadStart?.invoke()
-        } catch (t: Throwable) {
-          Log.e(TAG, "onLoadStart callback failed", t)
-        }
-        val recConfig = buildRecognizerConfig(cfg)
-        val raw = createRecognizer(assetManager, recConfig)
-        recognizer = ReflectiveRecognizer(raw, clsOfflineRecognizer!!)
-        cachedRecognizer = recognizer
-        cachedConfig = cfg
-        try {
-          onLoadDone?.invoke()
-        } catch (t: Throwable) {
-          Log.e(TAG, "onLoadDone callback failed", t)
-        }
-      }
+      val recognizer = ensurePreparedLocked(assetManager, cfg, onLoadStart, onLoadDone)
+        ?: return@withLock null
       lastKeepAliveMs = keepAliveMs
       lastAlwaysKeep = alwaysKeep
       val stream = recognizer.createStream()
@@ -570,6 +628,8 @@ class FunAsrNanoOnnxManager private constructor() {
       } finally {
         stream.release()
       }
+    } catch (t: CancellationException) {
+      throw t
     } catch (t: Throwable) {
       Log.e(TAG, "Failed to decode offline FunASR Nano: ${t.message}", t)
       return@withLock null
@@ -591,7 +651,6 @@ class FunAsrNanoOnnxManager private constructor() {
     onLoadDone: (() -> Unit)? = null
   ): Boolean = mutex.withLock {
     try {
-      initClasses()
       val cfg = RecognizerConfig(
         encoderAdaptor = encoderAdaptor,
         llm = llm,
@@ -603,27 +662,13 @@ class FunAsrNanoOnnxManager private constructor() {
         sampleRate = 16000,
         featureDim = 80
       )
-      var recognizer = cachedRecognizer
-      if (cachedConfig != cfg || recognizer == null) {
-        try {
-          onLoadStart?.invoke()
-        } catch (t: Throwable) {
-          Log.e(TAG, "onLoadStart callback failed", t)
-        }
-        val recConfig = buildRecognizerConfig(cfg)
-        val raw = createRecognizer(assetManager, recConfig)
-        recognizer = ReflectiveRecognizer(raw, clsOfflineRecognizer!!)
-        cachedRecognizer = recognizer
-        cachedConfig = cfg
-        try {
-          onLoadDone?.invoke()
-        } catch (t: Throwable) {
-          Log.e(TAG, "onLoadDone callback failed", t)
-        }
-      }
+      val ok = ensurePreparedLocked(assetManager, cfg, onLoadStart, onLoadDone) != null
+      if (!ok) return@withLock false
       lastKeepAliveMs = keepAliveMs
       lastAlwaysKeep = alwaysKeep
       true
+    } catch (t: CancellationException) {
+      throw t
     } catch (t: Throwable) {
       Log.e(TAG, "Failed to prepare FunASR Nano recognizer: ${t.message}", t)
       false
@@ -646,12 +691,7 @@ fun preloadFunAsrNanoIfConfigured(
     val manager = FunAsrNanoOnnxManager.getInstance()
     if (!manager.isOnnxAvailable()) return
 
-    val base = try {
-      context.getExternalFilesDir(null)
-    } catch (t: Throwable) {
-      Log.w("FunAsrNanoFileAsrEngine", "Failed to get external files dir", t)
-      null
-    } ?: context.filesDir
+    val base = context.getExternalFilesDir(null) ?: context.filesDir
 
     val probeRoot = File(base, "funasr_nano")
     val variantDir = File(probeRoot, "nano-int8")
@@ -674,28 +714,25 @@ fun preloadFunAsrNanoIfConfigured(
       !File(tokenizerDir, "tokenizer.json").exists()
     ) return
 
-    val keepMinutes = try {
-      prefs.fnKeepAliveMinutes
-    } catch (t: Throwable) {
-      Log.w("FunAsrNanoFileAsrEngine", "Failed to get keep alive minutes", t)
-      -1
-    }
+    val keepMinutes = prefs.fnKeepAliveMinutes
     val keepMs = if (keepMinutes <= 0) 0L else keepMinutes.toLong() * 60_000L
     val alwaysKeep = keepMinutes < 0
 
-    val userPrompt = try {
-      prefs.fnUserPrompt.trim().ifBlank { "语音转写：" }
-    } catch (t: Throwable) {
-      Log.w("FunAsrNanoFileAsrEngine", "Failed to get fnUserPrompt", t)
-      "语音转写："
-    }
+    val userPrompt = prefs.fnUserPrompt.trim().ifBlank { "语音转写：" }
 
-    CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launch {
-      val t0 = try {
-        android.os.SystemClock.uptimeMillis()
-      } catch (_: Throwable) {
-        0L
-      }
+    val numThreads = prefs.fnNumThreads
+    val key = "funasr_nano|" +
+      "encoder=${encoderAdaptor.absolutePath}|" +
+      "llm=${llm.absolutePath}|" +
+      "embedding=${embedding.absolutePath}|" +
+      "tokenizer=${tokenizerDir.absolutePath}|" +
+      "prompt=$userPrompt|" +
+      "provider=cpu|" +
+      "threads=$numThreads"
+
+    val mainHandler = Handler(Looper.getMainLooper())
+    LocalModelLoadCoordinator.request(key) {
+      val t0 = android.os.SystemClock.uptimeMillis()
       val ok = manager.prepare(
         assetManager = null,
         encoderAdaptor = encoderAdaptor.absolutePath,
@@ -704,65 +741,32 @@ fun preloadFunAsrNanoIfConfigured(
         tokenizerDir = tokenizerDir.absolutePath,
         userPrompt = userPrompt,
         provider = "cpu",
-        numThreads = try {
-          prefs.fnNumThreads
-        } catch (t: Throwable) {
-          Log.w("FunAsrNanoFileAsrEngine", "Failed to get num threads", t)
-          2
-        },
+        numThreads = numThreads,
         keepAliveMs = keepMs,
         alwaysKeep = alwaysKeep,
         onLoadStart = {
-          try {
-            onLoadStart?.invoke()
-          } catch (t: Throwable) {
-            Log.e("FunAsrNanoFileAsrEngine", "onLoadStart callback failed", t)
-          }
           if (!suppressToastOnStart) {
-            try {
-              val mh = Handler(Looper.getMainLooper())
-              mh.post {
-                try {
-                  Toast.makeText(
-                    context,
-                    context.getString(R.string.sv_loading_model),
-                    Toast.LENGTH_SHORT
-                  ).show()
-                } catch (t: Throwable) {
-                  Log.e("FunAsrNanoFileAsrEngine", "Failed to show toast", t)
-                }
-              }
-            } catch (t: Throwable) {
-              Log.e("FunAsrNanoFileAsrEngine", "Failed to post toast", t)
+            mainHandler.post {
+              Toast.makeText(
+                context,
+                context.getString(R.string.sv_loading_model),
+                Toast.LENGTH_SHORT
+              ).show()
             }
           }
+          onLoadStart?.invoke()
         },
         onLoadDone = onLoadDone
       )
 
       if (ok && !forImmediateUse) {
-        val dt = try {
-          android.os.SystemClock.uptimeMillis() - t0
-        } catch (_: Throwable) {
-          0L
-        }
-        if (dt > 0) {
-          try {
-            val mh = Handler(Looper.getMainLooper())
-            mh.post {
-              try {
-                Toast.makeText(
-                  context,
-                  context.getString(R.string.sv_model_ready_with_ms, dt),
-                  Toast.LENGTH_SHORT
-                ).show()
-              } catch (t: Throwable) {
-                Log.e("FunAsrNanoFileAsrEngine", "Failed to show done toast", t)
-              }
-            }
-          } catch (t: Throwable) {
-            Log.e("FunAsrNanoFileAsrEngine", "Failed to post done toast", t)
-          }
+        val dt = (android.os.SystemClock.uptimeMillis() - t0).coerceAtLeast(0)
+        mainHandler.post {
+          Toast.makeText(
+            context,
+            context.getString(R.string.sv_model_ready_with_ms, dt),
+            Toast.LENGTH_SHORT
+          ).show()
         }
       }
     }
