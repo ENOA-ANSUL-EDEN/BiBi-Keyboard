@@ -19,6 +19,7 @@ object AsrVendorUi {
     AsrVendor.Soniox,
     AsrVendor.Zhipu,
     AsrVendor.SenseVoice,
+    AsrVendor.FunAsrNano,
     AsrVendor.Telespeech,
     AsrVendor.Paraformer
   )
@@ -34,6 +35,7 @@ object AsrVendorUi {
     AsrVendor.Soniox -> context.getString(R.string.vendor_soniox)
     AsrVendor.Zhipu -> context.getString(R.string.vendor_zhipu)
     AsrVendor.SenseVoice -> context.getString(R.string.vendor_sensevoice)
+    AsrVendor.FunAsrNano -> context.getString(R.string.vendor_funasr_nano)
     AsrVendor.Telespeech -> context.getString(R.string.vendor_telespeech)
     AsrVendor.Paraformer -> context.getString(R.string.vendor_paraformer)
   }

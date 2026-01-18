@@ -94,7 +94,11 @@ class AsrSessionManager(
 
         // 检查本地 SenseVoice 模型（如果需要）
         if (!checkSenseVoiceModel()) {
-            listener.onError(context.getString(com.brycewg.asrkb.R.string.error_sensevoice_model_missing))
+            val errRes = when (prefs.asrVendor) {
+                AsrVendor.Telespeech -> com.brycewg.asrkb.R.string.error_telespeech_model_missing
+                else -> com.brycewg.asrkb.R.string.error_sensevoice_model_missing
+            }
+            listener.onError(context.getString(errRes))
             return
         }
 
@@ -376,11 +380,16 @@ class AsrSessionManager(
     // ==================== 私有辅助方法 ====================
 
     private fun checkSenseVoiceModel(): Boolean {
-        if (prefs.asrVendor != AsrVendor.SenseVoice && prefs.asrVendor != AsrVendor.Telespeech) return true
+        if (
+            prefs.asrVendor != AsrVendor.SenseVoice &&
+            prefs.asrVendor != AsrVendor.FunAsrNano &&
+            prefs.asrVendor != AsrVendor.Telespeech
+        ) return true
 
         val prepared = try {
             when (prefs.asrVendor) {
                 AsrVendor.SenseVoice -> com.brycewg.asrkb.asr.isSenseVoicePrepared()
+                AsrVendor.FunAsrNano -> com.brycewg.asrkb.asr.isSenseVoicePrepared()
                 AsrVendor.Telespeech -> com.brycewg.asrkb.asr.isTelespeechPrepared()
                 else -> true
             }
@@ -397,24 +406,7 @@ class AsrSessionManager(
             Log.w(TAG, "Failed to get external files dir", e)
             context.filesDir
         }
-        return if (prefs.asrVendor == AsrVendor.SenseVoice) {
-            val probeRoot = java.io.File(base, "sensevoice")
-            val variant = try {
-                prefs.svModelVariant
-            } catch (e: Throwable) {
-                Log.w(TAG, "Failed to get SenseVoice variant", e)
-                "small-int8"
-            }
-            val variantDir = when (variant) {
-                "small-full" -> java.io.File(probeRoot, "small-full")
-                "nano-full" -> java.io.File(probeRoot, "nano-full")
-                "nano-int8" -> java.io.File(probeRoot, "nano-int8")
-                else -> java.io.File(probeRoot, "small-int8")
-            }
-            val found = com.brycewg.asrkb.asr.findSvModelDir(variantDir)
-                ?: com.brycewg.asrkb.asr.findSvModelDir(probeRoot)
-            found != null
-        } else {
+        return if (prefs.asrVendor == AsrVendor.Telespeech) {
             val probeRoot = java.io.File(base, "telespeech")
             val variant = try {
                 prefs.tsModelVariant
@@ -428,6 +420,23 @@ class AsrSessionManager(
             }
             val found = com.brycewg.asrkb.asr.findTsModelDir(variantDir)
                 ?: com.brycewg.asrkb.asr.findTsModelDir(probeRoot)
+            found != null
+        } else {
+            val rawVariant = try {
+                prefs.svModelVariant
+            } catch (e: Throwable) {
+                Log.w(TAG, "Failed to get local variant", e)
+                "small-int8"
+            }
+            val variant = if (rawVariant == "small-full") "small-full" else "small-int8"
+            val probeRoot = java.io.File(base, "sensevoice")
+            val variantDir = if (variant == "small-full") {
+                java.io.File(probeRoot, "small-full")
+            } else {
+                java.io.File(probeRoot, "small-int8")
+            }
+            val found = com.brycewg.asrkb.asr.findSvModelDir(variantDir)
+                ?: com.brycewg.asrkb.asr.findSvModelDir(probeRoot)
             found != null
         }
     }
@@ -480,6 +489,13 @@ class AsrSessionManager(
             } else null
             AsrVendor.SenseVoice -> {
                 if (prefs.svPseudoStreamEnabled) {
+                    SenseVoicePseudoStreamAsrEngine(context, serviceScope, prefs, this, onRequestDuration = ::onRequestDuration)
+                } else {
+                    SenseVoiceFileAsrEngine(context, serviceScope, prefs, this, onRequestDuration = ::onRequestDuration)
+                }
+            }
+            AsrVendor.FunAsrNano -> {
+                if (prefs.fnPseudoStreamEnabled) {
                     SenseVoicePseudoStreamAsrEngine(context, serviceScope, prefs, this, onRequestDuration = ::onRequestDuration)
                 } else {
                     SenseVoiceFileAsrEngine(context, serviceScope, prefs, this, onRequestDuration = ::onRequestDuration)

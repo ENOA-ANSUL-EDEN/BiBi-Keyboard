@@ -954,6 +954,13 @@ class FloatingAsrService : Service(),
                                 Log.e(TAG, "Failed to unload SenseVoice", e)
                             }
                         }
+                        if (old == AsrVendor.FunAsrNano && v != AsrVendor.FunAsrNano) {
+                            try {
+                                com.brycewg.asrkb.asr.unloadSenseVoiceRecognizer()
+                            } catch (e: Throwable) {
+                                Log.e(TAG, "Failed to unload FunASR Nano", e)
+                            }
+                        }
                         if (old == AsrVendor.Telespeech && v != AsrVendor.Telespeech) {
                             try {
                                 com.brycewg.asrkb.asr.unloadTelespeechRecognizer()
@@ -975,6 +982,13 @@ class FloatingAsrService : Service(),
                                 com.brycewg.asrkb.asr.preloadSenseVoiceIfConfigured(this, prefs)
                             } catch (e: Throwable) {
                                 Log.e(TAG, "Failed to preload SenseVoice", e)
+                            }
+                        }
+                        if (v == AsrVendor.FunAsrNano && prefs.fnPreloadEnabled) {
+                            try {
+                                com.brycewg.asrkb.asr.preloadSenseVoiceIfConfigured(this, prefs)
+                            } catch (e: Throwable) {
+                                Log.e(TAG, "Failed to preload FunASR Nano", e)
                             }
                         }
                         if (v == AsrVendor.Telespeech && prefs.tsPreloadEnabled) {
@@ -1281,6 +1295,7 @@ class FloatingAsrService : Service(),
         if (localPreloadTriggered) return
         val enabled = when (prefs.asrVendor) {
             AsrVendor.SenseVoice -> prefs.svPreloadEnabled
+            AsrVendor.FunAsrNano -> prefs.fnPreloadEnabled
             AsrVendor.Telespeech -> prefs.tsPreloadEnabled
             AsrVendor.Paraformer -> prefs.pfPreloadEnabled
             else -> false

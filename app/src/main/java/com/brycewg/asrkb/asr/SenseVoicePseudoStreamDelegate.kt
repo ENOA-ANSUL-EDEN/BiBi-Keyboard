@@ -104,24 +104,8 @@ internal class SenseVoicePseudoStreamDelegate(
                 }
             } else {
                 val raw = text.trim()
-                val finalText = try {
-                    val variant = try {
-                        prefs.svModelVariant
-                    } catch (t: Throwable) {
-                        Log.w(tag, "Failed to get model variant for punctuation", t)
-                        ""
-                    }
-                    if (variant.startsWith("nano-")) {
-                        SherpaPunctuationManager.getInstance().addOfflinePunctuation(context, raw)
-                    } else {
-                        raw
-                    }
-                } catch (t: Throwable) {
-                    Log.e(tag, "Failed to apply offline punctuation", t)
-                    raw
-                }
                 try {
-                    listener.onFinal(finalText)
+                    listener.onFinal(raw)
                 } catch (t: Throwable) {
                     Log.e(tag, "Failed to notify final result", t)
                 }
@@ -213,17 +197,17 @@ internal class SenseVoicePseudoStreamDelegate(
         } ?: context.filesDir
 
         val probeRoot = java.io.File(base, "sensevoice")
-        val variant = try {
+        val rawVariant = try {
             prefs.svModelVariant
         } catch (t: Throwable) {
             Log.w(tag, "Failed to get model variant", t)
             "small-int8"
         }
-        val variantDir = when (variant) {
-            "small-full" -> java.io.File(probeRoot, "small-full")
-            "nano-full" -> java.io.File(probeRoot, "nano-full")
-            "nano-int8" -> java.io.File(probeRoot, "nano-int8")
-            else -> java.io.File(probeRoot, "small-int8")
+        val variant = if (rawVariant == "small-full") "small-full" else "small-int8"
+        val variantDir = if (variant == "small-full") {
+            java.io.File(probeRoot, "small-full")
+        } else {
+            java.io.File(probeRoot, "small-int8")
         }
         val auto = findSvModelDir(variantDir) ?: findSvModelDir(probeRoot)
         if (auto == null) {

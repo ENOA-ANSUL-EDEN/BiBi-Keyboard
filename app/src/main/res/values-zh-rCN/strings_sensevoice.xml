@@ -32,8 +32,6 @@
     <string name="sv_clear_done">已清除模型</string>
     <string name="sv_clear_failed">清除失败</string>
     <string name="label_sv_model_variant">模型版本</string>
-    <string name="sv_model_nano_int8">FunASR Nano（int8，约180MB）</string>
-    <string name="sv_model_nano_full">FunASR Nano（fp32，约460MB）</string>
     <string name="sv_model_small_int8">Small（int8，约160MB）</string>
     <string name="sv_model_small_full">Small（fp32，约850MB）</string>
     <string name="sv_loading_model">本地模型加载中…</string>
@@ -55,8 +53,6 @@
     <!-- Model download notifications -->
     <string name="notif_model_title_small_int8">SenseVoice 模型（Small int8）</string>
     <string name="notif_model_title_small_full">SenseVoice 模型（Small fp32）</string>
-    <string name="notif_model_title_nano_int8">SenseVoice 模型（FunASR Nano int8）</string>
-    <string name="notif_model_title_nano_full">SenseVoice 模型（FunASR Nano fp32）</string>
 
     <!-- ============================================== -->
     <!-- SenseVoice - 功能说明 -->

@@ -1244,7 +1244,7 @@ class SettingsActivity : BaseActivity() {
                         // 选择本地模型：先切换 vendor，然后显示镜像源选择
                         val prefs = Prefs(this)
                         prefs.asrVendor = com.brycewg.asrkb.asr.AsrVendor.SenseVoice
-                        prefs.svModelVariant = "nano-int8"
+                        prefs.svModelVariant = "small-int8"
                         prefs.sfFreeAsrEnabled = false
                         prefs.sfFreeLlmEnabled = false
 

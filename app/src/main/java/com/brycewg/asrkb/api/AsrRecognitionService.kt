@@ -178,6 +178,13 @@ class AsrRecognitionService : RecognitionService() {
                     SenseVoiceFileAsrEngine(this, scope, prefs, listener)
                 }
             }
+            AsrVendor.FunAsrNano -> {
+                if (prefs.fnPseudoStreamEnabled) {
+                    SenseVoicePseudoStreamAsrEngine(this, scope, prefs, listener)
+                } else {
+                    SenseVoiceFileAsrEngine(this, scope, prefs, listener)
+                }
+            }
             AsrVendor.Telespeech -> {
                 if (prefs.tsPseudoStreamEnabled) {
                     TelespeechPseudoStreamAsrEngine(this, scope, prefs, listener)
@@ -199,7 +206,7 @@ class AsrRecognitionService : RecognitionService() {
             AsrVendor.Soniox -> prefs.sonioxStreamingEnabled
             AsrVendor.ElevenLabs -> prefs.elevenStreamingEnabled
             AsrVendor.Paraformer -> true
-            AsrVendor.SenseVoice, AsrVendor.Telespeech -> false
+            AsrVendor.SenseVoice, AsrVendor.FunAsrNano, AsrVendor.Telespeech -> false
             AsrVendor.OpenAI, AsrVendor.Gemini, AsrVendor.SiliconFlow, AsrVendor.Zhipu -> false
         }
     }

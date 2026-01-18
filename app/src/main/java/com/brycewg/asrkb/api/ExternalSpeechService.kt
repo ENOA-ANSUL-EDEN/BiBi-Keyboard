@@ -245,9 +245,9 @@ class ExternalSpeechService : Service() {
                 AsrVendor.Volc -> prefs.volcStreamingEnabled
                 AsrVendor.DashScope -> prefs.isDashStreamingModelSelected()
                 AsrVendor.Soniox -> prefs.sonioxStreamingEnabled
-                // 本地 sherpa-onnx：Paraformer 仅流式；SenseVoice/TeleSpeech 仅非流式
+                // 本地 sherpa-onnx：Paraformer 仅流式；SenseVoice/FunASR Nano/TeleSpeech 仅非流式
                 AsrVendor.Paraformer -> true
-                AsrVendor.SenseVoice, AsrVendor.Telespeech -> false
+                AsrVendor.SenseVoice, AsrVendor.FunAsrNano, AsrVendor.Telespeech -> false
                 AsrVendor.ElevenLabs -> prefs.elevenStreamingEnabled
                 // 其他云厂商（OpenAI/Gemini/SiliconFlow/Zhipu）仅非流式
                 AsrVendor.OpenAI, AsrVendor.Gemini, AsrVendor.SiliconFlow, AsrVendor.Zhipu -> false
@@ -325,6 +325,12 @@ class ExternalSpeechService : Service() {
                     }
                 )
                 AsrVendor.SenseVoice -> SenseVoiceFileAsrEngine(
+                    context, scope, prefs, this,
+                    onRequestDuration = { ms: Long ->
+                        try { lastRequestDurationMs = ms } catch (t: Throwable) { Log.w(TAG, "set proc ms failed", t) }
+                    }
+                )
+                AsrVendor.FunAsrNano -> SenseVoiceFileAsrEngine(
                     context, scope, prefs, this,
                     onRequestDuration = { ms: Long ->
                         try { lastRequestDurationMs = ms } catch (t: Throwable) { Log.w(TAG, "set proc ms failed", t) }
@@ -451,6 +457,27 @@ class ExternalSpeechService : Service() {
                 // SenseVoice：支持伪流式（VAD 分片预览 + 整段离线识别）
                 AsrVendor.SenseVoice -> {
                     if (prefs.svPseudoStreamEnabled) {
+                        com.brycewg.asrkb.asr.SenseVoicePushPcmPseudoStreamAsrEngine(
+                            context, scope, prefs, this,
+                            onRequestDuration = { ms: Long ->
+                                try { lastRequestDurationMs = ms } catch (t: Throwable) { Log.w(TAG, "set proc ms failed", t) }
+                            }
+                        )
+                    } else {
+                        com.brycewg.asrkb.asr.GenericPushFileAsrAdapter(
+                            context, scope, prefs, this,
+                            com.brycewg.asrkb.asr.SenseVoiceFileAsrEngine(
+                                context, scope, prefs, this,
+                                onRequestDuration = { ms: Long ->
+                                    try { lastRequestDurationMs = ms } catch (t: Throwable) { Log.w(TAG, "set proc ms failed", t) }
+                                }
+                            )
+                        )
+                    }
+                }
+                // FunASR Nano：支持伪流式（VAD 分片预览 + 整段离线识别）
+                AsrVendor.FunAsrNano -> {
+                    if (prefs.fnPseudoStreamEnabled) {
                         com.brycewg.asrkb.asr.SenseVoicePushPcmPseudoStreamAsrEngine(
                             context, scope, prefs, this,
                             onRequestDuration = { ms: Long ->

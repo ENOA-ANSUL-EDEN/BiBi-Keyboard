@@ -57,6 +57,9 @@ class AsrSettingsActivity : BaseActivity() {
     private val modelFilePicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let { handleModelImport(it) }
     }
+    private val fnModelFilePicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        uri?.let { handleFnModelImport(it) }
+    }
     private val tsModelFilePicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let { handleTsModelImport(it) }
     }
@@ -87,6 +90,7 @@ class AsrSettingsActivity : BaseActivity() {
     private lateinit var groupSoniox: View
     private lateinit var groupZhipu: View
     private lateinit var groupSenseVoice: View
+    private lateinit var groupFunAsrNano: View
     private lateinit var groupTelespeech: View
     private lateinit var groupParaformer: View
 
@@ -115,6 +119,7 @@ class AsrSettingsActivity : BaseActivity() {
     override fun onResume() {
         super.onResume()
         updateSvDownloadUiVisibility()
+        updateFnDownloadUiVisibility()
         updateTsDownloadUiVisibility()
         updatePfDownloadUiVisibility()
         updatePunctDownloadUiVisibility()
@@ -147,6 +152,7 @@ class AsrSettingsActivity : BaseActivity() {
         groupSoniox = findViewById(R.id.groupSoniox)
         groupZhipu = findViewById(R.id.groupZhipu)
         groupSenseVoice = findViewById(R.id.groupSenseVoice)
+        groupFunAsrNano = findViewById(R.id.groupFunAsrNano)
         groupTelespeech = findViewById(R.id.groupTelespeech)
         groupParaformer = findViewById(R.id.groupParaformer)
     }
@@ -226,6 +232,7 @@ class AsrSettingsActivity : BaseActivity() {
         setupSonioxSettings()
         setupZhipuSettings()
         setupSenseVoiceSettings()
+        setupFunAsrNanoSettings()
         setupTelespeechSettings()
         setupParaformerSettings()
     }
@@ -1046,15 +1053,77 @@ class AsrSettingsActivity : BaseActivity() {
         // Download/Clear buttons
         setupSvDownloadButtons()
 
-        // 通用标点模型（FunASR Nano 也共用同一套模型）
-        setupPunctDownloadButtons(
-            btnDownloadId = R.id.btnSvDownloadPunct,
-            btnImportId = R.id.btnSvImportPunct,
-            btnClearId = R.id.btnSvClearPunct,
-            statusTextId = R.id.tvSvPunctStatus
-        )
-
         findViewById<MaterialButton>(R.id.btnSvGuide).setOnClickListener { v ->
+            hapticTapIfEnabled(v)
+            openUrlSafely(getString(R.string.model_guide_config_doc_url))
+        }
+    }
+
+    private fun setupFunAsrNanoSettings() {
+        setupFnModelVariantSelection()
+
+        findViewById<Slider>(R.id.sliderFnThreads).apply {
+            value = prefs.fnNumThreads.coerceIn(1, 8).toFloat()
+            addOnChangeListener { _, value, fromUser ->
+                if (fromUser) {
+                    val v = value.toInt().coerceIn(1, 8)
+                    if (v != prefs.fnNumThreads) {
+                        viewModel.updateFnNumThreads(v)
+                    }
+                }
+            }
+            addOnSliderTouchListener(object : Slider.OnSliderTouchListener {
+                override fun onStartTrackingTouch(slider: Slider) = hapticTapIfEnabled(slider)
+                override fun onStopTrackingTouch(slider: Slider) = hapticTapIfEnabled(slider)
+            })
+        }
+
+        findViewById<MaterialSwitch>(R.id.switchFnUseItn).apply {
+            isChecked = prefs.fnUseItn
+            installExplainedSwitch(
+                context = this@AsrSettingsActivity,
+                titleRes = R.string.label_fn_use_itn,
+                offDescRes = R.string.feature_sv_use_itn_off_desc,
+                onDescRes = R.string.feature_sv_use_itn_on_desc,
+                preferenceKey = "fn_use_itn_explained",
+                readPref = { prefs.fnUseItn },
+                writePref = { v -> viewModel.updateFnUseItn(v) },
+                hapticFeedback = { hapticTapIfEnabled(it) }
+            )
+        }
+
+        findViewById<MaterialSwitch>(R.id.switchFnPreload).apply {
+            isChecked = prefs.fnPreloadEnabled
+            installExplainedSwitch(
+                context = this@AsrSettingsActivity,
+                titleRes = R.string.label_fn_preload,
+                offDescRes = R.string.feature_sv_preload_off_desc,
+                onDescRes = R.string.feature_sv_preload_on_desc,
+                preferenceKey = "fn_preload_explained",
+                readPref = { prefs.fnPreloadEnabled },
+                writePref = { v -> viewModel.updateFnPreload(v) },
+                hapticFeedback = { hapticTapIfEnabled(it) }
+            )
+        }
+
+        findViewById<MaterialSwitch>(R.id.switchFnPseudoStream).apply {
+            isChecked = prefs.fnPseudoStreamEnabled
+            installExplainedSwitch(
+                context = this@AsrSettingsActivity,
+                titleRes = R.string.label_fn_pseudo_stream,
+                offDescRes = R.string.feature_sv_pseudo_stream_off_desc,
+                onDescRes = R.string.feature_sv_pseudo_stream_on_desc,
+                preferenceKey = "fn_pseudo_stream_explained",
+                readPref = { prefs.fnPseudoStreamEnabled },
+                writePref = { v -> viewModel.updateFnPseudoStream(v) },
+                hapticFeedback = { hapticTapIfEnabled(it) }
+            )
+        }
+
+        setupFnKeepAliveSelection()
+        setupFnDownloadButtons()
+
+        findViewById<MaterialButton>(R.id.btnFnGuide).setOnClickListener { v ->
             hapticTapIfEnabled(v)
             openUrlSafely(getString(R.string.model_guide_config_doc_url))
         }
@@ -1283,12 +1352,10 @@ class AsrSettingsActivity : BaseActivity() {
 
     private fun setupSvModelVariantSelection() {
         val variantLabels = listOf(
-            getString(R.string.sv_model_nano_int8),
-            getString(R.string.sv_model_nano_full),
             getString(R.string.sv_model_small_int8),
             getString(R.string.sv_model_small_full)
         )
-        val variantCodes = listOf("nano-int8", "nano-full", "small-int8", "small-full")
+        val variantCodes = listOf("small-int8", "small-full")
         val tvSvModelVariant = findViewById<TextView>(R.id.tvSvModelVariantValue)
         val btnSvDownload = findViewById<MaterialButton>(R.id.btnSvDownloadModel)
 
@@ -1310,7 +1377,7 @@ class AsrSettingsActivity : BaseActivity() {
             hapticTapIfEnabled(v)
             val cur = variantCodes.indexOf(prefs.svModelVariant).coerceAtLeast(0)
             showSingleChoiceDialog(R.string.label_sv_model_variant, variantLabels.toTypedArray(), cur) { which ->
-                val code = variantCodes.getOrNull(which) ?: "nano-int8"
+                val code = variantCodes.getOrNull(which) ?: "small-int8"
                 if (code != prefs.svModelVariant) {
                     viewModel.updateSvModelVariant(code)
                 }
@@ -1318,6 +1385,41 @@ class AsrSettingsActivity : BaseActivity() {
                 updateDownloadButtonText()
                 updateSvLanguageVisibility()
                 updateSvDownloadUiVisibility()
+            }
+        }
+    }
+
+    private fun setupFnModelVariantSelection() {
+        val variantLabels = listOf(
+            getString(R.string.fn_model_nano_int8)
+        )
+        val variantCodes = listOf("nano-int8")
+        val tvFnModelVariant = findViewById<TextView>(R.id.tvFnModelVariantValue)
+        val btnFnDownload = findViewById<MaterialButton>(R.id.btnFnDownloadModel)
+
+        fun updateVariantSummary() {
+            val idx = variantCodes.indexOf(prefs.fnModelVariant).coerceAtLeast(0)
+            tvFnModelVariant.text = variantLabels[idx]
+        }
+
+        fun updateDownloadButtonText() {
+            btnFnDownload.text = getString(R.string.btn_fn_download_model)
+        }
+
+        updateVariantSummary()
+        updateDownloadButtonText()
+
+        tvFnModelVariant.setOnClickListener { v ->
+            hapticTapIfEnabled(v)
+            val cur = variantCodes.indexOf(prefs.fnModelVariant).coerceAtLeast(0)
+            showSingleChoiceDialog(R.string.label_fn_model_variant, variantLabels.toTypedArray(), cur) { which ->
+                val code = variantCodes.getOrNull(which) ?: "nano-int8"
+                if (code != prefs.fnModelVariant) {
+                    viewModel.updateFnModelVariant(code)
+                }
+                updateVariantSummary()
+                updateDownloadButtonText()
+                updateFnDownloadUiVisibility()
             }
         }
     }
@@ -1355,10 +1457,38 @@ class AsrSettingsActivity : BaseActivity() {
         val label = findViewById<TextView?>(R.id.tvSvLanguageLabel)
         val value = findViewById<TextView?>(R.id.tvSvLanguageValue)
         if (label == null || value == null) return
-        val visible = !prefs.svModelVariant.startsWith("nano-")
-        val visibility = if (visible) View.VISIBLE else View.GONE
-        label.visibility = visibility
-        value.visibility = visibility
+        label.visibility = View.VISIBLE
+        value.visibility = View.VISIBLE
+    }
+
+    private fun setupFnKeepAliveSelection() {
+        val labels = listOf(
+            getString(R.string.sv_keep_alive_immediate),
+            getString(R.string.sv_keep_alive_5m),
+            getString(R.string.sv_keep_alive_15m),
+            getString(R.string.sv_keep_alive_30m),
+            getString(R.string.sv_keep_alive_always)
+        )
+        val values = listOf(0, 5, 15, 30, -1)
+        val tvFnKeepAlive = findViewById<TextView>(R.id.tvFnKeepAliveValue)
+
+        fun updateKeepAliveSummary() {
+            val idx = values.indexOf(prefs.fnKeepAliveMinutes).let { if (it >= 0) it else values.size - 1 }
+            tvFnKeepAlive.text = labels[idx]
+        }
+
+        updateKeepAliveSummary()
+        tvFnKeepAlive.setOnClickListener { v ->
+            hapticTapIfEnabled(v)
+            val cur = values.indexOf(prefs.fnKeepAliveMinutes).let { if (it >= 0) it else values.size - 1 }
+            showSingleChoiceDialog(R.string.label_fn_keep_alive, labels.toTypedArray(), cur) { which ->
+                val vv = values.getOrNull(which) ?: -1
+                if (vv != prefs.fnKeepAliveMinutes) {
+                    viewModel.updateFnKeepAlive(vv)
+                }
+                updateKeepAliveSummary()
+            }
+        }
     }
 
     private fun setupSvKeepAliveSelection() {
@@ -1391,6 +1521,85 @@ class AsrSettingsActivity : BaseActivity() {
         }
     }
 
+    private fun setupFnDownloadButtons() {
+        val btnFnDownload = findViewById<MaterialButton>(R.id.btnFnDownloadModel)
+        val btnFnImport = findViewById<MaterialButton>(R.id.btnFnImportModel)
+        val btnFnClear = findViewById<MaterialButton>(R.id.btnFnClearModel)
+        val tvFnDownloadStatus = findViewById<TextView>(R.id.tvFnDownloadStatus)
+
+        btnFnDownload.setOnClickListener { v ->
+            v.isEnabled = false
+            tvFnDownloadStatus.text = ""
+            val variant = "nano-int8"
+            val urlOfficial = "https://github.com/BryceWG/BiBi-Keyboard/releases/download/models/sherpa-onnx-funasr-nano-int8-2025-12-30.zip"
+
+            val options = DownloadSourceConfig.buildOptions(this, urlOfficial)
+            DownloadSourceDialog.show(
+                context = this,
+                titleRes = R.string.download_source_title,
+                options = options,
+                showCancelButton = false,
+                onDismiss = { v.isEnabled = true }
+            ) { option ->
+                try {
+                    ModelDownloadService.startDownload(this, option.url, variant, "funasr_nano")
+                    tvFnDownloadStatus.text = getString(R.string.fn_download_started_in_bg)
+                } catch (e: Throwable) {
+                    android.util.Log.e(TAG, "Failed to start FunASR Nano model download", e)
+                    tvFnDownloadStatus.text = getString(R.string.fn_download_status_failed)
+                } finally {
+                    v.isEnabled = true
+                }
+            }
+        }
+
+        btnFnClear.setOnClickListener { v ->
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(R.string.fn_clear_confirm_title)
+                .setMessage(R.string.fn_clear_confirm_message)
+                .setPositiveButton(android.R.string.ok) { d, _ ->
+                    d.dismiss()
+                    v.isEnabled = false
+                    lifecycleScope.launch {
+                        try {
+                            val base = getExternalFilesDir(null) ?: filesDir
+                            val legacySenseVoice = File(base, "sensevoice")
+                            val targets = listOf(
+                                File(base, "funasr_nano"),
+                                File(legacySenseVoice, "nano-int8"),
+                                File(legacySenseVoice, "nano-full")
+                            )
+                            targets.forEach { dir ->
+                                if (dir.exists()) {
+                                    withContext(Dispatchers.IO) { dir.deleteRecursively() }
+                                }
+                            }
+                            try {
+                                com.brycewg.asrkb.asr.unloadSenseVoiceRecognizer()
+                            } catch (e: Throwable) {
+                                android.util.Log.e(TAG, "Failed to unload local recognizer", e)
+                            }
+                            tvFnDownloadStatus.text = getString(R.string.fn_clear_done)
+                        } catch (e: Throwable) {
+                            android.util.Log.e(TAG, "Failed to clear FunASR Nano model", e)
+                            tvFnDownloadStatus.text = getString(R.string.fn_clear_failed)
+                        } finally {
+                            v.isEnabled = true
+                            updateFnDownloadUiVisibility()
+                        }
+                    }
+                }
+                .setNegativeButton(R.string.btn_cancel, null)
+                .create()
+                .show()
+        }
+
+        btnFnImport.setOnClickListener { v ->
+            hapticTapIfEnabled(v)
+            fnModelFilePicker.launch("application/zip")
+        }
+    }
+
     private fun setupSvDownloadButtons() {
         val btnSvDownload = findViewById<MaterialButton>(R.id.btnSvDownloadModel)
         val btnSvImport = findViewById<MaterialButton>(R.id.btnSvImportModel)
@@ -1403,9 +1612,7 @@ class AsrSettingsActivity : BaseActivity() {
             val variant = prefs.svModelVariant
             val urlOfficial = when (variant) {
                 "small-full" -> "https://github.com/BryceWG/BiBi-Keyboard/releases/download/models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.zip"
-                "small-int8" -> "https://github.com/BryceWG/BiBi-Keyboard/releases/download/models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17.zip"
-                "nano-full" -> "https://github.com/BryceWG/BiBi-Keyboard/releases/download/models/sherpa-onnx-sense-voice-funasr-nano-2025-12-17.zip"
-                else -> "https://github.com/BryceWG/BiBi-Keyboard/releases/download/models/sherpa-onnx-sense-voice-funasr-nano-int8-2025-12-17.zip"
+                else -> "https://github.com/BryceWG/BiBi-Keyboard/releases/download/models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17.zip"
             }
 
             val options = DownloadSourceConfig.buildOptions(this, urlOfficial)
@@ -1442,8 +1649,6 @@ class AsrSettingsActivity : BaseActivity() {
                             val outDirRoot = File(base, "sensevoice")
                             val outDir = when (variant) {
                                 "small-full" -> File(outDirRoot, "small-full")
-                                "nano-full" -> File(outDirRoot, "nano-full")
-                                "nano-int8" -> File(outDirRoot, "nano-int8")
                                 else -> File(outDirRoot, "small-int8")
                             }
                             if (outDir.exists()) {
@@ -1557,7 +1762,7 @@ class AsrSettingsActivity : BaseActivity() {
     }
 
     /**
-     * 通用标点模型下载/导入/清理（本地 sherpa-onnx 引擎共用：FunASR Nano / TeleSpeech / Paraformer）
+     * 通用标点模型下载/导入/清理（本地 sherpa-onnx 引擎共用：TeleSpeech / Paraformer）
      */
     private fun setupPunctDownloadButtons(
         btnDownloadId: Int,
@@ -1824,8 +2029,26 @@ class AsrSettingsActivity : BaseActivity() {
         }
     }
 
+    private fun handleFnModelImport(uri: Uri) {
+        val tvFnDownloadStatus = findViewById<TextView>(R.id.tvFnDownloadStatus)
+        tvFnDownloadStatus.text = ""
+
+        try {
+            if (!isZipUri(uri)) {
+                tvFnDownloadStatus.text = getString(R.string.fn_import_failed, getString(R.string.error_only_zip_supported))
+                return
+            }
+            val variant = prefs.fnModelVariant
+            ModelDownloadService.startImport(this, uri, variant, "funasr_nano")
+            tvFnDownloadStatus.text = getString(R.string.fn_import_started_in_bg)
+        } catch (e: Throwable) {
+            android.util.Log.e(TAG, "Failed to start FunASR Nano model import", e)
+            tvFnDownloadStatus.text = getString(R.string.fn_import_failed, e.message ?: "Unknown error")
+        }
+    }
+
     private fun handlePunctModelImport(uri: Uri) {
-        // 更新三个状态文本区域
+        // 更新两个状态文本区域
         val statusTextViews = listOf(
             findViewById<TextView?>(R.id.tvTsPunctStatus),
             findViewById<TextView?>(R.id.tvPfPunctStatus)
@@ -1909,6 +2132,7 @@ class AsrSettingsActivity : BaseActivity() {
             AsrVendor.Soniox to groupSoniox,
             AsrVendor.Zhipu to groupZhipu,
             AsrVendor.SenseVoice to groupSenseVoice,
+            AsrVendor.FunAsrNano to groupFunAsrNano,
             AsrVendor.Telespeech to groupTelespeech,
             AsrVendor.Paraformer to groupParaformer
         )
@@ -1980,6 +2204,20 @@ class AsrSettingsActivity : BaseActivity() {
         }
     }
 
+    private fun updateFnDownloadUiVisibility() {
+        val ready = viewModel.checkFnModelDownloaded(this)
+        val btn = findViewById<MaterialButton>(R.id.btnFnDownloadModel)
+        val btnImport = findViewById<MaterialButton>(R.id.btnFnImportModel)
+        val btnClear = findViewById<MaterialButton>(R.id.btnFnClearModel)
+        val tv = findViewById<TextView>(R.id.tvFnDownloadStatus)
+        btn.visibility = if (ready) View.GONE else View.VISIBLE
+        btnImport.visibility = if (ready) View.GONE else View.VISIBLE
+        btnClear.visibility = if (ready) View.VISIBLE else View.GONE
+        if (ready && tv.text.isNullOrBlank()) {
+            tv.text = getString(R.string.fn_download_status_done)
+        }
+    }
+
     private fun updateTsDownloadUiVisibility() {
         val ready = viewModel.checkTsModelDownloaded(this)
         val btn = findViewById<MaterialButton>(R.id.btnTsDownloadModel)
@@ -1995,7 +2233,7 @@ class AsrSettingsActivity : BaseActivity() {
     }
 
     /**
-     * 更新通用标点模型下载/清理按钮的可见性与状态（多个本地引擎共用同一套模型）
+     * 更新通用标点模型下载/清理按钮的可见性与状态（TeleSpeech / Paraformer 共用）
      */
     private fun updatePunctDownloadUiVisibility() {
         val ready = try {
@@ -2022,7 +2260,6 @@ class AsrSettingsActivity : BaseActivity() {
             }
         }
 
-        apply(R.id.btnSvDownloadPunct, R.id.btnSvImportPunct, R.id.btnSvClearPunct, R.id.tvSvPunctStatus)
         apply(R.id.btnTsDownloadPunct, R.id.btnTsImportPunct, R.id.btnTsClearPunct, R.id.tvTsPunctStatus)
         apply(R.id.btnPfDownloadPunct, R.id.btnPfImportPunct, R.id.btnPfClearPunct, R.id.tvPfPunctStatus)
     }

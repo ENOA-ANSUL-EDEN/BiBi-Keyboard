@@ -57,13 +57,14 @@ class ModelDownloadService : Service() {
     private const val EXTRA_URI = "uri"
     private const val EXTRA_VARIANT = "variant"
     private const val EXTRA_KEY = "key"
-    private const val EXTRA_MODEL_TYPE = "modelType" // sensevoice | paraformer | telespeech | punctuation
+    private const val EXTRA_MODEL_TYPE = "modelType" // sensevoice | funasr_nano | paraformer | telespeech | punctuation
 
     private fun buildDownloadKey(variant: String, modelType: String): DownloadKey {
       val sourceId = when (modelType) {
         "paraformer" -> "download_paraformer"
         "telespeech" -> "download_telespeech"
         "punctuation" -> "download_punctuation"
+        "funasr_nano" -> "download_funasr_nano"
         else -> "download_sensevoice"
       }
       return DownloadKey(variant, sourceId)
@@ -244,6 +245,7 @@ class ModelDownloadService : Service() {
         "paraformer" -> getString(R.string.pf_download_status_done)
         "telespeech" -> getString(R.string.ts_download_status_done)
         "punctuation" -> getString(R.string.punct_download_status_done)
+        "funasr_nano" -> getString(R.string.fn_download_status_done)
         else -> getString(R.string.sv_download_status_done)
       }
       notificationHandler.notifySuccess(doneText)
@@ -255,6 +257,7 @@ class ModelDownloadService : Service() {
         modelType == "paraformer" -> getString(R.string.pf_download_status_failed)
         modelType == "telespeech" -> getString(R.string.ts_download_status_failed)
         modelType == "punctuation" -> getString(R.string.punct_download_status_failed)
+        modelType == "funasr_nano" -> getString(R.string.fn_download_status_failed)
         else -> getString(R.string.sv_download_status_failed)
       }
       notificationHandler.notifyFailed(failText)
@@ -323,6 +326,7 @@ class ModelDownloadService : Service() {
         notificationHandler.updateModelType(modelType)
         val shouldUpdateVariant = when (modelType) {
           "sensevoice" -> true
+          "funasr_nano" -> true
           else -> false // paraformer 保持用户选择
         }
         if (shouldUpdateVariant) notificationHandler.updateVariant(detectedVariant)
@@ -333,6 +337,8 @@ class ModelDownloadService : Service() {
           when (modelType) {
             // SenseVoice：二选一，直接同步用户选择
             "sensevoice" -> prefs.svModelVariant = detectedVariant
+            // FunASR Nano：二选一，直接同步用户选择
+            "funasr_nano" -> prefs.fnModelVariant = detectedVariant
             // TeleSpeech：离线 CTC，int8/full 二选一，直接同步用户选择
             "telespeech" -> prefs.tsModelVariant = detectedVariant
             // Paraformer：单包含 int8+fp32，两者均可用，不覆盖用户当前偏好
@@ -354,6 +360,7 @@ class ModelDownloadService : Service() {
       val modelInfo = getModelInfo(modelType, installVariant)
       val successMessage = when (modelType) {
         "punctuation" -> getString(R.string.punct_import_success, modelInfo)
+        "funasr_nano" -> getString(R.string.fn_import_success, modelInfo)
         else -> getString(R.string.sv_import_success, modelInfo)
       }
       notificationHandler.notifySuccess(successMessage)
@@ -362,6 +369,7 @@ class ModelDownloadService : Service() {
       val errorMessage = t.message ?: "Unknown error"
       val failMessage = when (specifiedModelType) {
         "punctuation" -> getString(R.string.punct_import_failed, errorMessage)
+        "funasr_nano" -> getString(R.string.fn_import_failed, errorMessage)
         else -> getString(R.string.sv_import_failed, errorMessage)
       }
       notificationHandler.notifyFailed(failMessage)
@@ -438,6 +446,7 @@ class ModelDownloadService : Service() {
     return when {
       n.contains("paraformer") -> "paraformer"
       n.contains("telespeech") -> "telespeech"
+      n.contains("funasr-nano") -> "funasr_nano"
       n.contains("sense-voice") || n.contains("sensevoice") -> "sensevoice"
       n.contains("punct-ct-transformer") || n.contains("punctuation") -> "punctuation"
       else -> null
@@ -456,8 +465,9 @@ class ModelDownloadService : Service() {
       // SenseVoice
       "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17" -> "sensevoice" to "small-full"
       "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17" -> "sensevoice" to "small-int8"
-      "sherpa-onnx-sense-voice-funasr-nano-int8-2025-12-17" -> "sensevoice" to "nano-int8"
-      "sherpa-onnx-sense-voice-funasr-nano-2025-12-17" -> "sensevoice" to "nano-full"
+      
+      // FunASR Nano
+      "sherpa-onnx-funasr-nano-int8-2025-12-30" -> "funasr_nano" to "nano-int8"
 
       // Paraformer（主包名不含量化，默认按 int8 归类）
       "sherpa-onnx-streaming-paraformer-bilingual-zh-en" -> "paraformer" to "bilingual-int8"
@@ -488,6 +498,13 @@ class ModelDownloadService : Service() {
           else -> variant
         }
         "SenseVoice $versionName"
+      }
+      "funasr_nano" -> {
+        val versionName = when (variant) {
+          "nano-int8" -> "Nano (int8)"
+          else -> variant
+        }
+        "FunASR Nano $versionName"
       }
       "telespeech" -> {
         val versionName = if (variant == "full") "Zh (fp32)" else "Zh (int8)"
@@ -589,6 +606,7 @@ class ModelDownloadService : Service() {
       "paraformer" -> File(base, "paraformer")
       "telespeech" -> File(base, "telespeech")
       "punctuation" -> File(base, "punctuation_tmp")
+      "funasr_nano" -> File(base, "funasr_nano")
       else -> File(base, "sensevoice")
     }
     val tmpDir = File(outRoot, ".tmp_extract_${key.toSafeFileName()}_${System.currentTimeMillis()}")
@@ -646,6 +664,10 @@ class ModelDownloadService : Service() {
       if (!(File(modelDir, "model.int8.onnx").exists() || File(modelDir, "model.onnx").exists())) {
         throw IllegalStateException("telespeech files missing after extract")
       }
+    } else if (modelType == "funasr_nano") {
+      if (!File(modelDir, "model.int8.onnx").exists()) {
+        throw IllegalStateException("funasr_nano files missing after extract")
+      }
     } else {
       if (!(File(modelDir, "model.int8.onnx").exists() || File(modelDir, "model.onnx").exists())) {
         throw IllegalStateException("sensevoice files missing after extract")
@@ -665,6 +687,10 @@ class ModelDownloadService : Service() {
       "telespeech" -> {
         val outRoot = File(base, "telespeech")
         if (variant == "full") File(outRoot, "full") else File(outRoot, "int8")
+      }
+      "funasr_nano" -> {
+        val outRoot = File(base, "funasr_nano")
+        File(outRoot, "nano-int8")
       }
       else -> {
         val outRoot = File(base, "sensevoice")
@@ -1030,6 +1056,7 @@ class NotificationHandler(
       "paraformer" -> context.getString(R.string.pf_download_status_downloading, progress)
       "telespeech" -> context.getString(R.string.ts_download_status_downloading, progress)
       "punctuation" -> context.getString(R.string.punct_download_status_downloading, progress)
+      "funasr_nano" -> context.getString(R.string.fn_download_status_downloading, progress)
       else -> context.getString(R.string.sv_download_status_downloading, progress)
     }
     notifyProgress(
@@ -1052,6 +1079,7 @@ class NotificationHandler(
       "paraformer" -> context.getString(R.string.pf_download_status_extracting_progress, progress)
       "telespeech" -> context.getString(R.string.ts_download_status_extracting_progress, progress)
       "punctuation" -> context.getString(R.string.punct_download_status_extracting_progress, progress)
+      "funasr_nano" -> context.getString(R.string.fn_download_status_extracting_progress, progress)
       else -> context.getString(R.string.sv_download_status_extracting_progress, progress)
     }
     notifyProgress(
@@ -1073,6 +1101,7 @@ class NotificationHandler(
       "paraformer" -> context.getString(R.string.pf_download_status_extracting_progress, progress)
       "telespeech" -> context.getString(R.string.ts_download_status_extracting_progress, progress)
       "punctuation" -> context.getString(R.string.punct_download_status_extracting_progress, progress)
+      "funasr_nano" -> context.getString(R.string.fn_download_status_extracting_progress, progress)
       else -> context.getString(R.string.sv_download_status_extracting_progress, progress)
     }
     notifyProgress(
@@ -1122,6 +1151,7 @@ class NotificationHandler(
       "paraformer" -> context.getString(R.string.pf_download_status_failed)
       "telespeech" -> context.getString(R.string.ts_download_status_failed)
       "punctuation" -> context.getString(R.string.punct_download_status_failed)
+      "funasr_nano" -> context.getString(R.string.fn_download_status_failed)
       else -> context.getString(R.string.sv_download_status_failed)
     }
   }
@@ -1208,12 +1238,10 @@ class NotificationHandler(
         else context.getString(R.string.notif_ts_title_int8)
       }
       "punctuation" -> context.getString(R.string.notif_punct_title)
+      "funasr_nano" -> context.getString(R.string.notif_fn_title_nano_int8)
       else -> {
         when (variant) {
           "small-full" -> context.getString(R.string.notif_model_title_small_full)
-          "small-int8" -> context.getString(R.string.notif_model_title_small_int8)
-          "nano-full" -> context.getString(R.string.notif_model_title_nano_full)
-          "nano-int8" -> context.getString(R.string.notif_model_title_nano_int8)
           else -> context.getString(R.string.notif_model_title_small_int8)
         }
       }

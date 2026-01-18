@@ -342,7 +342,7 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
             )
         )
 
-        // 键盘面板首次出现时，按需异步预加载本地模型（SenseVoice/Paraformer）
+        // 键盘面板首次出现时，按需异步预加载本地模型（SenseVoice/FunASR Nano/Paraformer）
         tryPreloadLocalModel()
 
 
@@ -1914,17 +1914,17 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
             DebugLogManager.log("ime", "asr_not_ready", mapOf("reason" to "keys"))
             return false
         }
-        if (prefs.asrVendor == AsrVendor.SenseVoice) {
+        if (prefs.asrVendor == AsrVendor.SenseVoice || prefs.asrVendor == AsrVendor.FunAsrNano) {
             val prepared = com.brycewg.asrkb.asr.isSenseVoicePrepared()
             if (!prepared) {
                 val base = getExternalFilesDir(null) ?: filesDir
                 val probeRoot = java.io.File(base, "sensevoice")
-                val variant = prefs.svModelVariant
-                val variantDir = when (variant) {
-                    "small-full" -> java.io.File(probeRoot, "small-full")
-                    "nano-full" -> java.io.File(probeRoot, "nano-full")
-                    "nano-int8" -> java.io.File(probeRoot, "nano-int8")
-                    else -> java.io.File(probeRoot, "small-int8")
+                val rawVariant = prefs.svModelVariant
+                val variant = if (rawVariant == "small-full") "small-full" else "small-int8"
+                val variantDir = if (variant == "small-full") {
+                    java.io.File(probeRoot, "small-full")
+                } else {
+                    java.io.File(probeRoot, "small-int8")
                 }
                 val found = com.brycewg.asrkb.asr.findSvModelDir(variantDir)
                     ?: com.brycewg.asrkb.asr.findSvModelDir(probeRoot)
@@ -2235,6 +2235,9 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
                     if (old == com.brycewg.asrkb.asr.AsrVendor.SenseVoice && vendor != com.brycewg.asrkb.asr.AsrVendor.SenseVoice) {
                         com.brycewg.asrkb.asr.unloadSenseVoiceRecognizer()
                     }
+                    if (old == com.brycewg.asrkb.asr.AsrVendor.FunAsrNano && vendor != com.brycewg.asrkb.asr.AsrVendor.FunAsrNano) {
+                        com.brycewg.asrkb.asr.unloadSenseVoiceRecognizer()
+                    }
                     if (old == com.brycewg.asrkb.asr.AsrVendor.Telespeech && vendor != com.brycewg.asrkb.asr.AsrVendor.Telespeech) {
                         com.brycewg.asrkb.asr.unloadTelespeechRecognizer()
                     }
@@ -2254,6 +2257,7 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
                 try {
                     when (vendor) {
                         com.brycewg.asrkb.asr.AsrVendor.SenseVoice -> if (prefs.svPreloadEnabled) com.brycewg.asrkb.asr.preloadSenseVoiceIfConfigured(this, prefs)
+                        com.brycewg.asrkb.asr.AsrVendor.FunAsrNano -> if (prefs.fnPreloadEnabled) com.brycewg.asrkb.asr.preloadSenseVoiceIfConfigured(this, prefs)
                         com.brycewg.asrkb.asr.AsrVendor.Telespeech -> if (prefs.tsPreloadEnabled) com.brycewg.asrkb.asr.preloadTelespeechIfConfigured(this, prefs)
                         com.brycewg.asrkb.asr.AsrVendor.Paraformer -> if (prefs.pfPreloadEnabled) com.brycewg.asrkb.asr.preloadParaformerIfConfigured(this, prefs)
                         else -> {}
@@ -2277,6 +2281,7 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
         val p = prefs
         val enabled = when (p.asrVendor) {
             AsrVendor.SenseVoice -> p.svPreloadEnabled
+            AsrVendor.FunAsrNano -> p.fnPreloadEnabled
             AsrVendor.Telespeech -> p.tsPreloadEnabled
             AsrVendor.Paraformer -> p.pfPreloadEnabled
             else -> false

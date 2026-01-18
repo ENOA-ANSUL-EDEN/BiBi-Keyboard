@@ -191,6 +191,15 @@ class AsrSessionManager(
                     SenseVoiceFileAsrEngine(context, scope, prefs, this, ::onRequestDuration)
                 }
             }
+            AsrVendor.FunAsrNano -> {
+                if (prefs.fnPseudoStreamEnabled) {
+                    // 本地 FunASR Nano：伪流式模式（VAD 分片预览 + 整段离线识别）
+                    SenseVoicePseudoStreamAsrEngine(context, scope, prefs, this, ::onRequestDuration)
+                } else {
+                    // 本地 FunASR Nano：传统文件识别模式
+                    SenseVoiceFileAsrEngine(context, scope, prefs, this, ::onRequestDuration)
+                }
+            }
             AsrVendor.Telespeech -> {
                 if (prefs.tsPseudoStreamEnabled) {
                     // 本地 TeleSpeech：伪流式模式（VAD 分片预览 + 整段离线识别）
@@ -247,6 +256,11 @@ class AsrSessionManager(
             AsrVendor.SenseVoice -> when (current) {
                 is SenseVoicePseudoStreamAsrEngine -> if (prefs.svPseudoStreamEnabled) current else null
                 is SenseVoiceFileAsrEngine -> if (!prefs.svPseudoStreamEnabled) current else null
+                else -> null
+            }
+            AsrVendor.FunAsrNano -> when (current) {
+                is SenseVoicePseudoStreamAsrEngine -> if (prefs.fnPseudoStreamEnabled) current else null
+                is SenseVoiceFileAsrEngine -> if (!prefs.fnPseudoStreamEnabled) current else null
                 else -> null
             }
             AsrVendor.Telespeech -> when (current) {
@@ -307,14 +321,17 @@ class AsrSessionManager(
         } else {
             Log.d(TAG, "Audio ducking disabled by user; skip audio focus request")
         }
-        // 若为本地 SenseVoice / TeleSpeech，在录音触发时后台开始加载模型
+        // 若为本地 SenseVoice / FunASR Nano / TeleSpeech，在录音触发时后台开始加载模型
         try {
-            if (prefs.asrVendor == AsrVendor.SenseVoice || prefs.asrVendor == AsrVendor.Telespeech) {
+            if (
+                prefs.asrVendor == AsrVendor.SenseVoice ||
+                prefs.asrVendor == AsrVendor.FunAsrNano ||
+                prefs.asrVendor == AsrVendor.Telespeech
+            ) {
                 val prepared = try {
-                    if (prefs.asrVendor == AsrVendor.SenseVoice) {
-                        com.brycewg.asrkb.asr.isSenseVoicePrepared()
-                    } else {
-                        com.brycewg.asrkb.asr.isTelespeechPrepared()
+                    when (prefs.asrVendor) {
+                        AsrVendor.Telespeech -> com.brycewg.asrkb.asr.isTelespeechPrepared()
+                        else -> com.brycewg.asrkb.asr.isSenseVoicePrepared()
                     }
                 } catch (t: Throwable) {
                     Log.e(TAG, "Failed to check local model prepared state", t)
@@ -322,8 +339,8 @@ class AsrSessionManager(
                 }
                 if (!prepared) {
                     try {
-                        if (prefs.asrVendor == AsrVendor.SenseVoice) {
-                            com.brycewg.asrkb.asr.preloadSenseVoiceIfConfigured(
+                        when (prefs.asrVendor) {
+                            AsrVendor.Telespeech -> com.brycewg.asrkb.asr.preloadTelespeechIfConfigured(
                                 context,
                                 prefs,
                                 onLoadStart = { onLocalModelLoadStart() },
@@ -331,8 +348,7 @@ class AsrSessionManager(
                                 suppressToastOnStart = true,
                                 forImmediateUse = true
                             )
-                        } else {
-                            com.brycewg.asrkb.asr.preloadTelespeechIfConfigured(
+                            else -> com.brycewg.asrkb.asr.preloadSenseVoiceIfConfigured(
                                 context,
                                 prefs,
                                 onLoadStart = { onLocalModelLoadStart() },

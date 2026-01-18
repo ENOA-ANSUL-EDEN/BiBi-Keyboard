@@ -714,41 +714,6 @@
             app:shapeAppearanceOverlay="@style/AsrkbShapeOverlayCapsule"
             android:text="@string/btn_sv_clear_model" />
 
-          <!-- 通用标点模型（FunASR Nano / TeleSpeech / Paraformer 共用） -->
-          <TextView
-            style="@style/SettingsLabel"
-            android:layout_marginTop="12dp"
-            android:text="@string/label_punct_model_shared" />
-
-          <LinearLayout
-            style="@style/SettingsButtonRow.MarginTop12"
-            android:baselineAligned="false">
-
-            <com.google.android.material.button.MaterialButton
-              android:id="@+id/btnSvDownloadPunct"
-              style="@style/SettingsRowButtonLeft"
-              android:text="@string/btn_punct_download_model" />
-
-            <com.google.android.material.button.MaterialButton
-              android:id="@+id/btnSvImportPunct"
-              style="@style/SettingsRowButtonRight"
-              android:text="@string/btn_punct_import_model" />
-          </LinearLayout>
-
-          <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnSvClearPunct"
-            style="@style/Widget.Material3.Button.TonalButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            app:shapeAppearanceOverlay="@style/AsrkbShapeOverlayCapsule"
-            android:text="@string/btn_punct_clear_model" />
-
-          <TextView
-            android:id="@+id/tvSvPunctStatus"
-            style="@style/SettingsStatusText"
-            android:text="" />
-
           <com.google.android.material.button.MaterialButton
             android:id="@+id/btnSvGuide"
             style="@style/SettingsTonalButton"
@@ -756,6 +721,93 @@
 
           <TextView
             android:id="@+id/tvSvDownloadStatus"
+            style="@style/SettingsStatusText"
+            android:text="" />
+        </LinearLayout>
+
+        <!-- FunASR Nano (Local) -->
+        <LinearLayout
+          android:id="@+id/groupFunAsrNano"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:orientation="vertical"
+          android:visibility="gone">
+
+          <TextView
+            android:id="@+id/tvFnModelVariantValue"
+            style="@style/SettingsClickableValue.Dropdown"
+            android:text="@string/fn_model_nano_int8" />
+          <Spinner
+            style="@style/SettingsHiddenSpinner" />
+
+          <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/switchFnUseItn"
+            style="@style/SettingsSwitch"
+            android:text="@string/label_fn_use_itn" />
+
+          <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/switchFnPreload"
+            style="@style/SettingsSwitch"
+            android:text="@string/label_fn_preload" />
+
+          <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/switchFnPseudoStream"
+            style="@style/SettingsSwitch"
+            android:text="@string/label_fn_pseudo_stream" />
+
+          <TextView
+            style="@style/SettingsLabel"
+            android:text="@string/label_fn_keep_alive" />
+
+          <TextView
+            android:id="@+id/tvFnKeepAliveValue"
+            style="@style/SettingsClickableValue.Dropdown"
+            android:text="@string/sv_keep_alive_always" />
+          <Spinner
+            style="@style/SettingsHiddenSpinner" />
+
+          <TextView
+            style="@style/SettingsLabel"
+            android:text="@string/label_fn_threads" />
+
+          <com.google.android.material.slider.Slider
+            android:id="@+id/sliderFnThreads"
+            style="@style/SettingsSlider"
+            android:valueFrom="1"
+            android:valueTo="8"
+            android:stepSize="1" />
+
+          <LinearLayout
+            style="@style/SettingsButtonRow.MarginTop12"
+            android:baselineAligned="false">
+
+            <com.google.android.material.button.MaterialButton
+              android:id="@+id/btnFnDownloadModel"
+              style="@style/SettingsRowButtonLeft"
+              android:text="@string/btn_fn_download_model" />
+
+            <com.google.android.material.button.MaterialButton
+              android:id="@+id/btnFnImportModel"
+              style="@style/SettingsRowButtonRight"
+              android:text="@string/btn_fn_import_model" />
+          </LinearLayout>
+
+          <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnFnClearModel"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            app:shapeAppearanceOverlay="@style/AsrkbShapeOverlayCapsule"
+            android:text="@string/btn_fn_clear_model" />
+
+          <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnFnGuide"
+            style="@style/SettingsTonalButton"
+            android:text="@string/btn_local_model_guide" />
+
+          <TextView
+            android:id="@+id/tvFnDownloadStatus"
             style="@style/SettingsStatusText"
             android:text="" />
         </LinearLayout>

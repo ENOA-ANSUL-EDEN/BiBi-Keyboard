@@ -8,16 +8,25 @@ import com.brycewg.asrkb.asr.AsrVendor
 import com.brycewg.asrkb.asr.LlmVendor
 import com.brycewg.asrkb.asr.ReasoningMode
 import com.brycewg.asrkb.store.debug.DebugLogManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlin.reflect.KProperty
+import java.io.File
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 class Prefs(context: Context) {
-    private val sp = context.getSharedPreferences("asr_prefs", Context.MODE_PRIVATE)
+    private val appContext = context.applicationContext
+    private val sp = appContext.getSharedPreferences("asr_prefs", Context.MODE_PRIVATE)
     init {
         registerGlobalToggleListenerIfNeeded()
+        migrateFunAsrFromSenseVoiceIfNeeded()
+        normalizeFunAsrVariantIfNeeded()
+        cleanupLegacyFunAsrModelsIfNeeded()
     }
 
     // --- JSON 配置：宽松模式（容忍未知键，优雅处理格式错误）---
@@ -55,6 +64,78 @@ class Prefs(context: Context) {
             } catch (t: Throwable) {
                 Log.w(TAG, "Failed to register global toggle listener", t)
             }
+        }
+    }
+
+    private fun migrateFunAsrFromSenseVoiceIfNeeded() {
+        try {
+            if (sp.contains(KEY_FN_MODEL_VARIANT)) return
+            val svVariant = sp.getString(KEY_SV_MODEL_VARIANT, "") ?: ""
+            if (!svVariant.startsWith("nano-")) return
+
+            sp.edit {
+                putString(KEY_FN_MODEL_VARIANT, svVariant)
+                putInt(KEY_FN_NUM_THREADS, sp.getInt(KEY_SV_NUM_THREADS, 2).coerceIn(1, 8))
+                putBoolean(KEY_FN_USE_ITN, sp.getBoolean(KEY_SV_USE_ITN, true))
+                putBoolean(KEY_FN_PRELOAD_ENABLED, sp.getBoolean(KEY_SV_PRELOAD_ENABLED, true))
+                putInt(KEY_FN_KEEP_ALIVE_MINUTES, sp.getInt(KEY_SV_KEEP_ALIVE_MINUTES, -1))
+                putBoolean(KEY_FN_PSEUDO_STREAM_ENABLED, sp.getBoolean(KEY_SV_PSEUDO_STREAM_ENABLED, false))
+                // 若当前选择为 SenseVoice 且使用 nano 变体，自动迁移到 FunASR Nano
+                val currentVendor = sp.getString(KEY_ASR_VENDOR, AsrVendor.SiliconFlow.id) ?: AsrVendor.SiliconFlow.id
+                if (currentVendor == AsrVendor.SenseVoice.id) {
+                    putString(KEY_ASR_VENDOR, AsrVendor.FunAsrNano.id)
+                    putString(KEY_SV_MODEL_VARIANT, "small-int8")
+                }
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "Failed to migrate FunASR Nano prefs from SenseVoice", t)
+        }
+    }
+
+    private fun normalizeFunAsrVariantIfNeeded() {
+        try {
+            if (!sp.contains(KEY_FN_MODEL_VARIANT)) return
+            val variant = sp.getString(KEY_FN_MODEL_VARIANT, "nano-int8") ?: "nano-int8"
+            if (variant == "nano-int8") return
+            sp.edit { putString(KEY_FN_MODEL_VARIANT, "nano-int8") }
+        } catch (t: Throwable) {
+            Log.w(TAG, "Failed to normalize FunASR Nano variant", t)
+        }
+    }
+
+    private fun cleanupLegacyFunAsrModelsIfNeeded() {
+        try {
+            if (sp.getBoolean(KEY_FN_LEGACY_MODEL_CLEANED, false)) return
+            if (FN_LEGACY_CLEANUP_STARTED) return
+            FN_LEGACY_CLEANUP_STARTED = true
+            sp.edit { putBoolean(KEY_FN_LEGACY_MODEL_CLEANED, true) }
+            val base = try {
+                appContext.getExternalFilesDir(null)
+            } catch (t: Throwable) {
+                Log.w(TAG, "Failed to get external files dir for FunASR cleanup", t)
+                null
+            } ?: appContext.filesDir
+
+            val legacyTargets = listOf(
+                File(File(base, "sensevoice"), "nano-int8"),
+                File(File(base, "sensevoice"), "nano-full")
+            )
+
+            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                legacyTargets.forEach { dir ->
+                    if (!dir.exists()) return@forEach
+                    try {
+                        if (!dir.deleteRecursively()) {
+                            Log.w(TAG, "Failed to delete legacy FunASR dir: ${dir.path}")
+                        }
+                    } catch (t: Throwable) {
+                        Log.w(TAG, "Error deleting legacy FunASR dir: ${dir.path}", t)
+                    }
+                }
+                FN_LEGACY_CLEANUP_STARTED = false
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "Failed to cleanup legacy FunASR models", t)
         }
     }
 
@@ -1048,10 +1129,10 @@ class Prefs(context: Context) {
         get() = sp.getString(KEY_SV_MODEL_DIR, "") ?: ""
         set(value) = sp.edit { putString(KEY_SV_MODEL_DIR, value.trim()) }
 
-    // SenseVoice 模型版本：small-int8 / small-full / nano-int8 / nano-full（默认 nano-int8，用于新安装）
+    // SenseVoice 模型版本：small-int8 / small-full（默认 small-int8）
     var svModelVariant: String
-        get() = sp.getString(KEY_SV_MODEL_VARIANT, "nano-int8") ?: "nano-int8"
-        set(value) = sp.edit { putString(KEY_SV_MODEL_VARIANT, value.trim().ifBlank { "nano-int8" }) }
+        get() = sp.getString(KEY_SV_MODEL_VARIANT, "small-int8") ?: "small-int8"
+        set(value) = sp.edit { putString(KEY_SV_MODEL_VARIANT, value.trim().ifBlank { "small-int8" }) }
 
     var svNumThreads: Int
         get() = sp.getInt(KEY_SV_NUM_THREADS, 2).coerceIn(1, 8)
@@ -1080,6 +1161,31 @@ class Prefs(context: Context) {
     var svPseudoStreamEnabled: Boolean
         get() = sp.getBoolean(KEY_SV_PSEUDO_STREAM_ENABLED, false)
         set(value) = sp.edit { putBoolean(KEY_SV_PSEUDO_STREAM_ENABLED, value) }
+
+    // FunASR Nano（本地 ASR）
+    var fnModelVariant: String
+        get() = sp.getString(KEY_FN_MODEL_VARIANT, "nano-int8") ?: "nano-int8"
+        set(value) = sp.edit { putString(KEY_FN_MODEL_VARIANT, value.trim().ifBlank { "nano-int8" }) }
+
+    var fnNumThreads: Int
+        get() = sp.getInt(KEY_FN_NUM_THREADS, 2).coerceIn(1, 8)
+        set(value) = sp.edit { putInt(KEY_FN_NUM_THREADS, value.coerceIn(1, 8)) }
+
+    var fnUseItn: Boolean
+        get() = sp.getBoolean(KEY_FN_USE_ITN, true)
+        set(value) = sp.edit { putBoolean(KEY_FN_USE_ITN, value) }
+
+    var fnPreloadEnabled: Boolean
+        get() = sp.getBoolean(KEY_FN_PRELOAD_ENABLED, true)
+        set(value) = sp.edit { putBoolean(KEY_FN_PRELOAD_ENABLED, value) }
+
+    var fnKeepAliveMinutes: Int
+        get() = sp.getInt(KEY_FN_KEEP_ALIVE_MINUTES, -1)
+        set(value) = sp.edit { putInt(KEY_FN_KEEP_ALIVE_MINUTES, value) }
+
+    var fnPseudoStreamEnabled: Boolean
+        get() = sp.getBoolean(KEY_FN_PSEUDO_STREAM_ENABLED, false)
+        set(value) = sp.edit { putBoolean(KEY_FN_PSEUDO_STREAM_ENABLED, value) }
 
     // TeleSpeech（本地 ASR）
     var tsModelVariant: String
@@ -1179,6 +1285,8 @@ class Prefs(context: Context) {
         ),
         // 本地 SenseVoice（sherpa-onnx）无需鉴权
         AsrVendor.SenseVoice to emptyList(),
+        // 本地 FunASR Nano（sherpa-onnx）无需鉴权
+        AsrVendor.FunAsrNano to emptyList(),
         // 本地 TeleSpeech（sherpa-onnx）无需鉴权
         AsrVendor.Telespeech to emptyList(),
         // 本地 Paraformer（sherpa-onnx）无需鉴权
@@ -1559,6 +1667,7 @@ class Prefs(context: Context) {
     companion object {
         private const val TAG = "Prefs"
         @Volatile private var TOGGLE_LISTENER_REGISTERED: Boolean = false
+        @Volatile private var FN_LEGACY_CLEANUP_STARTED: Boolean = false
         private val globalToggleListener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
             try {
                 val v = prefs.all[key]
@@ -1698,6 +1807,13 @@ class Prefs(context: Context) {
         private const val KEY_SV_PRELOAD_ENABLED = "sv_preload_enabled"
         private const val KEY_SV_KEEP_ALIVE_MINUTES = "sv_keep_alive_minutes"
         private const val KEY_SV_PSEUDO_STREAM_ENABLED = "sv_pseudo_stream_enabled"
+        private const val KEY_FN_MODEL_VARIANT = "fn_model_variant"
+        private const val KEY_FN_NUM_THREADS = "fn_num_threads"
+        private const val KEY_FN_USE_ITN = "fn_use_itn"
+        private const val KEY_FN_PRELOAD_ENABLED = "fn_preload_enabled"
+        private const val KEY_FN_KEEP_ALIVE_MINUTES = "fn_keep_alive_minutes"
+        private const val KEY_FN_PSEUDO_STREAM_ENABLED = "fn_pseudo_stream_enabled"
+        private const val KEY_FN_LEGACY_MODEL_CLEANED = "fn_legacy_model_cleaned"
         // TeleSpeech（本地 ASR）
         private const val KEY_TS_MODEL_VARIANT = "ts_model_variant"
         private const val KEY_TS_NUM_THREADS = "ts_num_threads"
@@ -2114,6 +2230,13 @@ class Prefs(context: Context) {
         o.put(KEY_SV_PRELOAD_ENABLED, svPreloadEnabled)
         o.put(KEY_SV_KEEP_ALIVE_MINUTES, svKeepAliveMinutes)
         o.put(KEY_SV_PSEUDO_STREAM_ENABLED, svPseudoStreamEnabled)
+        // FunASR Nano（本地 ASR）
+        o.put(KEY_FN_MODEL_VARIANT, fnModelVariant)
+        o.put(KEY_FN_NUM_THREADS, fnNumThreads)
+        o.put(KEY_FN_USE_ITN, fnUseItn)
+        o.put(KEY_FN_PRELOAD_ENABLED, fnPreloadEnabled)
+        o.put(KEY_FN_KEEP_ALIVE_MINUTES, fnKeepAliveMinutes)
+        o.put(KEY_FN_PSEUDO_STREAM_ENABLED, fnPseudoStreamEnabled)
         // TeleSpeech（本地 ASR）
         o.put(KEY_TS_MODEL_VARIANT, tsModelVariant)
         o.put(KEY_TS_NUM_THREADS, tsNumThreads)
@@ -2335,6 +2458,13 @@ class Prefs(context: Context) {
             optBool(KEY_SV_PRELOAD_ENABLED)?.let { svPreloadEnabled = it }
             optInt(KEY_SV_KEEP_ALIVE_MINUTES)?.let { svKeepAliveMinutes = it }
             optBool(KEY_SV_PSEUDO_STREAM_ENABLED)?.let { svPseudoStreamEnabled = it }
+            // FunASR Nano（本地 ASR）
+            optString(KEY_FN_MODEL_VARIANT)?.let { fnModelVariant = it }
+            optInt(KEY_FN_NUM_THREADS)?.let { fnNumThreads = it.coerceIn(1, 8) }
+            optBool(KEY_FN_USE_ITN)?.let { fnUseItn = it }
+            optBool(KEY_FN_PRELOAD_ENABLED)?.let { fnPreloadEnabled = it }
+            optInt(KEY_FN_KEEP_ALIVE_MINUTES)?.let { fnKeepAliveMinutes = it }
+            optBool(KEY_FN_PSEUDO_STREAM_ENABLED)?.let { fnPseudoStreamEnabled = it }
             // TeleSpeech（本地 ASR）
             optString(KEY_TS_MODEL_VARIANT)?.let { tsModelVariant = it }
             optInt(KEY_TS_NUM_THREADS)?.let { tsNumThreads = it.coerceIn(1, 8) }
@@ -2378,6 +2508,7 @@ class Prefs(context: Context) {
                 optString("${keyPrefix}_reasoning_off_json")?.let { setLlmVendorReasoningParamsOffJson(vendor, it) }
                 optString("${keyPrefix}_models_json")?.let { setLlmVendorModelsJson(vendor, it) }
             }
+            migrateFunAsrFromSenseVoiceIfNeeded()
             Log.i(TAG, "Successfully imported settings from JSON")
             true
         } catch (e: Exception) {

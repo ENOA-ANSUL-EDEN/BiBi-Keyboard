@@ -95,16 +95,15 @@ class SenseVoiceFileAsrEngine(
                 null
             } ?: context.filesDir
             val probeRoot = java.io.File(base, "sensevoice")
-            // 优先在所选版本目录下查找；若缺失则回退到根下任意含 tokens 的目录（兼容旧版）
-            val variant = try { prefs.svModelVariant } catch (t: Throwable) {
+            val rawVariant = try { prefs.svModelVariant } catch (t: Throwable) {
                 Log.w("SenseVoiceFileAsrEngine", "Failed to get model variant", t)
                 "small-int8"
             }
-            val variantDir = when (variant) {
-                "small-full" -> java.io.File(probeRoot, "small-full")
-                "nano-full" -> java.io.File(probeRoot, "nano-full")
-                "nano-int8" -> java.io.File(probeRoot, "nano-int8")
-                else -> java.io.File(probeRoot, "small-int8")
+            val variant = if (rawVariant == "small-full") "small-full" else "small-int8"
+            val variantDir = if (variant == "small-full") {
+                java.io.File(probeRoot, "small-full")
+            } else {
+                java.io.File(probeRoot, "small-int8")
             }
             val auto = findSvModelDir(variantDir) ?: findSvModelDir(probeRoot)
             if (auto == null) {
@@ -172,17 +171,7 @@ class SenseVoiceFileAsrEngine(
                 listener.onError(context.getString(R.string.error_asr_empty_result))
             } else {
                 val raw = text.trim()
-                val finalText = try {
-                    if (variant.startsWith("nano-")) {
-                        SherpaPunctuationManager.getInstance().addOfflinePunctuation(context, raw)
-                    } else {
-                        raw
-                    }
-                } catch (t: Throwable) {
-                    Log.e("SenseVoiceFileAsrEngine", "Failed to apply offline punctuation", t)
-                    raw
-                }
-                listener.onFinal(finalText)
+                listener.onFinal(raw)
             }
         } catch (t: Throwable) {
             Log.e("SenseVoiceFileAsrEngine", "Recognition failed", t)
@@ -252,15 +241,15 @@ fun preloadSenseVoiceIfConfigured(
             null
         } ?: context.filesDir
         val probeRoot = java.io.File(base, "sensevoice")
-        val variant = try { prefs.svModelVariant } catch (t: Throwable) {
+        val rawVariant = try { prefs.svModelVariant } catch (t: Throwable) {
             Log.w("SenseVoiceFileAsrEngine", "Failed to get model variant", t)
             "small-int8"
         }
-        val variantDir = when (variant) {
-            "small-full" -> java.io.File(probeRoot, "small-full")
-            "nano-full" -> java.io.File(probeRoot, "nano-full")
-            "nano-int8" -> java.io.File(probeRoot, "nano-int8")
-            else -> java.io.File(probeRoot, "small-int8")
+        val variant = if (rawVariant == "small-full") "small-full" else "small-int8"
+        val variantDir = if (variant == "small-full") {
+            java.io.File(probeRoot, "small-full")
+        } else {
+            java.io.File(probeRoot, "small-int8")
         }
         val auto = findSvModelDir(variantDir) ?: findSvModelDir(probeRoot) ?: return
         val dir = auto.absolutePath
@@ -375,7 +364,7 @@ fun selectSvModelFile(dir: java.io.File, variant: String?): java.io.File? {
     val hasF32 = f32File.exists()
     if (!hasInt8 && !hasF32) return null
 
-    val isFullVariant = variant == "small-full" || variant == "nano-full"
+    val isFullVariant = variant == "small-full"
     return when {
         isFullVariant && hasF32 -> f32File
         !isFullVariant && hasInt8 -> int8File
@@ -386,13 +375,10 @@ fun selectSvModelFile(dir: java.io.File, variant: String?): java.io.File? {
 }
 
 /**
- * 根据变体决定实际使用的语言配置：
- * - 普通 SenseVoice（small-*）：尊重用户选择（空串回退为 "auto"）；
- * - FunASR Nano（nano-*）：固定使用 "auto"，避免非 auto 导致效果退化。
+ * SenseVoice
  */
 fun resolveSvLanguageForVariant(language: String, variant: String?): String {
-    val normalized = language.trim().ifBlank { "auto" }
-    return if (variant != null && variant.startsWith("nano-")) "auto" else normalized
+    return language.trim().ifBlank { "auto" }
 }
 
 /**

@@ -1,0 +1,36 @@
+<resources>
+    <!-- FunASR Nano 本地 ASR 配置字串 -->
+    <string name="funasr_section_title">FunASR Nano 本地 ASR</string>
+    <string name="vendor_funasr_nano">FunASR Nano（本機非流）</string>
+
+    <!-- FunASR Nano local settings -->
+    <string name="label_fn_model_variant">模型版本</string>
+    <string name="fn_model_nano_int8">FunASR Nano（int8，約690MB）</string>
+    <string name="label_fn_threads">執行緒數（1-8）</string>
+    <string name="label_fn_use_itn">啟用 ITN（數字/標點規範化）</string>
+    <string name="label_fn_preload">首次顯示時預載入模型</string>
+    <string name="label_fn_pseudo_stream">啟用伺流式預覽（依停頓分句）</string>
+    <string name="label_fn_keep_alive">模型保留時長</string>
+    <string name="btn_fn_download_model">一鍵下載 FunASR Nano 模型</string>
+    <string name="btn_fn_import_model">從本機匯入模型</string>
+    <string name="btn_fn_clear_model">清除已下載模型</string>
+    <string name="fn_download_status_downloading">下載中… %1$d%%</string>
+    <string name="fn_download_status_extracting_progress">解壓中… %1$d%%</string>
+    <string name="fn_download_status_done">模型已安裝</string>
+    <string name="fn_download_status_failed">下載或解壓失敗</string>
+    <string name="fn_download_started_in_bg">已開始背景下載，可在通知欄查看進度</string>
+    <string name="fn_import_started_in_bg">已開始背景匯入，可在通知欄查看進度</string>
+    <string name="fn_import_success">模型匯入成功：%1$s</string>
+    <string name="fn_import_failed">模型匯入失敗：%1$s</string>
+    <string name="fn_import_status_extracting">匯入中… %1$d%%</string>
+    <string name="fn_clear_confirm_title">確認清除模型？</string>
+    <string name="fn_clear_confirm_message">將刪除已下載模型檔案，可稍後重新下載。是否繼續？</string>
+    <string name="fn_clear_done">模型已清除</string>
+    <string name="fn_clear_failed">清除失敗</string>
+
+    <!-- Error messages -->
+    <string name="error_funasr_model_missing">缺少 FunASR Nano 模型檔案，請稍後在設定中配置或下載</string>
+
+    <!-- Model download notifications -->
+    <string name="notif_fn_title_nano_int8">FunASR Nano 模型（int8）</string>
+</resources>

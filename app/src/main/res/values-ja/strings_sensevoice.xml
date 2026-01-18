@@ -32,8 +32,6 @@
     <string name="sv_clear_done">モデルがクリアされました</string>
     <string name="sv_clear_failed">クリア失敗</string>
     <string name="label_sv_model_variant">モデルバージョン</string>
-    <string name="sv_model_nano_int8">FunASR Nano（int8、約180MB）</string>
-    <string name="sv_model_nano_full">FunASR Nano（fp32、約460MB）</string>
     <string name="sv_model_small_int8">Small（int8、約160MB）</string>
     <string name="sv_model_small_full">Small（fp32、約850MB）</string>
     <string name="sv_loading_model">ローカルモデルを読み込み中…</string>
@@ -55,8 +53,6 @@
     <!-- Model download notifications -->
     <string name="notif_model_title_small_int8">SenseVoiceモデル（Small int8）</string>
     <string name="notif_model_title_small_full">SenseVoiceモデル（Small fp32）</string>
-    <string name="notif_model_title_nano_int8">SenseVoiceモデル（FunASR Nano int8）</string>
-    <string name="notif_model_title_nano_full">SenseVoiceモデル（FunASR Nano fp32）</string>
 
     <!-- ============================================== -->
     <!-- SenseVoice設定 - 機能説明 -->

@@ -32,8 +32,6 @@
     <string name="sv_clear_done">Model cleared</string>
     <string name="sv_clear_failed">Clear failed</string>
     <string name="label_sv_model_variant">Model Version</string>
-    <string name="sv_model_nano_int8">FunASR Nano (int8, ~180MB)</string>
-    <string name="sv_model_nano_full">FunASR Nano (fp32, ~460MB)</string>
     <string name="sv_model_small_int8">Small (int8, ~160MB)</string>
     <string name="sv_model_small_full">Small (fp32, ~850MB)</string>
     <string name="sv_loading_model">Loading local model…</string>
@@ -55,8 +53,6 @@
     <!-- Model download notifications -->
     <string name="notif_model_title_small_int8">SenseVoice Model (Small int8)</string>
     <string name="notif_model_title_small_full">SenseVoice Model (Small fp32)</string>
-    <string name="notif_model_title_nano_int8">SenseVoice Model (FunASR Nano int8)</string>
-    <string name="notif_model_title_nano_full">SenseVoice Model (FunASR Nano fp32)</string>
 
     <!-- ============================================== -->
     <!-- SenseVoice Settings - Feature Descriptions -->
