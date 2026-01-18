@@ -50,8 +50,12 @@ class SonioxStreamAsrEngine(
 
     private val running = AtomicBoolean(false)
     private val wsReady = AtomicBoolean(false)
+    private val awaitingFinal = AtomicBoolean(false)
+    private val endOfStreamSent = AtomicBoolean(false)
+    private val terminalNotified = AtomicBoolean(false)
     private var ws: WebSocket? = null
     private var audioJob: Job? = null
+    private var finalizeJob: Job? = null
     private val prebuffer = ArrayDeque<ByteArray>()
     private val prebufferLock = Any()
 
@@ -83,6 +87,11 @@ class SonioxStreamAsrEngine(
         }
         running.set(true)
         wsReady.set(false)
+        awaitingFinal.set(false)
+        endOfStreamSent.set(false)
+        terminalNotified.set(false)
+        finalizeJob?.cancel()
+        finalizeJob = null
         synchronized(prebufferLock) { prebuffer.clear() }
         openWebSocketAndMaybeStartAudio(startAudio = !externalPcmMode)
     }
@@ -90,16 +99,36 @@ class SonioxStreamAsrEngine(
     override fun stop() {
         if (!running.get()) return
         running.set(false)
-        wsReady.set(false)
-        synchronized(prebufferLock) { prebuffer.clear() }
-        try { ws?.send("") } catch (_: Throwable) { }
-        scope.launch(Dispatchers.IO) {
-            delay(150)
-            try { ws?.close(1000, "stop") } catch (_: Throwable) { }
-            ws = null
-        }
+        awaitingFinal.set(true)
+        endOfStreamSent.set(false)
         audioJob?.cancel()
         audioJob = null
+        finalizeJob?.cancel()
+        finalizeJob = scope.launch(Dispatchers.IO) {
+            val wsReadyWaitMs = 500
+            var waited = 0
+            while (!wsReady.get() && waited < wsReadyWaitMs) {
+                delay(50)
+                waited += 50
+            }
+            if (wsReady.get()) {
+                flushPrebufferAndRequestEnd("stop")
+            } else {
+                Log.w(TAG, "WebSocket not ready on stop; unable to end stream")
+            }
+
+            val finalWaitMs = 10_000L
+            var left = finalWaitMs
+            while (awaitingFinal.get() && left > 0) {
+                delay(50)
+                left -= 50
+            }
+            if (awaitingFinal.get()) {
+                notifyError(context.getString(R.string.error_asr_timeout), "timeout", null)
+                awaitingFinal.set(false)
+                closeWebSocket("timeout")
+            }
+        }
     }
 
     private fun openWebSocketAndMaybeStartAudio(startAudio: Boolean) {
@@ -119,10 +148,17 @@ class SonioxStreamAsrEngine(
                     // 标记 WS 已就绪，录音线程将冲刷预缓冲并进入实时发送
                     wsReady.set(true)
                     Log.d(TAG, "WebSocket ready, audio streaming can begin")
+                    if (!running.get() && awaitingFinal.get()) {
+                        flushPrebufferAndRequestEnd("stop_before_ready")
+                    }
                 } catch (t: Throwable) {
                     Log.e(TAG, "Failed to send config", t)
-                    listener.onError(context.getString(R.string.error_recognize_failed_with_reason, t.message ?: ""))
-                    stop()
+                    val message = context.getString(R.string.error_recognize_failed_with_reason, t.message ?: "")
+                    notifyError(message, "config", t)
+                    running.set(false)
+                    awaitingFinal.set(false)
+                    finalizeJob?.cancel()
+                    closeWebSocket("config_error")
                 }
             }
 
@@ -138,14 +174,32 @@ class SonioxStreamAsrEngine(
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                Log.e(TAG, "WebSocket failed: ${t.message}", t)
-                if (running.get()) {
-                    listener.onError(context.getString(R.string.error_recognize_failed_with_reason, t.message ?: ""))
+                val message = context.getString(R.string.error_recognize_failed_with_reason, t.message ?: "")
+                if (running.get() || awaitingFinal.get()) {
+                    notifyError(message, "failure", t)
                 }
+                running.set(false)
+                awaitingFinal.set(false)
+                finalizeJob?.cancel()
+                closeWebSocket("failure")
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                 Log.d(TAG, "WebSocket closed with code $code: $reason")
+                if (awaitingFinal.get()) {
+                    val message = if (reason.isNotBlank()) {
+                        context.getString(R.string.error_recognize_failed_with_reason, reason)
+                    } else {
+                        context.getString(R.string.error_asr_timeout)
+                    }
+                    notifyError(message, "closed_without_final", null)
+                    awaitingFinal.set(false)
+                }
+                running.set(false)
+                finalizeJob?.cancel()
+                ws = null
+                wsReady.set(false)
+                synchronized(prebufferLock) { prebuffer.clear() }
             }
         })
     }
@@ -302,8 +356,12 @@ class SonioxStreamAsrEngine(
             if (o.has("error_code")) {
                 val code = o.optInt("error_code")
                 val msg = o.optString("error_message")
-                Log.e(TAG, "ASR server error: $code - $msg")
-                listener.onError("ASR Error $code: $msg")
+                val message = "ASR Error $code: $msg"
+                notifyError(message, "server_error", null)
+                running.set(false)
+                awaitingFinal.set(false)
+                finalizeJob?.cancel()
+                closeWebSocket("server_error")
                 return
             }
 
@@ -348,17 +406,105 @@ class SonioxStreamAsrEngine(
 
             val finished = o.optBoolean("finished", false)
             if (finished) {
-                val finalText = stripEndMarker(finalTextBuffer.toString().ifBlank { preview })
-                Log.d(TAG, "Received final result, length: ${finalText.length}")
-                // 即使最终文本为空也通知上层，避免 UI 卡在处理中态
-                try { listener.onFinal(finalText) } catch (t: Throwable) {
-                    Log.e(TAG, "Failed to notify final result", t)
-                }
+                val finalText = stripEndMarker(finalTextBuffer.toString())
+                notifyFinal(finalText, "finished")
                 running.set(false)
+                awaitingFinal.set(false)
+                finalizeJob?.cancel()
+                closeWebSocket("final")
             }
         } catch (t: Throwable) {
             Log.e(TAG, "Failed to parse message: $json", t)
         }
+    }
+
+    private fun notifyFinal(text: String, reason: String) {
+        if (!terminalNotified.compareAndSet(false, true)) return
+        val finalText = stripEndMarker(text)
+        Log.d(TAG, "Received final result ($reason), length: ${finalText.length}")
+        try {
+            listener.onFinal(finalText)
+        } catch (t: Throwable) {
+            Log.e(TAG, "Failed to notify final result ($reason)", t)
+        }
+    }
+
+    private fun notifyError(message: String, reason: String, error: Throwable?) {
+        if (!terminalNotified.compareAndSet(false, true)) return
+        if (error != null) {
+            Log.e(TAG, "ASR error ($reason): $message", error)
+        } else {
+            Log.e(TAG, "ASR error ($reason): $message")
+        }
+        try {
+            listener.onError(message)
+        } catch (t: Throwable) {
+            Log.e(TAG, "Failed to notify error ($reason)", t)
+        }
+    }
+
+    private fun flushPrebufferAndRequestEnd(reason: String) {
+        val socket = ws ?: return
+        if (!wsReady.get()) return
+        val flushed = drainPrebuffer()
+        flushed.forEach { sendAudioFrame(socket, it) }
+        sendFinalizeRequest(reason)
+        sendEndOfStream(reason)
+    }
+
+    private fun drainPrebuffer(): Array<ByteArray> {
+        synchronized(prebufferLock) {
+            if (prebuffer.isEmpty()) return emptyArray()
+            val flushed = prebuffer.toTypedArray()
+            prebuffer.clear()
+            return flushed
+        }
+    }
+
+    private fun sendAudioFrame(socket: WebSocket, data: ByteArray) {
+        try {
+            socket.send(ByteString.of(*data))
+        } catch (t: Throwable) {
+            Log.e(TAG, "Failed to send audio frame", t)
+        }
+    }
+
+    private fun sendFinalizeRequest(reason: String) {
+        val socket = ws ?: return
+        if (!wsReady.get()) return
+        val payload = JSONObject().apply { put("type", "finalize") }.toString()
+        try {
+            socket.send(payload)
+            Log.d(TAG, "Sent finalize request ($reason)")
+        } catch (t: Throwable) {
+            Log.w(TAG, "Failed to send finalize request ($reason)", t)
+        }
+    }
+
+    private fun sendEndOfStream(reason: String) {
+        if (!endOfStreamSent.compareAndSet(false, true)) return
+        val socket = ws ?: return
+        if (!wsReady.get()) return
+        try {
+            socket.send("")
+            Log.d(TAG, "Sent end-of-stream ($reason)")
+        } catch (t: Throwable) {
+            Log.w(TAG, "Failed to send end-of-stream ($reason)", t)
+        }
+    }
+
+    private fun closeWebSocket(reason: String) {
+        val socket = ws
+        if (socket != null) {
+            try {
+                socket.close(1000, reason)
+            } catch (t: Throwable) {
+                Log.w(TAG, "Failed to close WebSocket ($reason)", t)
+            }
+        }
+        ws = null
+        wsReady.set(false)
+        synchronized(prebufferLock) { prebuffer.clear() }
     }
 
     /**
@@ -384,7 +530,7 @@ class SonioxStreamAsrEngine(
      */
     private fun stripEndMarker(s: String): String {
         if (s.isEmpty()) return s
-        return s.replace("<end>", "").trimEnd()
+        return s.replace("<end>", "").replace("<fin>", "").trimEnd()
     }
 
 }
