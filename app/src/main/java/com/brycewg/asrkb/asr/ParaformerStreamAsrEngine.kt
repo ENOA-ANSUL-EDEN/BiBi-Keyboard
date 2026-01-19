@@ -13,6 +13,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
@@ -20,6 +21,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.atomic.AtomicBoolean
@@ -269,9 +271,13 @@ class ParaformerStreamAsrEngine(
 
                     val s = currentStream
                     if (s == null) {
-                        appendPrebuffer(audioChunk)
+                        withContext(NonCancellable) {
+                            appendPrebuffer(audioChunk)
+                        }
                     } else {
-                        deliverChunk(s, audioChunk, audioChunk.size)
+                        withContext(NonCancellable) {
+                            deliverChunk(s, audioChunk, audioChunk.size)
+                        }
                     }
                 }
             } catch (t: Throwable) {
@@ -368,14 +374,12 @@ class ParaformerStreamAsrEngine(
             mgr.acceptWaveform(stream, tail, sampleRate)
             mgr.inputFinished(stream)
 
+            val startUptimeMs = SystemClock.uptimeMillis()
+            val maxUptimeMs = startUptimeMs + 2500L
             var loops = 0
-            while (mgr.isReady(stream) && loops < 64) {
-                try {
-                    mgr.decode(stream)
-                } catch (decodeErr: Throwable) {
-                    Log.e(TAG, "decode failed during finalize", decodeErr)
-                    break
-                }
+            while (loops < 512 && SystemClock.uptimeMillis() < maxUptimeMs) {
+                if (!mgr.isReady(stream)) break
+                mgr.decode(stream)
                 loops++
             }
             text = mgr.getResultText(stream)
