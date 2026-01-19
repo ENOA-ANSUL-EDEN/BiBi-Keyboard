@@ -93,6 +93,7 @@ class AsrSettingsActivity : BaseActivity() {
     private lateinit var groupFunAsrNano: View
     private lateinit var groupTelespeech: View
     private lateinit var groupParaformer: View
+    private var etFnUserPrompt: EditText? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -123,6 +124,11 @@ class AsrSettingsActivity : BaseActivity() {
         updateTsDownloadUiVisibility()
         updatePfDownloadUiVisibility()
         updatePunctDownloadUiVisibility()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        commitFnUserPromptIfNeeded()
     }
 
     private fun setupToolbar() {
@@ -1062,14 +1068,11 @@ class AsrSettingsActivity : BaseActivity() {
     private fun setupFunAsrNanoSettings() {
         setupFnModelVariantSelection()
 
-        findViewById<EditText>(R.id.etFnUserPrompt).apply {
+        etFnUserPrompt = findViewById<EditText>(R.id.etFnUserPrompt).apply {
             setText(prefs.fnUserPrompt)
             setOnFocusChangeListener { _, hasFocus ->
                 if (!hasFocus) {
-                    val v = text?.toString() ?: ""
-                    if (v != prefs.fnUserPrompt) {
-                        viewModel.updateFnUserPrompt(v)
-                    }
+                    commitFnUserPromptIfNeeded()
                 }
             }
         }
@@ -1124,6 +1127,14 @@ class AsrSettingsActivity : BaseActivity() {
         findViewById<MaterialButton>(R.id.btnFnGuide).setOnClickListener { v ->
             hapticTapIfEnabled(v)
             openUrlSafely(getString(R.string.model_guide_config_doc_url))
+        }
+    }
+
+    private fun commitFnUserPromptIfNeeded() {
+        val input = etFnUserPrompt ?: return
+        val value = input.text?.toString() ?: ""
+        if (value != prefs.fnUserPrompt) {
+            viewModel.updateFnUserPrompt(value)
         }
     }
 
