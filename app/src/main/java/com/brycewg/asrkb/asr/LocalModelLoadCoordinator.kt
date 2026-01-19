@@ -23,27 +23,57 @@ internal object LocalModelLoadCoordinator {
   private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
   private val stateMutex = Mutex()
 
-  private var activeKey: String? = null
-  private var activeJob: Job? = null
+  private var runningKey: String? = null
+  private var runningJob: Job? = null
+  private var pendingKey: String? = null
+  private var pendingJob: Job? = null
 
   fun request(key: String, loader: suspend () -> Unit) {
     scope.launch {
       val currentJob = coroutineContext[Job]
       if (currentJob == null) return@launch
 
-      val (shouldRun, jobToCancel) = stateMutex.withLock {
-        val prevJob = activeJob
-        val sameInFlight = prevJob?.isActive == true && activeKey == key
-        if (sameInFlight) return@withLock false to null
+      var shouldRunNow = false
+      var jobToCancel: Job? = null
+      var pendingToCancel: Job? = null
+      val dedup = stateMutex.withLock {
+        val running = runningJob
+        val pending = pendingJob
+        val sameRunning = running?.isActive == true && runningKey == key
+        val samePending = pending?.isActive == true && pendingKey == key
+        if (sameRunning || samePending) return@withLock true
 
-        activeKey = key
-        activeJob = currentJob
-        true to prevJob?.takeIf { !it.isCompleted }
+        pendingToCancel = pending?.takeIf { it.isActive && it != currentJob }
+        pendingKey = key
+        pendingJob = currentJob
+
+        jobToCancel = running?.takeIf { !it.isCompleted }
+        if (jobToCancel == null) {
+          runningKey = key
+          runningJob = currentJob
+          pendingKey = null
+          pendingJob = null
+          shouldRunNow = true
+        }
+        false
       }
 
-      if (!shouldRun) return@launch
+      if (dedup) return@launch
 
-      jobToCancel?.cancelAndJoin()
+      pendingToCancel?.cancel()
+      if (!shouldRunNow) {
+        jobToCancel?.cancelAndJoin()
+        val promoted = stateMutex.withLock {
+          if (pendingJob != currentJob || pendingKey != key) return@withLock false
+          runningKey = key
+          runningJob = currentJob
+          pendingKey = null
+          pendingJob = null
+          true
+        }
+        if (!promoted) return@launch
+      }
+
       try {
         loader()
       } catch (t: CancellationException) {
@@ -52,9 +82,13 @@ internal object LocalModelLoadCoordinator {
         Log.e(TAG, "Local model load failed (key=$key)", t)
       } finally {
         stateMutex.withLock {
-          if (activeJob == currentJob) {
-            activeJob = null
-            activeKey = null
+          if (runningJob == currentJob) {
+            runningJob = null
+            runningKey = null
+          }
+          if (pendingJob == currentJob) {
+            pendingJob = null
+            pendingKey = null
           }
         }
       }
@@ -63,16 +97,25 @@ internal object LocalModelLoadCoordinator {
 
   fun cancel() {
     scope.launch {
-      val jobToCancel = stateMutex.withLock {
-        activeKey = null
-        activeJob
-      } ?: return@launch
+      val (running, pending) = stateMutex.withLock {
+        runningKey = null
+        pendingKey = null
+        val running = runningJob
+        val pending = pendingJob
+        pendingJob = null
+        running to pending
+      }
 
-      jobToCancel.cancelAndJoin()
+      pending?.cancelAndJoin()
+      running?.cancelAndJoin()
       stateMutex.withLock {
-        if (activeJob == jobToCancel) {
-          activeJob = null
-          activeKey = null
+        if (runningJob == running && (running == null || running.isCompleted)) {
+          runningJob = null
+          runningKey = null
+        }
+        if (pendingJob == pending && (pending == null || pending.isCompleted)) {
+          pendingJob = null
+          pendingKey = null
         }
       }
     }
