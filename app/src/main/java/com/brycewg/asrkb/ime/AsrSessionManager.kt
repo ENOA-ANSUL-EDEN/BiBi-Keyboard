@@ -13,6 +13,9 @@ import com.brycewg.asrkb.asr.BluetoothRouteManager
 import com.brycewg.asrkb.store.Prefs
 import com.brycewg.asrkb.store.debug.DebugLogManager
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import java.util.Locale
 
 /**
@@ -89,6 +92,12 @@ class AsrSessionManager(
 
     // ASR 请求耗时记录
     private var lastRequestDurationMs: Long? = null
+
+    // 本地模型：Processing 阶段等待“模型就绪”的耗时（用于将处理耗时统计从模型就绪开始）
+    private var sessionSeq: Long = 0L
+    private var localModelWaitStartUptimeMs: Long = 0L
+    private var localModelReadyWaitMs: Long = 0L
+    private var localModelReadyWaitJob: Job? = null
 
     // 会话录音时长统计（毫秒）
     private var sessionStartUptimeMs: Long = 0L
@@ -289,6 +298,15 @@ class AsrSessionManager(
      */
     fun startRecording(state: KeyboardState) {
         currentState = state
+        sessionSeq++
+        localModelWaitStartUptimeMs = 0L
+        localModelReadyWaitMs = 0L
+        try {
+            localModelReadyWaitJob?.cancel()
+        } catch (t: Throwable) {
+            Log.w(TAG, "Cancel local model wait job failed on startRecording", t)
+        }
+        localModelReadyWaitJob = null
         try { sessionStartUptimeMs = SystemClock.uptimeMillis() } catch (t: Throwable) {
             Log.w(TAG, "Failed to get uptime for session start", t)
             sessionStartUptimeMs = 0L
@@ -389,6 +407,7 @@ class AsrSessionManager(
      */
     fun stopRecording() {
         snapshotAudioDurationIfPossible()
+        markLocalModelProcessingStartIfNeeded()
         asrEngine?.stop()
         try {
             DebugLogManager.log(
@@ -453,6 +472,12 @@ class AsrSessionManager(
      */
     fun cleanup() {
         asrEngine?.stop()
+        try {
+            localModelReadyWaitJob?.cancel()
+        } catch (t: Throwable) {
+            Log.w(TAG, "Cancel local model wait job failed on cleanup", t)
+        }
+        localModelReadyWaitJob = null
         listener = null
     }
 
@@ -528,6 +553,12 @@ class AsrSessionManager(
 
     override fun onError(message: String) {
         Log.e(TAG, "onError: message='$message', state=$currentState")
+        try {
+            localModelReadyWaitJob?.cancel()
+        } catch (t: Throwable) {
+            Log.w(TAG, "Cancel local model wait job failed onError", t)
+        }
+        localModelReadyWaitJob = null
         val friendlyMessage = mapErrorToFriendlyMessage(message)
         try {
             DebugLogManager.log(
@@ -544,6 +575,7 @@ class AsrSessionManager(
 
     override fun onStopped() {
         Log.d(TAG, "onStopped: state=$currentState")
+        markLocalModelProcessingStartIfNeeded()
         // 计算本次会话录音时长
         if (sessionStartUptimeMs > 0L) {
             try {
@@ -611,9 +643,48 @@ class AsrSessionManager(
 
     // ========== 私有方法 ==========
 
+    private fun markLocalModelProcessingStartIfNeeded() {
+        val vendor = try { prefs.asrVendor } catch (t: Throwable) {
+            Log.w(TAG, "Failed to read asrVendor for local model timing", t)
+            return
+        }
+        if (!isLocalAsrVendor(vendor)) return
+        if (localModelWaitStartUptimeMs != 0L) return
+
+        val startMs = try { SystemClock.uptimeMillis() } catch (t: Throwable) {
+            Log.w(TAG, "Failed to read uptime for local model timing", t)
+            0L
+        }
+        localModelWaitStartUptimeMs = startMs
+        localModelReadyWaitMs = 0L
+
+        // 已就绪：无需等待
+        if (isLocalAsrReady(prefs)) return
+
+        val seq = sessionSeq
+        try {
+            localModelReadyWaitJob?.cancel()
+        } catch (t: Throwable) {
+            Log.w(TAG, "Cancel local model wait job failed", t)
+        }
+        localModelReadyWaitJob = scope.launch(Dispatchers.Default) {
+            val ok = awaitLocalAsrReady(prefs)
+            if (!ok) return@launch
+            if (sessionSeq != seq) return@launch
+            val readyAt = try { SystemClock.uptimeMillis() } catch (_: Throwable) { 0L }
+            if (readyAt > 0L && startMs > 0L && readyAt >= startMs) {
+                localModelReadyWaitMs = (readyAt - startMs).coerceAtLeast(0L)
+            }
+        }
+    }
+
     private fun onRequestDuration(ms: Long) {
-        lastRequestDurationMs = ms
-        Log.d(TAG, "Request duration: ${ms}ms")
+        val waitMs = localModelReadyWaitMs
+        val adjusted = if (waitMs > 0L && ms > waitMs) ms - waitMs else ms
+        lastRequestDurationMs = adjusted
+        // 仅对首次“等待模型就绪”的请求做一次扣减，避免后续分段请求被重复扣除
+        localModelReadyWaitMs = 0L
+        Log.d(TAG, "Request duration: ${adjusted}ms")
     }
 
     /**

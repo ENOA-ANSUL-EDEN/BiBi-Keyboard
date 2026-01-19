@@ -58,6 +58,8 @@ class AsrSessionManager(
     private var lastAudioMsForStats: Long = 0L
     // 统计：非流式请求处理耗时（毫秒）
     private var lastRequestDurationMs: Long? = null
+    // 本地模型：Processing 阶段等待“模型就绪”的耗时（用于将处理耗时统计从模型就绪开始）
+    private var localModelReadyWaitMs: Long = 0L
     // 标记：最近一次提交是否实际使用了 AI 输出
     private var lastAiUsed: Boolean = false
     // 音频焦点请求句柄
@@ -85,6 +87,7 @@ class AsrSessionManager(
         lastAudioMsForStats = 0L
         // 新会话开始：重置请求耗时，避免上一轮的值串台
         lastRequestDurationMs = null
+        localModelReadyWaitMs = 0L
         // 开始录音前根据设置决定是否请求短时独占音频焦点（音频避让）
         if (prefs.duckMediaOnRecordEnabled) {
             requestTransientAudioFocus()
@@ -518,8 +521,12 @@ class AsrSessionManager(
     }
 
     private fun onRequestDuration(ms: Long) {
-        lastRequestDurationMs = ms
-        Log.d(TAG, "Request duration: ${ms}ms")
+        val waitMs = localModelReadyWaitMs
+        val adjusted = if (waitMs > 0L && ms > waitMs) ms - waitMs else ms
+        lastRequestDurationMs = adjusted
+        // 仅对首次“等待模型就绪”的请求做一次扣减，避免后续分段请求被重复扣除
+        localModelReadyWaitMs = 0L
+        Log.d(TAG, "Request duration: ${adjusted}ms")
     }
 
     private fun startProcessingTimeout(audioMsOverride: Long? = null) {
@@ -531,6 +538,26 @@ class AsrSessionManager(
         val audioMs = audioMsOverride ?: lastAudioMsForStats
         val timeoutMs = AsrTimeoutCalculator.calculateTimeoutMs(audioMs)
         processingTimeoutJob = serviceScope.launch {
+            val shouldDeferForLocalModel = try {
+                isLocalAsrVendor(prefs.asrVendor)
+            } catch (t: Throwable) {
+                Log.w(TAG, "Failed to determine local ASR vendor for timeout gating", t)
+                false
+            }
+            if (shouldDeferForLocalModel) {
+                val wasReady = try { isLocalAsrReady(prefs) } catch (_: Throwable) { false }
+                val t0 = try { SystemClock.uptimeMillis() } catch (_: Throwable) { 0L }
+                val ok = awaitLocalAsrReady(prefs)
+                if (!ok) {
+                    Log.w(TAG, "awaitLocalAsrReady returned false, fallback to immediate timeout countdown")
+                }
+                if (!wasReady && t0 > 0L) {
+                    val t1 = try { SystemClock.uptimeMillis() } catch (_: Throwable) { 0L }
+                    if (t1 >= t0) {
+                        localModelReadyWaitMs = (t1 - t0).coerceAtLeast(0L)
+                    }
+                }
+            }
             delay(timeoutMs)
             if (!hasCommittedResult) {
                 Log.d(TAG, "Processing timeout fired: audioMs=$audioMs, timeoutMs=$timeoutMs")

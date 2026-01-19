@@ -7,6 +7,8 @@ import android.view.inputmethod.InputConnection
 import com.brycewg.asrkb.R
 import com.brycewg.asrkb.asr.LlmPostProcessor
 import com.brycewg.asrkb.asr.AsrTimeoutCalculator
+import com.brycewg.asrkb.asr.awaitLocalAsrReady
+import com.brycewg.asrkb.asr.isLocalAsrVendor
 import com.brycewg.asrkb.asr.VadAutoStopGuard
 import com.brycewg.asrkb.util.TextSanitizer
 import com.brycewg.asrkb.store.Prefs
@@ -82,7 +84,23 @@ class KeyboardActionHandler(
         try { processingTimeoutJob?.cancel() } catch (t: Throwable) { Log.w(TAG, "Cancel previous processingTimeoutJob failed", t) }
         val audioMs = audioMsOverride ?: try { asrManager.peekLastAudioMsForStats() } catch (_: Throwable) { 0L }
         val timeoutMs = AsrTimeoutCalculator.calculateTimeoutMs(audioMs)
+        val shouldDeferForLocalModel = try {
+            isLocalAsrVendor(prefs.asrVendor)
+        } catch (t: Throwable) {
+            Log.w(TAG, "Failed to determine local ASR vendor for timeout gating", t)
+            false
+        }
         processingTimeoutJob = scope.launch {
+            if (shouldDeferForLocalModel) {
+                // 本地模型：将超时计时起点推移到“模型加载完成”之后，避免首次加载期间误触发超时
+                val ok = awaitLocalAsrReady(prefs)
+                if (!ok) {
+                    // 读取配置失败等异常场景：回退为原有策略（不阻塞、继续计时）
+                    Log.w(TAG, "awaitLocalAsrReady returned false, fallback to immediate timeout countdown")
+                }
+                // 若等待期间状态已变化，则不再继续计时
+                if (currentState !is KeyboardState.Processing) return@launch
+            }
             delay(timeoutMs)
             // 若仍处于 Processing，则回到 Idle
             if (currentState is KeyboardState.Processing) {
