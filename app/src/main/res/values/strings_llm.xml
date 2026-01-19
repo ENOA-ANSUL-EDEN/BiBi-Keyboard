@@ -48,6 +48,11 @@
     <string name="feature_ai_post_process_off_desc">Voice recognition results are output directly without processing.</string>
     <string name="feature_ai_post_process_on_desc">Voice recognition results are processed by AI before output, for text polishing, punctuation, formatting, etc.</string>
 
+    <!-- Post-processing typewriter effect -->
+    <string name="label_postproc_typewriter_enabled">Typewriter effect (post-processing output)</string>
+    <string name="feature_postproc_typewriter_off_desc">Show streaming post-processing output as-is (it may appear in large chunks).</string>
+    <string name="feature_postproc_typewriter_on_desc">Animate streaming post-processing output with a fast typewriter effect for smoother visuals.</string>
+
     <!-- AI edit default use last ASR -->
     <string name="feature_ai_edit_default_use_last_asr_off_desc">AI edit will target the entire input field by default.</string>
     <string name="feature_ai_edit_default_use_last_asr_on_desc">AI edit will default to operating on the last recognition result, convenient for quick edits after voice input.</string>

@@ -110,6 +110,7 @@ class AiPostSettingsActivity : BaseActivity() {
     private lateinit var btnAddPromptPreset: Button
     private lateinit var btnDeletePromptPreset: Button
     private lateinit var switchPostProcessEnabled: MaterialSwitch
+    private lateinit var switchPostprocTypewriter: MaterialSwitch
     private lateinit var switchAiEditPreferLastAsr: MaterialSwitch
     private lateinit var sliderSkipAiUnderChars: Slider
     private lateinit var tvSkipAiUnderCharsValue: TextView
@@ -160,6 +161,20 @@ class AiPostSettingsActivity : BaseActivity() {
             readPref = { prefs.postProcessEnabled },
             writePref = { v -> prefs.postProcessEnabled = v },
             onChanged = { sendRefreshBroadcast() },
+            hapticFeedback = { hapticTapIfEnabled(it) }
+        )
+
+        // AI 后处理：打字机效果
+        switchPostprocTypewriter = findViewById(R.id.switchPostprocTypewriter)
+        switchPostprocTypewriter.isChecked = prefs.postprocTypewriterEnabled
+        switchPostprocTypewriter.installExplainedSwitch(
+            context = this,
+            titleRes = R.string.label_postproc_typewriter_enabled,
+            offDescRes = R.string.feature_postproc_typewriter_off_desc,
+            onDescRes = R.string.feature_postproc_typewriter_on_desc,
+            preferenceKey = "postproc_typewriter_explained",
+            readPref = { prefs.postprocTypewriterEnabled },
+            writePref = { v -> prefs.postprocTypewriterEnabled = v },
             hapticFeedback = { hapticTapIfEnabled(it) }
         )
 

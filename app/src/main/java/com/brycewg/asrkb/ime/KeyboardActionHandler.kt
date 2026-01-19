@@ -1208,20 +1208,32 @@ class KeyboardActionHandler(
 
         // 统一使用 AsrFinalFilters（含预修剪/LLM/后修剪/繁体转换）
         val preTrimRaw = try { if (prefs.trimFinalTrailingPunct) TextSanitizer.trimTrailingPunctAndEmoji(text) else text } catch (_: Throwable) { text }
+        val typewriterEnabled = try { prefs.postprocTypewriterEnabled } catch (_: Throwable) { true }
         var postprocCommitted = false
-        val typewriter = TypewriterTextAnimator(
-            scope = scope,
-            onEmit = emit@{ typed ->
-                if (seq != opSeq || postprocCommitted) return@emit
-                inputHelper.setComposingText(ic, typed)
-            }
-        )
+        val typewriter = if (typewriterEnabled) {
+            TypewriterTextAnimator(
+                scope = scope,
+                onEmit = emit@{ typed ->
+                    if (seq != opSeq || postprocCommitted) return@emit
+                    inputHelper.setComposingText(ic, typed)
+                }
+            )
+        } else {
+            null
+        }
         var lastStreamingText: String? = null
         val onStreamingUpdate: (String) -> Unit = onStreamingUpdate@{ streamed ->
             if (seq != opSeq || postprocCommitted) return@onStreamingUpdate
             if (streamed.isEmpty() || streamed == lastStreamingText) return@onStreamingUpdate
             lastStreamingText = streamed
-            typewriter.submit(streamed)
+            if (typewriter != null) {
+                typewriter.submit(streamed)
+            } else {
+                scope.launch {
+                    if (seq != opSeq || postprocCommitted) return@launch
+                    inputHelper.setComposingText(ic, streamed)
+                }
+            }
         }
         val res = try {
             com.brycewg.asrkb.util.AsrFinalFilters.applyWithAi(
@@ -1256,22 +1268,28 @@ class KeyboardActionHandler(
         // 若已被取消，不再提交
         if (seq != opSeq) {
             postprocCommitted = true
-            typewriter.cancel()
+            typewriter?.cancel()
             return
         }
-        // 最终结果到达后：不再“秒出”，改为让打字机以最快速度追到最终文本
-        typewriter.submit(finalOut, rush = true)
-        val finalLen = finalOut.length
-        while (seq == opSeq && typewriter.currentText().length != finalLen) {
-            delay(20)
+        if (typewriter != null && finalOut.isNotEmpty()) {
+            // 最终结果到达后：不再“秒出”，改为让打字机以最快速度追到最终文本
+            typewriter.submit(finalOut, rush = true)
+            val finalLen = finalOut.length
+            val t0 = try { android.os.SystemClock.uptimeMillis() } catch (_: Throwable) { 0L }
+            while (seq == opSeq &&
+                (t0 <= 0L || (android.os.SystemClock.uptimeMillis() - t0) < 2_000L) &&
+                typewriter.currentText().length != finalLen
+            ) {
+                delay(20)
+            }
         }
         if (seq != opSeq) {
             postprocCommitted = true
-            typewriter.cancel()
+            typewriter?.cancel()
             return
         }
         postprocCommitted = true
-        typewriter.cancel()
+        typewriter?.cancel()
         // 提交最终文本
         inputHelper.setComposingText(ic, finalOut)
         inputHelper.finishComposingText(ic)

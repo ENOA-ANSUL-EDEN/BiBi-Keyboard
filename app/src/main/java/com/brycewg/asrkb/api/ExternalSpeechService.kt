@@ -655,28 +655,39 @@ class ExternalSpeechService : Service() {
                 // 执行带 AI 的完整后处理链（IO 在线程内切换）
                 CoroutineScope(Dispatchers.Main).launch {
                     if (canceled) return@launch
+                    val typewriterEnabled = try { prefs.postprocTypewriterEnabled } catch (_: Throwable) { true }
                     var postprocCommitted = false
                     var lastPostprocTarget: String? = null
-                    val typewriter = TypewriterTextAnimator(
-                        scope = this,
-                        onEmit = emit@{ typed ->
-                            if (canceled || postprocCommitted) return@emit
-                            if (typed.isEmpty() || typed == lastPostprocPreview) return@emit
-                            lastPostprocPreview = typed
-                            safe { cb.onPartial(id, typed) }
-                        },
-                        frameDelayMs = 35L,
-                        idleStopDelayMs = 1200L,
-                        normalTargetFrames = 18,
-                        normalMaxStep = 6,
-                        rushTargetFrames = 8,
-                        rushMaxStep = 24
-                    )
+                    val typewriter = if (typewriterEnabled) {
+                        TypewriterTextAnimator(
+                            scope = this,
+                            onEmit = emit@{ typed ->
+                                if (canceled || postprocCommitted) return@emit
+                                if (typed.isEmpty() || typed == lastPostprocPreview) return@emit
+                                lastPostprocPreview = typed
+                                safe { cb.onPartial(id, typed) }
+                            },
+                            frameDelayMs = 35L,
+                            idleStopDelayMs = 1200L,
+                            normalTargetFrames = 18,
+                            normalMaxStep = 6,
+                            rushTargetFrames = 8,
+                            rushMaxStep = 24
+                        )
+                    } else {
+                        null
+                    }
                     val onStreamingUpdate: (String) -> Unit = onStreamingUpdate@{ streamed ->
                         if (canceled || postprocCommitted) return@onStreamingUpdate
                         if (streamed.isEmpty() || streamed == lastPostprocTarget) return@onStreamingUpdate
                         lastPostprocTarget = streamed
-                        typewriter.submit(streamed)
+                        if (typewriter != null) {
+                            typewriter.submit(streamed)
+                        } else {
+                            if (streamed.isEmpty() || streamed == lastPostprocPreview) return@onStreamingUpdate
+                            lastPostprocPreview = streamed
+                            safe { cb.onPartial(id, streamed) }
+                        }
                     }
                     val (out, usedAi) = try {
                         val res = com.brycewg.asrkb.util.AsrFinalFilters.applyWithAi(
@@ -698,7 +709,7 @@ class ExternalSpeechService : Service() {
                                 text
                             }
                         }
-                        if (finalOut.isNotEmpty()) {
+                        if (typewriter != null && finalOut.isNotEmpty()) {
                             typewriter.submit(finalOut, rush = true)
                             val finalLen = finalOut.length
                             val t0 = SystemClock.uptimeMillis()
@@ -716,7 +727,7 @@ class ExternalSpeechService : Service() {
                         } catch (_: Throwable) {
                             text
                         }
-                        if (fallback.isNotEmpty()) {
+                        if (typewriter != null && fallback.isNotEmpty()) {
                             typewriter.submit(fallback, rush = true)
                             val finalLen = fallback.length
                             val t0 = SystemClock.uptimeMillis()
@@ -729,7 +740,7 @@ class ExternalSpeechService : Service() {
                         fallback to false
                     } finally {
                         postprocCommitted = true
-                        typewriter.cancel()
+                        typewriter?.cancel()
                     }
                     if (canceled) return@launch
                     // 记录使用统计与识别历史（来源标记为 ime；尊重开关）

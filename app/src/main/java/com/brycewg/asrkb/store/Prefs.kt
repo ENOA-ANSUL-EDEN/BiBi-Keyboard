@@ -366,6 +366,11 @@ class Prefs(context: Context) {
         get() = sp.getBoolean(KEY_POSTPROC_ENABLED, false)
         set(value) = sp.edit { putBoolean(KEY_POSTPROC_ENABLED, value) }
 
+    // AI 后处理：后处理结果打字机效果（仅影响流式预览展示），默认开启
+    var postprocTypewriterEnabled: Boolean
+        get() = sp.getBoolean(KEY_POSTPROC_TYPEWRITER_ENABLED, true)
+        set(value) = sp.edit { putBoolean(KEY_POSTPROC_TYPEWRITER_ENABLED, value) }
+
     var llmEndpoint: String
         get() = sp.getString(KEY_LLM_ENDPOINT, DEFAULT_LLM_ENDPOINT) ?: DEFAULT_LLM_ENDPOINT
         set(value) = sp.edit { putString(KEY_LLM_ENDPOINT, value.trim()) }
@@ -2140,6 +2145,7 @@ class Prefs(context: Context) {
         o.put(KEY_FLOATING_KEEP_ALIVE_ENABLED, floatingKeepAliveEnabled)
         
         o.put(KEY_POSTPROC_ENABLED, postProcessEnabled)
+        o.put(KEY_POSTPROC_TYPEWRITER_ENABLED, postprocTypewriterEnabled)
         o.put(KEY_AI_EDIT_DEFAULT_TO_LAST_ASR, aiEditDefaultToLastAsr)
         o.put(KEY_HEADSET_MIC_PRIORITY_ENABLED, headsetMicPriorityEnabled)
         o.put(KEY_LLM_ENDPOINT, llmEndpoint)
@@ -2334,6 +2340,7 @@ class Prefs(context: Context) {
             optString(KEY_APP_LANGUAGE_TAG)?.let { appLanguageTag = it }
             optBool(KEY_AUTO_UPDATE_CHECK_ENABLED)?.let { autoUpdateCheckEnabled = it }
             optBool(KEY_POSTPROC_ENABLED)?.let { postProcessEnabled = it }
+            optBool(KEY_POSTPROC_TYPEWRITER_ENABLED)?.let { postprocTypewriterEnabled = it }
             optBool(KEY_HEADSET_MIC_PRIORITY_ENABLED)?.let { headsetMicPriorityEnabled = it }
             // SiliconFlow 免费/付费 LLM 配置
             optBool(KEY_SF_FREE_LLM_ENABLED)?.let { sfFreeLlmEnabled = it }

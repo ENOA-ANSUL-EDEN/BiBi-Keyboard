@@ -48,6 +48,11 @@
     <string name="feature_ai_post_process_off_desc">語音識別結果直接輸出，不進行任何處理。</string>
     <string name="feature_ai_post_process_on_desc">語音識別結果將經過 AI 處理後再輸出，用於文字潤飾、標點、格式化等。</string>
 
+    <!-- 後處理打字機效果 -->
+    <string name="label_postproc_typewriter_enabled">後處理打字機效果</string>
+    <string name="feature_postproc_typewriter_off_desc">串流後處理結果依模型原始分塊更新，可能會大片輸出或整體秒出。</string>
+    <string name="feature_postproc_typewriter_on_desc">將串流後處理結果以快速打字機效果平滑輸出，觀感更順滑。</string>
+
     <!-- AI 編輯預設使用上次識別結果 -->
     <string name="feature_ai_edit_default_use_last_asr_off_desc">AI 編輯將預設針對整個輸入欄位進行操作。</string>
     <string name="feature_ai_edit_default_use_last_asr_on_desc">AI 編輯將預設操作上次識別結果，方便在語音輸入後快速編輯。</string>

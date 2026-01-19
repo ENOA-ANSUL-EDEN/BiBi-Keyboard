@@ -49,6 +49,11 @@
     <string name="feature_ai_post_process_off_desc">音声認識結果を処理せずにそのまま出力します。</string>
     <string name="feature_ai_post_process_on_desc">音声認識結果をAIで処理してから出力します。テキスト推敲、句読点、フォーマットなどに使用します。</string>
 
+    <!-- 後処理タイプライター効果 -->
+    <string name="label_postproc_typewriter_enabled">後処理のタイプライター効果</string>
+    <string name="feature_postproc_typewriter_off_desc">後処理のストリーミング結果をそのまま表示します（大きな塊で一気に表示されることがあります）。</string>
+    <string name="feature_postproc_typewriter_on_desc">後処理のストリーミング結果を高速なタイプライター効果で滑らかに表示します。</string>
+
     <!-- AI編集で最後のASR結果をデフォルト使用 -->
     <string name="feature_ai_edit_default_use_last_asr_off_desc">AI編集はデフォルトで入力フィールド全体を対象とします。</string>
     <string name="feature_ai_edit_default_use_last_asr_on_desc">AI編集は最後の認識結果をデフォルトで操作し、音声入力後の迅速な編集に便利です。</string>

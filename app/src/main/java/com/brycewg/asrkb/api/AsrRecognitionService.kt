@@ -328,10 +328,11 @@ class AsrRecognitionService : RecognitionService() {
             serviceScope.launch {
                 if (canceled || finished) return@launch
                 val processedText = if (doAi) {
-                    val enableTypewriter = config.partialResults
+                    val allowPartial = config.partialResults
+                    val typewriterEnabled = allowPartial && (try { prefs.postprocTypewriterEnabled } catch (_: Throwable) { true })
                     var postprocCommitted = false
                     var lastPostprocTarget: String? = null
-                    val typewriter = if (enableTypewriter) {
+                    val typewriter = if (typewriterEnabled) {
                         TypewriterTextAnimator(
                             scope = this,
                             onEmit = emit@{ typed ->
@@ -346,16 +347,20 @@ class AsrRecognitionService : RecognitionService() {
                     } else {
                         null
                     }
-                    val onStreamingUpdate: ((String) -> Unit)? = if (enableTypewriter) {
+                    val onStreamingUpdate: ((String) -> Unit)? = if (allowPartial) {
                         onStreamingUpdate@{ streamed ->
                             if (canceled || finished || postprocCommitted) return@onStreamingUpdate
                             if (streamed.isEmpty() || streamed == lastPostprocTarget) return@onStreamingUpdate
                             lastPostprocTarget = streamed
-                            typewriter?.submit(streamed)
+                            if (typewriter != null) {
+                                typewriter.submit(streamed)
+                            } else {
+                                if (streamed.isEmpty() || streamed == lastPostprocPreview) return@onStreamingUpdate
+                                lastPostprocPreview = streamed
+                                deliverPartialResults(streamed)
+                            }
                         }
-                    } else {
-                        null
-                    }
+                    } else null
                     try {
                         val res = com.brycewg.asrkb.util.AsrFinalFilters.applyWithAi(
                             this@AsrRecognitionService,
@@ -374,7 +379,7 @@ class AsrRecognitionService : RecognitionService() {
                                 text
                             }
                         }
-                        if (enableTypewriter && finalOut.isNotEmpty()) {
+                        if (typewriter != null && finalOut.isNotEmpty()) {
                             typewriter?.submit(finalOut, rush = true)
                             val finalLen = finalOut.length
                             val t0 = SystemClock.uptimeMillis()

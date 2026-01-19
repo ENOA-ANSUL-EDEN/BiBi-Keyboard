@@ -237,24 +237,33 @@ class AsrSessionManager(
                 if (lastPartialForPreview.isNullOrEmpty()) {
                     updatePreviewText(text)
                 }
+                val typewriterEnabled = try { prefs.postprocTypewriterEnabled } catch (_: Throwable) { true }
                 var postprocCommitted = false
-                val typewriter = TypewriterTextAnimator(
-                    scope = serviceScope,
-                    onEmit = emit@{ typed ->
-                        if (postprocCommitted) return@emit
-                        updatePreviewText(typed)
-                    },
-                    frameDelayMs = 60L,
-                    idleStopDelayMs = 1200L,
-                    normalTargetFrames = 12,
-                    normalMaxStep = 8
-                )
+                val typewriter = if (typewriterEnabled) {
+                    TypewriterTextAnimator(
+                        scope = serviceScope,
+                        onEmit = emit@{ typed ->
+                            if (postprocCommitted) return@emit
+                            updatePreviewText(typed)
+                        },
+                        frameDelayMs = 60L,
+                        idleStopDelayMs = 1200L,
+                        normalTargetFrames = 12,
+                        normalMaxStep = 8
+                    )
+                } else {
+                    null
+                }
                 var lastStreamingText: String? = null
                 val onStreamingUpdate: (String) -> Unit = onStreamingUpdate@{ streamed ->
                     if (postprocCommitted) return@onStreamingUpdate
                     if (streamed.isEmpty() || streamed == lastStreamingText) return@onStreamingUpdate
                     lastStreamingText = streamed
-                    typewriter.submit(streamed)
+                    if (typewriter != null) {
+                        typewriter.submit(streamed)
+                    } else {
+                        updatePreviewText(streamed)
+                    }
                 }
                 val res = try {
                     com.brycewg.asrkb.util.AsrFinalFilters.applyWithAi(
@@ -270,16 +279,20 @@ class AsrSessionManager(
                 }
                 if (!res.ok) Log.w(TAG, "Post-processing failed; using processed text anyway")
                 finalText = res.text.ifBlank { text }
-                // 最终结果到达后：让打字机以最快速度追到最终文本，再进行最终提交
-                if (finalText.isNotEmpty() && focusContext != null) {
+                if (typewriter != null && finalText.isNotEmpty() && focusContext != null) {
+                    // 最终结果到达后：让打字机以最快速度追到最终文本，再进行最终提交
                     typewriter.submit(finalText, rush = true)
                     val finalLen = finalText.length
-                    while (!postprocCommitted && typewriter.currentText().length != finalLen) {
+                    val t0 = try { SystemClock.uptimeMillis() } catch (_: Throwable) { 0L }
+                    while (!postprocCommitted &&
+                        (t0 <= 0L || (SystemClock.uptimeMillis() - t0) < 2_000L) &&
+                        typewriter.currentText().length != finalLen
+                    ) {
                         delay(20)
                     }
                 }
                 postprocCommitted = true
-                typewriter.cancel()
+                typewriter?.cancel()
                 lastAiUsed = (res.usedAi && res.ok)
                 Log.d(TAG, "Post-processing completed: $finalText")
             } else {

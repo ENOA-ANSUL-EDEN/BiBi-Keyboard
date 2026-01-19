@@ -40,6 +40,12 @@
           android:text="@string/label_ai_post_process_enabled" />
 
         <com.google.android.material.materialswitch.MaterialSwitch
+          android:id="@+id/switchPostprocTypewriter"
+          style="@style/SettingsSwitch"
+          android:layout_marginTop="0dp"
+          android:text="@string/label_postproc_typewriter_enabled" />
+
+        <com.google.android.material.materialswitch.MaterialSwitch
           android:id="@+id/switchAiEditPreferLastAsr"
           style="@style/SettingsSwitch"
           android:layout_marginTop="0dp"
