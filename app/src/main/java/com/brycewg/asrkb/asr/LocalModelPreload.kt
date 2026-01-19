@@ -80,10 +80,22 @@ fun isLocalAsrVendor(vendor: AsrVendor): Boolean {
 fun isLocalAsrReady(prefs: Prefs): Boolean {
     return try {
         when (prefs.asrVendor) {
-            AsrVendor.SenseVoice -> SenseVoiceOnnxManager.getInstance().isPrepared()
-            AsrVendor.FunAsrNano -> FunAsrNanoOnnxManager.getInstance().isPrepared()
-            AsrVendor.Telespeech -> TelespeechOnnxManager.getInstance().isPrepared()
-            AsrVendor.Paraformer -> ParaformerOnnxManager.getInstance().isPrepared()
+            AsrVendor.SenseVoice -> {
+                val manager = SenseVoiceOnnxManager.getInstance()
+                manager.isPrepared() && !manager.isPreparing()
+            }
+            AsrVendor.FunAsrNano -> {
+                val manager = FunAsrNanoOnnxManager.getInstance()
+                manager.isPrepared() && !manager.isPreparing()
+            }
+            AsrVendor.Telespeech -> {
+                val manager = TelespeechOnnxManager.getInstance()
+                manager.isPrepared() && !manager.isPreparing()
+            }
+            AsrVendor.Paraformer -> {
+                val manager = ParaformerOnnxManager.getInstance()
+                manager.isPrepared() && !manager.isPreparing()
+            }
             else -> false
         }
     } catch (t: Throwable) {

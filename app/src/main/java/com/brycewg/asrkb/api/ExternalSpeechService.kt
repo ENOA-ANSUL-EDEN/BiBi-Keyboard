@@ -10,12 +10,16 @@ import android.os.SystemClock
 import android.os.Parcel
 import android.util.Log
 import androidx.core.content.ContextCompat
+import com.brycewg.asrkb.R
 import com.brycewg.asrkb.aidl.SpeechConfig
 import com.brycewg.asrkb.asr.*
 import com.brycewg.asrkb.analytics.AnalyticsManager
 import com.brycewg.asrkb.store.Prefs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
 
@@ -180,12 +184,134 @@ class ExternalSpeechService : Service() {
         private var lastAudioMsForStats: Long = 0L
         private var lastRequestDurationMs: Long? = null
         private var lastPostprocPreview: String? = null
+        private var vendor: AsrVendor? = null
+        private var processingStartUptimeMs: Long = 0L
+        private var processingEndUptimeMs: Long = 0L
+        private var localModelWaitStartUptimeMs: Long = 0L
+        private var localModelReadyWaitMs: Long = 0L
+        private var localModelReadyWaitJob: Job? = null
+        private val sessionJob = SupervisorJob()
+        private val sessionScope = CoroutineScope(sessionJob + Dispatchers.Default)
+        private var processingTimeoutJob: Job? = null
+        @Volatile private var finished: Boolean = false
         @Volatile private var canceled: Boolean = false
         @Volatile private var hasAsrPartial: Boolean = false
+
+        private fun cancelLocalModelReadyWait() {
+            try {
+                localModelReadyWaitJob?.cancel()
+            } catch (t: Throwable) {
+                Log.w(TAG, "Cancel local model wait job failed", t)
+            } finally {
+                localModelReadyWaitJob = null
+            }
+        }
+
+        private fun cancelProcessingTimeout() {
+            try {
+                processingTimeoutJob?.cancel()
+            } catch (t: Throwable) {
+                Log.w(TAG, "Cancel processing timeout failed", t)
+            } finally {
+                processingTimeoutJob = null
+            }
+        }
+
+        private fun markLocalModelProcessingStartIfNeeded() {
+            val vendorSnapshot = vendor ?: return
+            if (!isLocalAsrVendor(vendorSnapshot)) return
+            if (localModelWaitStartUptimeMs != 0L) return
+
+            val startMs = if (processingStartUptimeMs > 0L) processingStartUptimeMs else SystemClock.uptimeMillis()
+            localModelWaitStartUptimeMs = startMs
+            localModelReadyWaitMs = 0L
+
+            // 已就绪：无需等待
+            if (isLocalAsrReady(prefs)) return
+
+            cancelLocalModelReadyWait()
+            localModelReadyWaitJob = sessionScope.launch {
+                val ok = awaitLocalAsrReady(prefs, pollIntervalMs = 10L)
+                if (!ok) return@launch
+                if (canceled) return@launch
+                val readyAt = SystemClock.uptimeMillis()
+                if (readyAt >= startMs) {
+                    localModelReadyWaitMs = (readyAt - startMs).coerceAtLeast(0L)
+                }
+            }
+        }
+
+        private fun onRequestDuration(ms: Long) {
+            val waitMs = localModelReadyWaitMs
+            val adjusted = if (waitMs > 0L && ms > waitMs) ms - waitMs else ms
+            lastRequestDurationMs = adjusted
+            // 仅对首次“等待模型就绪”的请求做一次扣减，避免后续分段请求被重复扣除
+            localModelReadyWaitMs = 0L
+        }
+
+        private fun computeProcMsForStats(): Long {
+            val fromEngine = lastRequestDurationMs
+            if (fromEngine != null) return fromEngine
+            val start = processingStartUptimeMs
+            val end = processingEndUptimeMs
+            if (start <= 0L || end <= 0L || end < start) return 0L
+            val total = (end - start).coerceAtLeast(0L)
+            val wait = localModelReadyWaitMs.coerceAtLeast(0L)
+            return (total - wait).coerceAtLeast(0L)
+        }
+
+        private fun scheduleProcessingTimeoutIfNeeded() {
+            if (processingTimeoutJob != null) return
+            val audioMs = lastAudioMsForStats
+            val timeoutMs = AsrTimeoutCalculator.calculateTimeoutMs(audioMs)
+            processingTimeoutJob = sessionScope.launch {
+                val shouldDeferForLocalModel = vendor?.let { isLocalAsrVendor(it) } ?: false
+                if (shouldDeferForLocalModel) {
+                    // 本地模型：将超时计时起点推移到“模型加载完成”之后，避免首次加载期间误触发超时
+                    val ok = awaitLocalAsrReady(prefs, maxWaitMs = LOCAL_MODEL_READY_WAIT_MAX_MS)
+                    if (!ok) {
+                        Log.w(TAG, "awaitLocalAsrReady returned false, fallback to immediate timeout countdown")
+                    }
+                    if (canceled || finished) return@launch
+                }
+                delay(timeoutMs)
+                if (canceled || finished) return@launch
+
+                val msg = try {
+                    context.getString(R.string.error_asr_timeout)
+                } catch (t: Throwable) {
+                    Log.w(TAG, "Failed to get timeout string", t)
+                    "timeout"
+                }
+                Log.w(TAG, "Processing timeout fired (audioMs=$audioMs, timeoutMs=$timeoutMs)")
+                finished = true
+                try {
+                    engine?.stop()
+                } catch (t: Throwable) {
+                    Log.w(TAG, "Engine stop failed on processing timeout", t)
+                }
+                safe {
+                    cb.onError(id, 408, msg)
+                    cb.onState(id, STATE_ERROR, msg)
+                }
+                try {
+                    (context as? ExternalSpeechService)?.onSessionDone(id)
+                } catch (t: Throwable) {
+                    Log.w(TAG, "remove session on timeout failed", t)
+                } finally {
+                    try {
+                        sessionJob.cancel()
+                    } catch (t: Throwable) {
+                        Log.w(TAG, "sessionJob.cancel failed on timeout", t)
+                    }
+                }
+            }
+        }
 
         fun prepare(): Boolean {
             // 完全跟随应用内当前设置：供应商与是否流式均以 Prefs 为准
             val vendor = prefs.asrVendor
+            this.vendor = vendor
             val streamingPref = resolveStreamingBySettings(vendor)
             engine = buildEngine(vendor, streamingPref)
             return engine != null
@@ -193,6 +319,7 @@ class ExternalSpeechService : Service() {
 
         fun preparePushPcm(): Boolean {
             val vendor = prefs.asrVendor
+            this.vendor = vendor
             val streamingPref = resolveStreamingBySettings(vendor)
             engine = buildPushPcmEngine(vendor, streamingPref)
             return engine != null
@@ -206,8 +333,15 @@ class ExternalSpeechService : Service() {
                 lastRequestDurationMs = null
                 lastAudioMsForStats = 0L
                 lastPostprocPreview = null
+                processingStartUptimeMs = 0L
+                processingEndUptimeMs = 0L
+                localModelWaitStartUptimeMs = 0L
+                localModelReadyWaitMs = 0L
+                cancelLocalModelReadyWait()
                 canceled = false
                 hasAsrPartial = false
+                finished = false
+                cancelProcessingTimeout()
             } catch (t: Throwable) {
                 Log.w(TAG, "Failed to mark session start", t)
             }
@@ -215,18 +349,43 @@ class ExternalSpeechService : Service() {
         }
 
         fun stop() {
+            if (canceled || finished) return
+            // 记录一次会话录音时长（用于超时与统计）；部分引擎 stop() 不会回调 onStopped（如外部推流的本地流式），因此这里也做一次兜底快照。
+            if (sessionStartUptimeMs > 0L) {
+                try {
+                    val dur = (SystemClock.uptimeMillis() - sessionStartUptimeMs).coerceAtLeast(0)
+                    lastAudioMsForStats = dur
+                } catch (t: Throwable) {
+                    Log.w(TAG, "Failed to compute audio duration on stop()", t)
+                } finally {
+                    sessionStartUptimeMs = 0L
+                }
+            }
+            if (processingStartUptimeMs == 0L) {
+                processingStartUptimeMs = SystemClock.uptimeMillis()
+            }
+            markLocalModelProcessingStartIfNeeded()
+            scheduleProcessingTimeoutIfNeeded()
             engine?.stop()
             safe { cb.onState(id, STATE_PROCESSING, "processing") }
         }
 
         fun cancel() {
             canceled = true
+            finished = true
+            cancelLocalModelReadyWait()
+            cancelProcessingTimeout()
             try {
                 engine?.stop()
             } catch (t: Throwable) {
                 Log.w(TAG, "Engine stop failed on cancel", t)
             }
             safe { cb.onState(id, STATE_IDLE, "canceled") }
+            try {
+                sessionJob.cancel()
+            } catch (t: Throwable) {
+                Log.w(TAG, "sessionJob.cancel failed on cancel", t)
+            }
         }
 
         fun onPcmFrame(pcm: ByteArray, sampleRate: Int, channels: Int) {
@@ -265,82 +424,60 @@ class ExternalSpeechService : Service() {
                         scope,
                         prefs,
                         this,
-                        onRequestDuration = { ms: Long ->
-                            try { lastRequestDurationMs = ms } catch (t: Throwable) { Log.w(TAG, "set proc ms failed", t) }
-                        }
+                        onRequestDuration = ::onRequestDuration
                     )
                 }
                 AsrVendor.SiliconFlow -> SiliconFlowFileAsrEngine(
                     context, scope, prefs, this,
-                    onRequestDuration = { ms: Long ->
-                        try { lastRequestDurationMs = ms } catch (t: Throwable) { Log.w(TAG, "set proc ms failed", t) }
-                    }
+                    onRequestDuration = ::onRequestDuration
                 )
                 AsrVendor.ElevenLabs -> if (streamingPreferred) {
                     ElevenLabsStreamAsrEngine(context, scope, prefs, this)
                 } else {
                     ElevenLabsFileAsrEngine(
                         context, scope, prefs, this,
-                        onRequestDuration = { ms: Long ->
-                            try { lastRequestDurationMs = ms } catch (t: Throwable) { Log.w(TAG, "set proc ms failed", t) }
-                        }
+                        onRequestDuration = ::onRequestDuration
                     )
                 }
                 AsrVendor.OpenAI -> OpenAiFileAsrEngine(
                     context, scope, prefs, this,
-                    onRequestDuration = { ms: Long ->
-                        try { lastRequestDurationMs = ms } catch (t: Throwable) { Log.w(TAG, "set proc ms failed", t) }
-                    }
+                    onRequestDuration = ::onRequestDuration
                 )
                 AsrVendor.DashScope -> if (streamingPreferred) {
                     DashscopeStreamAsrEngine(context, scope, prefs, this)
                 } else {
                     DashscopeFileAsrEngine(
                         context, scope, prefs, this,
-                        onRequestDuration = { ms: Long ->
-                            try { lastRequestDurationMs = ms } catch (t: Throwable) { Log.w(TAG, "set proc ms failed", t) }
-                        }
+                        onRequestDuration = ::onRequestDuration
                     )
                 }
                 AsrVendor.Gemini -> GeminiFileAsrEngine(
                     context, scope, prefs, this,
-                    onRequestDuration = { ms: Long ->
-                        try { lastRequestDurationMs = ms } catch (t: Throwable) { Log.w(TAG, "set proc ms failed", t) }
-                    }
+                    onRequestDuration = ::onRequestDuration
                 )
                 AsrVendor.Soniox -> if (streamingPreferred) {
                     SonioxStreamAsrEngine(context, scope, prefs, this)
                 } else {
                     SonioxFileAsrEngine(
                         context, scope, prefs, this,
-                        onRequestDuration = { ms: Long ->
-                            try { lastRequestDurationMs = ms } catch (t: Throwable) { Log.w(TAG, "set proc ms failed", t) }
-                        }
+                        onRequestDuration = ::onRequestDuration
                     )
                 }
                 AsrVendor.Zhipu -> ZhipuFileAsrEngine(
                     context, scope, prefs, this,
-                    onRequestDuration = { ms: Long ->
-                        try { lastRequestDurationMs = ms } catch (t: Throwable) { Log.w(TAG, "set proc ms failed", t) }
-                    }
+                    onRequestDuration = ::onRequestDuration
                 )
                 AsrVendor.SenseVoice -> SenseVoiceFileAsrEngine(
                     context, scope, prefs, this,
-                    onRequestDuration = { ms: Long ->
-                        try { lastRequestDurationMs = ms } catch (t: Throwable) { Log.w(TAG, "set proc ms failed", t) }
-                    }
+                    onRequestDuration = ::onRequestDuration
                 )
                 AsrVendor.FunAsrNano -> FunAsrNanoFileAsrEngine(
                     context, scope, prefs, this,
-                    onRequestDuration = { ms: Long ->
-                        try { lastRequestDurationMs = ms } catch (t: Throwable) { Log.w(TAG, "set proc ms failed", t) }
-                    }
+                    onRequestDuration = ::onRequestDuration
                 )
                 AsrVendor.Telespeech -> TelespeechFileAsrEngine(
                     context, scope, prefs, this,
-                    onRequestDuration = { ms: Long ->
-                        try { lastRequestDurationMs = ms } catch (t: Throwable) { Log.w(TAG, "set proc ms failed", t) }
-                    }
+                    onRequestDuration = ::onRequestDuration
                 )
                 AsrVendor.Paraformer -> ParaformerStreamAsrEngine(context, scope, prefs, this)
             }
@@ -357,9 +494,7 @@ class ExternalSpeechService : Service() {
                             context, scope, prefs, this,
                             com.brycewg.asrkb.asr.VolcStandardFileAsrEngine(
                                 context, scope, prefs, this,
-                                onRequestDuration = { ms: Long ->
-                                    try { lastRequestDurationMs = ms } catch (t: Throwable) { Log.w(TAG, "set proc ms failed", t) }
-                                }
+                                onRequestDuration = ::onRequestDuration
                             )
                         )
                     } else {
@@ -367,9 +502,7 @@ class ExternalSpeechService : Service() {
                             context, scope, prefs, this,
                             com.brycewg.asrkb.asr.VolcFileAsrEngine(
                                 context, scope, prefs, this,
-                                onRequestDuration = { ms: Long ->
-                                    try { lastRequestDurationMs = ms } catch (t: Throwable) { Log.w(TAG, "set proc ms failed", t) }
-                                }
+                                onRequestDuration = ::onRequestDuration
                             )
                         )
                     }
@@ -382,9 +515,7 @@ class ExternalSpeechService : Service() {
                         context, scope, prefs, this,
                         com.brycewg.asrkb.asr.DashscopeFileAsrEngine(
                             context, scope, prefs, this,
-                            onRequestDuration = { ms: Long ->
-                                try { lastRequestDurationMs = ms } catch (t: Throwable) { Log.w(TAG, "set proc ms failed", t) }
-                            }
+                            onRequestDuration = ::onRequestDuration
                         )
                     )
                 }
@@ -396,9 +527,7 @@ class ExternalSpeechService : Service() {
                         context, scope, prefs, this,
                         com.brycewg.asrkb.asr.SonioxFileAsrEngine(
                             context, scope, prefs, this,
-                            onRequestDuration = { ms: Long ->
-                                try { lastRequestDurationMs = ms } catch (t: Throwable) { Log.w(TAG, "set proc ms failed", t) }
-                            }
+                            onRequestDuration = ::onRequestDuration
                         )
                     )
                 }
@@ -410,9 +539,7 @@ class ExternalSpeechService : Service() {
                         context, scope, prefs, this,
                         com.brycewg.asrkb.asr.ElevenLabsFileAsrEngine(
                             context, scope, prefs, this,
-                            onRequestDuration = { ms: Long ->
-                                try { lastRequestDurationMs = ms } catch (t: Throwable) { Log.w(TAG, "set proc ms failed", t) }
-                            }
+                            onRequestDuration = ::onRequestDuration
                         )
                     )
                 }
@@ -420,36 +547,28 @@ class ExternalSpeechService : Service() {
                     context, scope, prefs, this,
                     com.brycewg.asrkb.asr.OpenAiFileAsrEngine(
                         context, scope, prefs, this,
-                        onRequestDuration = { ms: Long ->
-                            try { lastRequestDurationMs = ms } catch (t: Throwable) { Log.w(TAG, "set proc ms failed", t) }
-                        }
+                        onRequestDuration = ::onRequestDuration
                     )
                 )
                 AsrVendor.Gemini -> com.brycewg.asrkb.asr.GenericPushFileAsrAdapter(
                     context, scope, prefs, this,
                     com.brycewg.asrkb.asr.GeminiFileAsrEngine(
                         context, scope, prefs, this,
-                        onRequestDuration = { ms: Long ->
-                            try { lastRequestDurationMs = ms } catch (t: Throwable) { Log.w(TAG, "set proc ms failed", t) }
-                        }
+                        onRequestDuration = ::onRequestDuration
                     )
                 )
                 AsrVendor.SiliconFlow -> com.brycewg.asrkb.asr.GenericPushFileAsrAdapter(
                     context, scope, prefs, this,
                     com.brycewg.asrkb.asr.SiliconFlowFileAsrEngine(
                         context, scope, prefs, this,
-                        onRequestDuration = { ms: Long ->
-                            try { lastRequestDurationMs = ms } catch (t: Throwable) { Log.w(TAG, "set proc ms failed", t) }
-                        }
+                        onRequestDuration = ::onRequestDuration
                     )
                 )
                 AsrVendor.Zhipu -> com.brycewg.asrkb.asr.GenericPushFileAsrAdapter(
                     context, scope, prefs, this,
                     com.brycewg.asrkb.asr.ZhipuFileAsrEngine(
                         context, scope, prefs, this,
-                        onRequestDuration = { ms: Long ->
-                            try { lastRequestDurationMs = ms } catch (t: Throwable) { Log.w(TAG, "set proc ms failed", t) }
-                        }
+                        onRequestDuration = ::onRequestDuration
                     )
                 )
                 // 本地：Paraformer 固定流式
@@ -459,18 +578,14 @@ class ExternalSpeechService : Service() {
                     if (prefs.svPseudoStreamEnabled) {
                         com.brycewg.asrkb.asr.SenseVoicePushPcmPseudoStreamAsrEngine(
                             context, scope, prefs, this,
-                            onRequestDuration = { ms: Long ->
-                                try { lastRequestDurationMs = ms } catch (t: Throwable) { Log.w(TAG, "set proc ms failed", t) }
-                            }
+                            onRequestDuration = ::onRequestDuration
                         )
                     } else {
                         com.brycewg.asrkb.asr.GenericPushFileAsrAdapter(
                             context, scope, prefs, this,
                             com.brycewg.asrkb.asr.SenseVoiceFileAsrEngine(
                                 context, scope, prefs, this,
-                                onRequestDuration = { ms: Long ->
-                                    try { lastRequestDurationMs = ms } catch (t: Throwable) { Log.w(TAG, "set proc ms failed", t) }
-                                }
+                                onRequestDuration = ::onRequestDuration
                             )
                         )
                     }
@@ -482,9 +597,7 @@ class ExternalSpeechService : Service() {
                         context, scope, prefs, this,
                         com.brycewg.asrkb.asr.FunAsrNanoFileAsrEngine(
                             context, scope, prefs, this,
-                            onRequestDuration = { ms: Long ->
-                                try { lastRequestDurationMs = ms } catch (t: Throwable) { Log.w(TAG, "set proc ms failed", t) }
-                            }
+                            onRequestDuration = ::onRequestDuration
                         )
                     )
                 }
@@ -493,18 +606,14 @@ class ExternalSpeechService : Service() {
                     if (prefs.tsPseudoStreamEnabled) {
                         com.brycewg.asrkb.asr.TelespeechPushPcmPseudoStreamAsrEngine(
                             context, scope, prefs, this,
-                            onRequestDuration = { ms: Long ->
-                                try { lastRequestDurationMs = ms } catch (t: Throwable) { Log.w(TAG, "set proc ms failed", t) }
-                            }
+                            onRequestDuration = ::onRequestDuration
                         )
                     } else {
                         com.brycewg.asrkb.asr.GenericPushFileAsrAdapter(
                             context, scope, prefs, this,
                             com.brycewg.asrkb.asr.TelespeechFileAsrEngine(
                                 context, scope, prefs, this,
-                                onRequestDuration = { ms: Long ->
-                                    try { lastRequestDurationMs = ms } catch (t: Throwable) { Log.w(TAG, "set proc ms failed", t) }
-                                }
+                                onRequestDuration = ::onRequestDuration
                             )
                         )
                     }
@@ -513,7 +622,10 @@ class ExternalSpeechService : Service() {
         }
 
         override fun onFinal(text: String) {
-            if (canceled) return
+            if (canceled || finished) return
+            finished = true
+            cancelProcessingTimeout()
+            processingEndUptimeMs = SystemClock.uptimeMillis()
             // 若尚未收到 onStopped，则以当前时间近似计算一次时长
             if (lastAudioMsForStats == 0L && sessionStartUptimeMs > 0L) {
                 try {
@@ -569,7 +681,7 @@ class ExternalSpeechService : Service() {
                     // 记录使用统计与识别历史（来源标记为 ime；尊重开关）
                     try {
                         val audioMs = lastAudioMsForStats
-                        val procMs = lastRequestDurationMs ?: 0L
+                        val procMs = computeProcMsForStats()
                         val chars = try { com.brycewg.asrkb.util.TextSanitizer.countEffectiveChars(out) } catch (_: Throwable) { out.length }
                         AnalyticsManager.recordAsrEvent(
                             context = context,
@@ -618,7 +730,7 @@ class ExternalSpeechService : Service() {
                 // 记录使用统计与识别历史（来源标记为 ime；尊重开关）
                 try {
                     val audioMs = lastAudioMsForStats
-                    val procMs = lastRequestDurationMs ?: 0L
+                    val procMs = computeProcMsForStats()
                     val chars = try { com.brycewg.asrkb.util.TextSanitizer.countEffectiveChars(out) } catch (_: Throwable) { out.length }
                     AnalyticsManager.recordAsrEvent(
                         context = context,
@@ -657,7 +769,11 @@ class ExternalSpeechService : Service() {
         }
 
         override fun onError(message: String) {
-            if (canceled) return
+            if (canceled || finished) return
+            finished = true
+            processingEndUptimeMs = SystemClock.uptimeMillis()
+            cancelLocalModelReadyWait()
+            cancelProcessingTimeout()
             safe {
                 cb.onError(id, 500, message)
                 cb.onState(id, STATE_ERROR, message)
@@ -666,7 +782,7 @@ class ExternalSpeechService : Service() {
         }
 
         override fun onPartial(text: String) {
-            if (canceled) return
+            if (canceled || finished) return
             if (text.isNotEmpty()) {
                 hasAsrPartial = true
                 safe { cb.onPartial(id, text) }
@@ -674,7 +790,7 @@ class ExternalSpeechService : Service() {
         }
 
         override fun onStopped() {
-            if (canceled) return
+            if (canceled || finished) return
             // 计算一次会话录音时长
             if (sessionStartUptimeMs > 0L) {
                 try {
@@ -686,11 +802,16 @@ class ExternalSpeechService : Service() {
                     sessionStartUptimeMs = 0L
                 }
             }
+            if (processingStartUptimeMs == 0L) {
+                processingStartUptimeMs = SystemClock.uptimeMillis()
+            }
+            markLocalModelProcessingStartIfNeeded()
             safe { cb.onState(id, STATE_PROCESSING, "processing") }
+            scheduleProcessingTimeoutIfNeeded()
         }
 
         override fun onAmplitude(amplitude: Float) {
-            if (canceled) return
+            if (canceled || finished) return
             safe { cb.onAmplitude(id, amplitude) }
         }
     }
@@ -785,6 +906,8 @@ class ExternalSpeechService : Service() {
         private const val STATE_RECORDING = 1
         private const val STATE_PROCESSING = 2
         private const val STATE_ERROR = 3
+
+        private const val LOCAL_MODEL_READY_WAIT_MAX_MS = 60_000L
 
         private inline fun safe(block: () -> Unit) { try { block() } catch (t: Throwable) { Log.w(TAG, "callback failed", t) } }
     }
