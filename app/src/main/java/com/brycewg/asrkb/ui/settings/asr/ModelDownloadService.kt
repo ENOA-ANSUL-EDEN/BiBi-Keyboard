@@ -493,8 +493,6 @@ class ModelDownloadService : Service() {
         val versionName = when (variant) {
           "small-full" -> "Small (fp32)"
           "small-int8" -> "Small (int8)"
-          "nano-full" -> "Nano (fp32)"
-          "nano-int8" -> "Nano (int8)"
           else -> variant
         }
         "SenseVoice $versionName"
@@ -504,7 +502,7 @@ class ModelDownloadService : Service() {
           "nano-int8" -> "Nano (int8)"
           else -> variant
         }
-        "FunASR Nano $versionName"
+        "FunASR $versionName"
       }
       "telespeech" -> {
         val versionName = if (variant == "full") "Zh (fp32)" else "Zh (int8)"
