@@ -12,6 +12,7 @@ import com.brycewg.asrkb.asr.awaitLocalAsrReady
 import com.brycewg.asrkb.asr.isLocalAsrVendor
 import com.brycewg.asrkb.asr.VadAutoStopGuard
 import com.brycewg.asrkb.util.TextSanitizer
+import com.brycewg.asrkb.util.TypewriterTextAnimator
 import com.brycewg.asrkb.store.Prefs
 import com.brycewg.asrkb.analytics.AnalyticsManager
 import kotlinx.coroutines.CoroutineScope
@@ -1207,15 +1208,20 @@ class KeyboardActionHandler(
 
         // 统一使用 AsrFinalFilters（含预修剪/LLM/后修剪/繁体转换）
         val preTrimRaw = try { if (prefs.trimFinalTrailingPunct) TextSanitizer.trimTrailingPunctAndEmoji(text) else text } catch (_: Throwable) { text }
+        var postprocCommitted = false
+        val typewriter = TypewriterTextAnimator(
+            scope = scope,
+            onEmit = emit@{ typed ->
+                if (seq != opSeq || postprocCommitted) return@emit
+                inputHelper.setComposingText(ic, typed)
+            }
+        )
         var lastStreamingText: String? = null
         val onStreamingUpdate: (String) -> Unit = onStreamingUpdate@{ streamed ->
-            if (seq != opSeq) return@onStreamingUpdate
+            if (seq != opSeq || postprocCommitted) return@onStreamingUpdate
             if (streamed.isEmpty() || streamed == lastStreamingText) return@onStreamingUpdate
             lastStreamingText = streamed
-            scope.launch {
-                if (seq != opSeq) return@launch
-                inputHelper.setComposingText(ic, streamed)
-            }
+            typewriter.submit(streamed)
         }
         val res = try {
             com.brycewg.asrkb.util.AsrFinalFilters.applyWithAi(
@@ -1248,7 +1254,24 @@ class KeyboardActionHandler(
         }
 
         // 若已被取消，不再提交
-        if (seq != opSeq) return
+        if (seq != opSeq) {
+            postprocCommitted = true
+            typewriter.cancel()
+            return
+        }
+        // 最终结果到达后：不再“秒出”，改为让打字机以最快速度追到最终文本
+        typewriter.submit(finalOut, rush = true)
+        val finalLen = finalOut.length
+        while (seq == opSeq && typewriter.currentText().length != finalLen) {
+            delay(20)
+        }
+        if (seq != opSeq) {
+            postprocCommitted = true
+            typewriter.cancel()
+            return
+        }
+        postprocCommitted = true
+        typewriter.cancel()
         // 提交最终文本
         inputHelper.setComposingText(ic, finalOut)
         inputHelper.finishComposingText(ic)

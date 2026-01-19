@@ -11,6 +11,7 @@ import android.util.Log
 import androidx.core.content.ContextCompat
 import com.brycewg.asrkb.asr.*
 import com.brycewg.asrkb.store.Prefs
+import com.brycewg.asrkb.util.TypewriterTextAnimator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -327,20 +328,42 @@ class AsrRecognitionService : RecognitionService() {
             serviceScope.launch {
                 if (canceled || finished) return@launch
                 val processedText = if (doAi) {
-                    try {
-                        val onStreamingUpdate: (String) -> Unit = onStreamingUpdate@{ streamed ->
-                            if (canceled || finished) return@onStreamingUpdate
-                            if (streamed.isEmpty() || streamed == lastPostprocPreview) return@onStreamingUpdate
-                            lastPostprocPreview = streamed
-                            deliverPartialResults(streamed)
+                    val enableTypewriter = config.partialResults
+                    var postprocCommitted = false
+                    var lastPostprocTarget: String? = null
+                    val typewriter = if (enableTypewriter) {
+                        TypewriterTextAnimator(
+                            scope = this,
+                            onEmit = emit@{ typed ->
+                                if (canceled || finished || postprocCommitted) return@emit
+                                if (typed.isEmpty() || typed == lastPostprocPreview) return@emit
+                                lastPostprocPreview = typed
+                                deliverPartialResults(typed)
+                            },
+                            frameDelayMs = 20L,
+                            idleStopDelayMs = 1200L
+                        )
+                    } else {
+                        null
+                    }
+                    val onStreamingUpdate: ((String) -> Unit)? = if (enableTypewriter) {
+                        onStreamingUpdate@{ streamed ->
+                            if (canceled || finished || postprocCommitted) return@onStreamingUpdate
+                            if (streamed.isEmpty() || streamed == lastPostprocTarget) return@onStreamingUpdate
+                            lastPostprocTarget = streamed
+                            typewriter?.submit(streamed)
                         }
+                    } else {
+                        null
+                    }
+                    try {
                         val res = com.brycewg.asrkb.util.AsrFinalFilters.applyWithAi(
                             this@AsrRecognitionService,
                             prefs,
                             text,
                             onStreamingUpdate = onStreamingUpdate
                         )
-                        res.text.ifBlank {
+                        val finalOut = res.text.ifBlank {
                             try {
                                 com.brycewg.asrkb.util.AsrFinalFilters.applySimple(
                                     this@AsrRecognitionService,
@@ -351,6 +374,17 @@ class AsrRecognitionService : RecognitionService() {
                                 text
                             }
                         }
+                        if (enableTypewriter && finalOut.isNotEmpty()) {
+                            typewriter?.submit(finalOut, rush = true)
+                            val finalLen = finalOut.length
+                            val t0 = SystemClock.uptimeMillis()
+                            while (!canceled && !finished && (SystemClock.uptimeMillis() - t0) < 2_000L &&
+                                typewriter?.currentText()?.length != finalLen
+                            ) {
+                                delay(20)
+                            }
+                        }
+                        finalOut
                     } catch (t: Throwable) {
                         Log.w(TAG, "applyWithAi failed, fallback to simple", t)
                         try {
@@ -362,6 +396,9 @@ class AsrRecognitionService : RecognitionService() {
                         } catch (_: Throwable) {
                             text
                         }
+                    } finally {
+                        postprocCommitted = true
+                        typewriter?.cancel()
                     }
                 } else {
                     try {

@@ -15,6 +15,7 @@ import com.brycewg.asrkb.aidl.SpeechConfig
 import com.brycewg.asrkb.asr.*
 import com.brycewg.asrkb.analytics.AnalyticsManager
 import com.brycewg.asrkb.store.Prefs
+import com.brycewg.asrkb.util.TypewriterTextAnimator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -654,13 +655,30 @@ class ExternalSpeechService : Service() {
                 // 执行带 AI 的完整后处理链（IO 在线程内切换）
                 CoroutineScope(Dispatchers.Main).launch {
                     if (canceled) return@launch
+                    var postprocCommitted = false
+                    var lastPostprocTarget: String? = null
+                    val typewriter = TypewriterTextAnimator(
+                        scope = this,
+                        onEmit = emit@{ typed ->
+                            if (canceled || postprocCommitted) return@emit
+                            if (typed.isEmpty() || typed == lastPostprocPreview) return@emit
+                            lastPostprocPreview = typed
+                            safe { cb.onPartial(id, typed) }
+                        },
+                        frameDelayMs = 35L,
+                        idleStopDelayMs = 1200L,
+                        normalTargetFrames = 18,
+                        normalMaxStep = 6,
+                        rushTargetFrames = 8,
+                        rushMaxStep = 24
+                    )
+                    val onStreamingUpdate: (String) -> Unit = onStreamingUpdate@{ streamed ->
+                        if (canceled || postprocCommitted) return@onStreamingUpdate
+                        if (streamed.isEmpty() || streamed == lastPostprocTarget) return@onStreamingUpdate
+                        lastPostprocTarget = streamed
+                        typewriter.submit(streamed)
+                    }
                     val (out, usedAi) = try {
-                        val onStreamingUpdate: (String) -> Unit = onStreamingUpdate@{ streamed ->
-                            if (canceled) return@onStreamingUpdate
-                            if (streamed.isEmpty() || streamed == lastPostprocPreview) return@onStreamingUpdate
-                            lastPostprocPreview = streamed
-                            safe { cb.onPartial(id, streamed) }
-                        }
                         val res = com.brycewg.asrkb.util.AsrFinalFilters.applyWithAi(
                             context,
                             prefs,
@@ -680,11 +698,38 @@ class ExternalSpeechService : Service() {
                                 text
                             }
                         }
+                        if (finalOut.isNotEmpty()) {
+                            typewriter.submit(finalOut, rush = true)
+                            val finalLen = finalOut.length
+                            val t0 = SystemClock.uptimeMillis()
+                            while (!canceled && (SystemClock.uptimeMillis() - t0) < 2_000L &&
+                                typewriter.currentText().length != finalLen
+                            ) {
+                                delay(20)
+                            }
+                        }
                         finalOut to (res.usedAi && res.ok)
                     } catch (t: Throwable) {
                         Log.w(TAG, "applyWithAi failed, fallback to simple", t)
-                        val fallback = try { com.brycewg.asrkb.util.AsrFinalFilters.applySimple(context, prefs, text) } catch (_: Throwable) { text }
+                        val fallback = try {
+                            com.brycewg.asrkb.util.AsrFinalFilters.applySimple(context, prefs, text)
+                        } catch (_: Throwable) {
+                            text
+                        }
+                        if (fallback.isNotEmpty()) {
+                            typewriter.submit(fallback, rush = true)
+                            val finalLen = fallback.length
+                            val t0 = SystemClock.uptimeMillis()
+                            while (!canceled && (SystemClock.uptimeMillis() - t0) < 2_000L &&
+                                typewriter.currentText().length != finalLen
+                            ) {
+                                delay(20)
+                            }
+                        }
                         fallback to false
+                    } finally {
+                        postprocCommitted = true
+                        typewriter.cancel()
                     }
                     if (canceled) return@launch
                     // 记录使用统计与识别历史（来源标记为 ime；尊重开关）

@@ -14,6 +14,7 @@ import com.brycewg.asrkb.asr.AsrTimeoutCalculator
 import com.brycewg.asrkb.store.Prefs
 import com.brycewg.asrkb.ui.AsrAccessibilityService.FocusContext
 import com.brycewg.asrkb.util.TextSanitizer
+import com.brycewg.asrkb.util.TypewriterTextAnimator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -236,8 +237,24 @@ class AsrSessionManager(
                 if (lastPartialForPreview.isNullOrEmpty()) {
                     updatePreviewText(text)
                 }
-                val onStreamingUpdate: (String) -> Unit = { streamed ->
-                    updatePreviewText(streamed)
+                var postprocCommitted = false
+                val typewriter = TypewriterTextAnimator(
+                    scope = serviceScope,
+                    onEmit = emit@{ typed ->
+                        if (postprocCommitted) return@emit
+                        updatePreviewText(typed)
+                    },
+                    frameDelayMs = 60L,
+                    idleStopDelayMs = 1200L,
+                    normalTargetFrames = 12,
+                    normalMaxStep = 8
+                )
+                var lastStreamingText: String? = null
+                val onStreamingUpdate: (String) -> Unit = onStreamingUpdate@{ streamed ->
+                    if (postprocCommitted) return@onStreamingUpdate
+                    if (streamed.isEmpty() || streamed == lastStreamingText) return@onStreamingUpdate
+                    lastStreamingText = streamed
+                    typewriter.submit(streamed)
                 }
                 val res = try {
                     com.brycewg.asrkb.util.AsrFinalFilters.applyWithAi(
@@ -253,6 +270,16 @@ class AsrSessionManager(
                 }
                 if (!res.ok) Log.w(TAG, "Post-processing failed; using processed text anyway")
                 finalText = res.text.ifBlank { text }
+                // 最终结果到达后：让打字机以最快速度追到最终文本，再进行最终提交
+                if (finalText.isNotEmpty() && focusContext != null) {
+                    typewriter.submit(finalText, rush = true)
+                    val finalLen = finalText.length
+                    while (!postprocCommitted && typewriter.currentText().length != finalLen) {
+                        delay(20)
+                    }
+                }
+                postprocCommitted = true
+                typewriter.cancel()
                 lastAiUsed = (res.usedAi && res.ok)
                 Log.d(TAG, "Post-processing completed: $finalText")
             } else {
