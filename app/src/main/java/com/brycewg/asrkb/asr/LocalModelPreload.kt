@@ -8,6 +8,9 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 
+// 本地模型就绪等待上限：用于避免“等待模型就绪”无限期阻塞后续兜底逻辑（如 Processing 超时）。
+internal const val LOCAL_MODEL_READY_WAIT_MAX_MS = 60_000L
+
 /**
  * 统一的本地 ASR 预加载入口：根据供应商调用对应实现。
  * - 目前支持 SenseVoice / FunASR Nano / TeleSpeech / Paraformer

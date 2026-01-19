@@ -22,6 +22,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * 对外导出的语音服务（Binder 手写协议，兼容 AIDL 生成的代理）。
@@ -188,11 +189,12 @@ class ExternalSpeechService : Service() {
         private var processingStartUptimeMs: Long = 0L
         private var processingEndUptimeMs: Long = 0L
         private var localModelWaitStartUptimeMs: Long = 0L
-        private var localModelReadyWaitMs: Long = 0L
+        private val localModelReadyWaitMs = AtomicLong(0L)
         private var localModelReadyWaitJob: Job? = null
         private val sessionJob = SupervisorJob()
         private val sessionScope = CoroutineScope(sessionJob + Dispatchers.Default)
-        private var processingTimeoutJob: Job? = null
+        private val processingTimeoutLock = Any()
+        @Volatile private var processingTimeoutJob: Job? = null
         @Volatile private var finished: Boolean = false
         @Volatile private var canceled: Boolean = false
         @Volatile private var hasAsrPartial: Boolean = false
@@ -208,12 +210,17 @@ class ExternalSpeechService : Service() {
         }
 
         private fun cancelProcessingTimeout() {
-            try {
-                processingTimeoutJob?.cancel()
-            } catch (t: Throwable) {
-                Log.w(TAG, "Cancel processing timeout failed", t)
-            } finally {
+            val job = synchronized(processingTimeoutLock) {
+                val current = processingTimeoutJob
                 processingTimeoutJob = null
+                current
+            }
+            if (job != null) {
+                try {
+                    job.cancel()
+                } catch (t: Throwable) {
+                    Log.w(TAG, "Cancel processing timeout failed", t)
+                }
             }
         }
 
@@ -224,29 +231,29 @@ class ExternalSpeechService : Service() {
 
             val startMs = if (processingStartUptimeMs > 0L) processingStartUptimeMs else SystemClock.uptimeMillis()
             localModelWaitStartUptimeMs = startMs
-            localModelReadyWaitMs = 0L
+            localModelReadyWaitMs.set(0L)
 
             // 已就绪：无需等待
             if (isLocalAsrReady(prefs)) return
 
             cancelLocalModelReadyWait()
             localModelReadyWaitJob = sessionScope.launch {
-                val ok = awaitLocalAsrReady(prefs, pollIntervalMs = 10L)
+                val ok = awaitLocalAsrReady(prefs, pollIntervalMs = 10L, maxWaitMs = LOCAL_MODEL_READY_WAIT_MAX_MS)
                 if (!ok) return@launch
                 if (canceled) return@launch
                 val readyAt = SystemClock.uptimeMillis()
                 if (readyAt >= startMs) {
-                    localModelReadyWaitMs = (readyAt - startMs).coerceAtLeast(0L)
+                    localModelReadyWaitMs.compareAndSet(0L, (readyAt - startMs).coerceAtLeast(0L))
                 }
             }
         }
 
         private fun onRequestDuration(ms: Long) {
-            val waitMs = localModelReadyWaitMs
+            val waitMs = localModelReadyWaitMs.getAndSet(LOCAL_MODEL_READY_WAIT_CONSUMED)
             val adjusted = if (waitMs > 0L && ms > waitMs) ms - waitMs else ms
             lastRequestDurationMs = adjusted
             // 仅对首次“等待模型就绪”的请求做一次扣减，避免后续分段请求被重复扣除
-            localModelReadyWaitMs = 0L
+            cancelLocalModelReadyWait()
         }
 
         private fun computeProcMsForStats(): Long {
@@ -256,53 +263,55 @@ class ExternalSpeechService : Service() {
             val end = processingEndUptimeMs
             if (start <= 0L || end <= 0L || end < start) return 0L
             val total = (end - start).coerceAtLeast(0L)
-            val wait = localModelReadyWaitMs.coerceAtLeast(0L)
+            val wait = localModelReadyWaitMs.get().coerceAtLeast(0L)
             return (total - wait).coerceAtLeast(0L)
         }
 
         private fun scheduleProcessingTimeoutIfNeeded() {
-            if (processingTimeoutJob != null) return
             val audioMs = lastAudioMsForStats
             val timeoutMs = AsrTimeoutCalculator.calculateTimeoutMs(audioMs)
-            processingTimeoutJob = sessionScope.launch {
-                val shouldDeferForLocalModel = vendor?.let { isLocalAsrVendor(it) } ?: false
-                if (shouldDeferForLocalModel) {
-                    // 本地模型：将超时计时起点推移到“模型加载完成”之后，避免首次加载期间误触发超时
-                    val ok = awaitLocalAsrReady(prefs, maxWaitMs = LOCAL_MODEL_READY_WAIT_MAX_MS)
-                    if (!ok) {
-                        Log.w(TAG, "awaitLocalAsrReady returned false, fallback to immediate timeout countdown")
+            synchronized(processingTimeoutLock) {
+                if (processingTimeoutJob != null) return
+                processingTimeoutJob = sessionScope.launch {
+                    val shouldDeferForLocalModel = vendor?.let { isLocalAsrVendor(it) } ?: false
+                    if (shouldDeferForLocalModel) {
+                        // 本地模型：将超时计时起点推移到“模型加载完成”之后，避免首次加载期间误触发超时
+                        val ok = awaitLocalAsrReady(prefs, maxWaitMs = LOCAL_MODEL_READY_WAIT_MAX_MS)
+                        if (!ok) {
+                            Log.w(TAG, "awaitLocalAsrReady returned false, fallback to immediate timeout countdown")
+                        }
+                        if (canceled || finished) return@launch
                     }
+                    delay(timeoutMs)
                     if (canceled || finished) return@launch
-                }
-                delay(timeoutMs)
-                if (canceled || finished) return@launch
 
-                val msg = try {
-                    context.getString(R.string.error_asr_timeout)
-                } catch (t: Throwable) {
-                    Log.w(TAG, "Failed to get timeout string", t)
-                    "timeout"
-                }
-                Log.w(TAG, "Processing timeout fired (audioMs=$audioMs, timeoutMs=$timeoutMs)")
-                finished = true
-                try {
-                    engine?.stop()
-                } catch (t: Throwable) {
-                    Log.w(TAG, "Engine stop failed on processing timeout", t)
-                }
-                safe {
-                    cb.onError(id, 408, msg)
-                    cb.onState(id, STATE_ERROR, msg)
-                }
-                try {
-                    (context as? ExternalSpeechService)?.onSessionDone(id)
-                } catch (t: Throwable) {
-                    Log.w(TAG, "remove session on timeout failed", t)
-                } finally {
-                    try {
-                        sessionJob.cancel()
+                    val msg = try {
+                        context.getString(R.string.error_asr_timeout)
                     } catch (t: Throwable) {
-                        Log.w(TAG, "sessionJob.cancel failed on timeout", t)
+                        Log.w(TAG, "Failed to get timeout string", t)
+                        "timeout"
+                    }
+                    Log.w(TAG, "Processing timeout fired (audioMs=$audioMs, timeoutMs=$timeoutMs)")
+                    finished = true
+                    try {
+                        engine?.stop()
+                    } catch (t: Throwable) {
+                        Log.w(TAG, "Engine stop failed on processing timeout", t)
+                    }
+                    safe {
+                        cb.onError(id, 408, msg)
+                        cb.onState(id, STATE_ERROR, msg)
+                    }
+                    try {
+                        (context as? ExternalSpeechService)?.onSessionDone(id)
+                    } catch (t: Throwable) {
+                        Log.w(TAG, "remove session on timeout failed", t)
+                    } finally {
+                        try {
+                            sessionJob.cancel()
+                        } catch (t: Throwable) {
+                            Log.w(TAG, "sessionJob.cancel failed on timeout", t)
+                        }
                     }
                 }
             }
@@ -336,7 +345,7 @@ class ExternalSpeechService : Service() {
                 processingStartUptimeMs = 0L
                 processingEndUptimeMs = 0L
                 localModelWaitStartUptimeMs = 0L
-                localModelReadyWaitMs = 0L
+                localModelReadyWaitMs.set(0L)
                 cancelLocalModelReadyWait()
                 canceled = false
                 hasAsrPartial = false
@@ -908,6 +917,7 @@ class ExternalSpeechService : Service() {
         private const val STATE_ERROR = 3
 
         private const val LOCAL_MODEL_READY_WAIT_MAX_MS = 60_000L
+        private const val LOCAL_MODEL_READY_WAIT_CONSUMED = -1L
 
         private inline fun safe(block: () -> Unit) { try { block() } catch (t: Throwable) { Log.w(TAG, "callback failed", t) } }
     }

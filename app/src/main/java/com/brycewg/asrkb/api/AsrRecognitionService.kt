@@ -502,7 +502,7 @@ class AsrRecognitionService : RecognitionService() {
                 val shouldDeferForLocalModel = isLocalAsrVendor(prefs.asrVendor)
                 if (shouldDeferForLocalModel) {
                     // 本地模型：将超时计时起点推移到“模型加载完成”之后，避免首次加载期间误触发超时
-                    val ok = awaitLocalAsrReady(prefs)
+                    val ok = awaitLocalAsrReady(prefs, maxWaitMs = LOCAL_MODEL_READY_WAIT_MAX_MS)
                     if (!ok) {
                         // 读取配置失败等异常场景：回退为原有策略（不阻塞、继续计时）
                         Log.w(TAG, "awaitLocalAsrReady returned false, fallback to immediate timeout countdown")

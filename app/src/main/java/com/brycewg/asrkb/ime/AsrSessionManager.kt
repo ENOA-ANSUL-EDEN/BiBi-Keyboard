@@ -17,6 +17,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * ASR 会话管理器：统一管理 ASR 引擎的生命周期和回调处理
@@ -36,6 +37,7 @@ class AsrSessionManager(
 
     companion object {
         private const val TAG = "AsrSessionManager"
+        private const val LOCAL_MODEL_READY_WAIT_CONSUMED = -1L
     }
 
     // 回调接口
@@ -96,7 +98,7 @@ class AsrSessionManager(
     // 本地模型：Processing 阶段等待“模型就绪”的耗时（用于将处理耗时统计从模型就绪开始）
     private var sessionSeq: Long = 0L
     private var localModelWaitStartUptimeMs: Long = 0L
-    private var localModelReadyWaitMs: Long = 0L
+    private val localModelReadyWaitMs = AtomicLong(0L)
     private var localModelReadyWaitJob: Job? = null
 
     // 会话录音时长统计（毫秒）
@@ -300,7 +302,7 @@ class AsrSessionManager(
         currentState = state
         sessionSeq++
         localModelWaitStartUptimeMs = 0L
-        localModelReadyWaitMs = 0L
+        localModelReadyWaitMs.set(0L)
         try {
             localModelReadyWaitJob?.cancel()
         } catch (t: Throwable) {
@@ -656,7 +658,7 @@ class AsrSessionManager(
             0L
         }
         localModelWaitStartUptimeMs = startMs
-        localModelReadyWaitMs = 0L
+        localModelReadyWaitMs.set(0L)
 
         // 已就绪：无需等待
         if (isLocalAsrReady(prefs)) return
@@ -668,22 +670,28 @@ class AsrSessionManager(
             Log.w(TAG, "Cancel local model wait job failed", t)
         }
         localModelReadyWaitJob = scope.launch(Dispatchers.Default) {
-            val ok = awaitLocalAsrReady(prefs)
+            val ok = awaitLocalAsrReady(prefs, maxWaitMs = LOCAL_MODEL_READY_WAIT_MAX_MS)
             if (!ok) return@launch
             if (sessionSeq != seq) return@launch
             val readyAt = try { SystemClock.uptimeMillis() } catch (_: Throwable) { 0L }
             if (readyAt > 0L && startMs > 0L && readyAt >= startMs) {
-                localModelReadyWaitMs = (readyAt - startMs).coerceAtLeast(0L)
+                localModelReadyWaitMs.compareAndSet(0L, (readyAt - startMs).coerceAtLeast(0L))
             }
         }
     }
 
     private fun onRequestDuration(ms: Long) {
-        val waitMs = localModelReadyWaitMs
+        val waitMs = localModelReadyWaitMs.getAndSet(LOCAL_MODEL_READY_WAIT_CONSUMED)
         val adjusted = if (waitMs > 0L && ms > waitMs) ms - waitMs else ms
         lastRequestDurationMs = adjusted
-        // 仅对首次“等待模型就绪”的请求做一次扣减，避免后续分段请求被重复扣除
-        localModelReadyWaitMs = 0L
+        // 仅对首次“等待模型就绪”的请求做一次扣减，避免后续分段请求被重复扣除（同时避免晚写覆盖）。
+        try {
+            localModelReadyWaitJob?.cancel()
+        } catch (t: Throwable) {
+            Log.w(TAG, "Cancel local model wait job failed onRequestDuration", t)
+        } finally {
+            localModelReadyWaitJob = null
+        }
         Log.d(TAG, "Request duration: ${adjusted}ms")
     }
 

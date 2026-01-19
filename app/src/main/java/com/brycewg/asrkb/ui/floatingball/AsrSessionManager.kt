@@ -18,6 +18,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * ASR 会话管理器
@@ -32,6 +33,7 @@ class AsrSessionManager(
 
     companion object {
         private const val TAG = "AsrSessionManager"
+        private const val LOCAL_MODEL_READY_WAIT_CONSUMED = -1L
     }
 
     interface AsrSessionListener {
@@ -59,7 +61,7 @@ class AsrSessionManager(
     // 统计：非流式请求处理耗时（毫秒）
     private var lastRequestDurationMs: Long? = null
     // 本地模型：Processing 阶段等待“模型就绪”的耗时（用于将处理耗时统计从模型就绪开始）
-    private var localModelReadyWaitMs: Long = 0L
+    private val localModelReadyWaitMs = AtomicLong(0L)
     // 标记：最近一次提交是否实际使用了 AI 输出
     private var lastAiUsed: Boolean = false
     // 音频焦点请求句柄
@@ -87,7 +89,7 @@ class AsrSessionManager(
         lastAudioMsForStats = 0L
         // 新会话开始：重置请求耗时，避免上一轮的值串台
         lastRequestDurationMs = null
-        localModelReadyWaitMs = 0L
+        localModelReadyWaitMs.set(0L)
         // 开始录音前根据设置决定是否请求短时独占音频焦点（音频避让）
         if (prefs.duckMediaOnRecordEnabled) {
             requestTransientAudioFocus()
@@ -521,11 +523,10 @@ class AsrSessionManager(
     }
 
     private fun onRequestDuration(ms: Long) {
-        val waitMs = localModelReadyWaitMs
+        val waitMs = localModelReadyWaitMs.getAndSet(LOCAL_MODEL_READY_WAIT_CONSUMED)
         val adjusted = if (waitMs > 0L && ms > waitMs) ms - waitMs else ms
         lastRequestDurationMs = adjusted
-        // 仅对首次“等待模型就绪”的请求做一次扣减，避免后续分段请求被重复扣除
-        localModelReadyWaitMs = 0L
+        // 仅对首次“等待模型就绪”的请求做一次扣减，避免后续分段请求被重复扣除（同时避免晚写覆盖）。
         Log.d(TAG, "Request duration: ${adjusted}ms")
     }
 
@@ -547,14 +548,14 @@ class AsrSessionManager(
             if (shouldDeferForLocalModel) {
                 val wasReady = try { isLocalAsrReady(prefs) } catch (_: Throwable) { false }
                 val t0 = try { SystemClock.uptimeMillis() } catch (_: Throwable) { 0L }
-                val ok = awaitLocalAsrReady(prefs)
+                val ok = awaitLocalAsrReady(prefs, maxWaitMs = LOCAL_MODEL_READY_WAIT_MAX_MS)
                 if (!ok) {
                     Log.w(TAG, "awaitLocalAsrReady returned false, fallback to immediate timeout countdown")
                 }
-                if (!wasReady && t0 > 0L) {
+                if (ok && !wasReady && t0 > 0L) {
                     val t1 = try { SystemClock.uptimeMillis() } catch (_: Throwable) { 0L }
                     if (t1 >= t0) {
-                        localModelReadyWaitMs = (t1 - t0).coerceAtLeast(0L)
+                        localModelReadyWaitMs.compareAndSet(0L, (t1 - t0).coerceAtLeast(0L))
                     }
                 }
             }
