@@ -81,17 +81,23 @@ object ChineseItn {
     "十二五", "十三五", "十四五", "十五五", "十六五", "十七五", "十八五"
   )
 
+  private val idiomRegex = Regex(
+    idioms
+      .sortedByDescending { it.length }
+      .joinToString("|") { Regex.escape(it) }
+  )
+
   private val fuzzyRegex = Regex("几")
 
-  private val pureNumRegex = Regex("[零幺一二三四五六七八九]+(点[零幺一二三四五六七八九]+)* *([a-zA-Z]|$commonUnits)?")
+  private val pureNumRegex = Regex("[零幺一二两三四五六七八九]+(点[零幺一二两三四五六七八九]+)* *([a-zA-Z]|$commonUnits)?")
   private val valueNumRegex = Regex("十?(零?[一二两三四五六七八九十][十百千万]{1,2})*零?十?[一二三四五六七八九]?(点[零一二三四五六七八九]+)? *([a-zA-Z]|$commonUnits)?")
   private val consecutiveTensRegex = Regex("^((?:十[一二三四五六七八九])+)(?:($commonUnits))?$")
   private val consecutiveHundredsRegex = Regex("^((?:[一二三四五六七八九]百零?[一二三四五六七八九])+)(?:($commonUnits))?$")
 
   private val percentRegex = Regex("(?<![一二三四五六七八九])百分之[零一二三四五六七八九十百千万]+(?:点[零一二三四五六七八九]+)?")
   private val fractionRegex = Regex("([零一二三四五六七八九十百千万]+(?:点[零一二三四五六七八九]+)?)分之([零一二三四五六七八九十百千万]+(?:点[零一二三四五六七八九]+)?)")
-  private val timeRegex = Regex("[零一二两三四五六七八九十]+点[零一二三四五六七八九十]+分(?:[零一二三四五六七八九十]+秒)?")
-  private val dateRegex = Regex("([零一二三四五六七八九十]+年)?([一二三四五六七八九十]+月)?([一二三四五六七八九十]+[日号])?")
+  private val timeRegex = Regex("[0-9零一二两三四五六七八九十]+点[0-9零一二两三四五六七八九十]+分(?:[0-9零一二两三四五六七八九十]+秒)?")
+  private val dateRegex = Regex("([0-9零一二两三四五六七八九十]+年)?([0-9零一二两三四五六七八九十]+月)?([0-9零一二两三四五六七八九十]+[日号])?")
 
   private val rangePattern1 = Regex("([二三四五六七八九])([二三四五六七八九])([十百千万亿])([万千百亿])?")
   private val rangePattern2 = Regex("(十|[一二三四五六七八九十]+[十百千万])([一二三四五六七八九])([一二三四五六七八九])([万千亿])?")
@@ -101,6 +107,7 @@ object ChineseItn {
 
   fun normalize(input: String): String {
     if (input.isBlank()) return input
+    val idiomRanges = findIdiomRanges(input)
     val sb = StringBuilder()
     var lastIndex = 0
     for (m in candidateRegex.findAll(input)) {
@@ -108,21 +115,31 @@ object ChineseItn {
       if (start > lastIndex) {
         sb.append(input.substring(lastIndex, start))
       }
-      sb.append(replaceSegment(m.value))
+      if (idiomRanges.any { rangesOverlap(it, m.range) }) {
+        sb.append(m.value)
+      } else {
+        sb.append(replaceSegment(m.value))
+      }
       lastIndex = m.range.last + 1
     }
     if (lastIndex < input.length) {
       sb.append(input.substring(lastIndex))
     }
-    return sb.toString()
+    return normalizeArabicDecimalDotSpacing(sb.toString())
   }
 
   private fun replaceSegment(segment: String): String {
+    val (leading, core, trailing) = splitOuterWhitespace(segment)
+    if (core.isEmpty()) return segment
+    return leading + replaceSegmentCore(core) + trailing
+  }
+
+  private fun replaceSegmentCore(segment: String): String {
     if (!containsChineseNumber(segment)) return segment
     if (idioms.any { segment.contains(it) }) return segment
     if (fuzzyRegex.containsMatchIn(segment)) return segment
 
-    val prefixMatch = Regex("^([a-zA-Z]\\s+)(.+)$").find(segment)
+    val prefixMatch = Regex("^([a-zA-Z]+\\s*)(.+)$").find(segment)
     if (prefixMatch != null && containsChineseNumber(prefixMatch.groupValues[2])) {
       return prefixMatch.groupValues[1] + replaceSegment(prefixMatch.groupValues[2])
     }
@@ -130,11 +147,15 @@ object ChineseItn {
     val range = convertRange(segment)
     if (range != null) return range
 
+    val dateTime = convertDateTimeConnected(segment)
+    if (dateTime != null) return dateTime
+
     val time = convertTime(segment)
     if (time != null) return time
 
     val matchBase = stripTrailingUnit(segment)
-    if (pureNumRegex.matches(matchBase)) {
+    val compactBase = stripWhitespace(matchBase)
+    if (pureNumRegex.matches(compactBase)) {
       val pure = convertPureNum(segment, strict = false)
       if (pure != null) return pure
     }
@@ -142,7 +163,7 @@ object ChineseItn {
     val consecutive = convertConsecutive(segment)
     if (consecutive != null) return consecutive
 
-    if (valueNumRegex.matches(matchBase)) {
+    if (valueNumRegex.matches(compactBase)) {
       val value = convertValueNum(segment)
       if (value != null) return value
     }
@@ -162,7 +183,7 @@ object ChineseItn {
   private fun convertRange(input: String): String? {
     if (input.contains('点')) return null
     val (baseRaw, unit) = stripUnit(input)
-    val base = baseRaw.replace(" ", "")
+    val base = stripWhitespace(baseRaw)
 
     rangePattern1.find(base)?.let { m ->
       val d1 = valueMapper[m.groupValues[1][0]] ?: return null
@@ -203,8 +224,8 @@ object ChineseItn {
   }
 
   private fun convertTime(input: String): String? {
-    val m = timeRegex.matchEntire(input) ?: return null
-    val text = m.value
+    val text = stripWhitespace(input)
+    if (!timeRegex.matches(text)) return null
     val dot = text.indexOf('点')
     val fen = text.indexOf('分')
     if (dot <= 0 || fen <= dot) return null
@@ -242,7 +263,8 @@ object ChineseItn {
   }
 
   private fun convertDate(input: String): String? {
-    val m = dateRegex.matchEntire(input) ?: return null
+    val text = stripWhitespace(input)
+    val m = dateRegex.matchEntire(text) ?: return null
     val yearRaw = m.groupValues.getOrNull(1).orEmpty()
     val monthRaw = m.groupValues.getOrNull(2).orEmpty()
     val dayRaw = m.groupValues.getOrNull(3).orEmpty()
@@ -250,19 +272,20 @@ object ChineseItn {
 
     val year = if (yearRaw.isNotEmpty()) {
       val part = yearRaw.removeSuffix("年")
-      val pure = convertPureNum(part, strict = true)
-      pure?.takeIf { it.isNotEmpty() } ?: convertValueNum(part)
+      part.toIntOrNull()?.toString()
+        ?: convertPureNum(part, strict = true)?.takeIf { it.isNotEmpty() }
+        ?: convertValueNum(part)
     } else null
 
     val month = if (monthRaw.isNotEmpty()) {
       val part = monthRaw.removeSuffix("月")
-      convertValueNum(part)
+      part.toIntOrNull()?.toString() ?: convertValueNum(part)
     } else null
 
     val day = if (dayRaw.isNotEmpty()) {
       val suffix = if (dayRaw.endsWith("日")) "日" else "号"
       val part = dayRaw.removeSuffix(suffix)
-      convertValueNum(part)?.let { it + suffix }
+      (part.toIntOrNull()?.toString() ?: convertValueNum(part))?.let { it + suffix }
     } else null
 
     val sb = StringBuilder()
@@ -298,9 +321,9 @@ object ChineseItn {
 
   private fun convertPureNum(input: String, strict: Boolean): String? {
     val (raw, unit) = stripUnit(input)
-    val text = raw.replace(" ", "")
+    val text = stripWhitespace(raw)
     if (text.isEmpty()) return null
-    if (!strict && text.length == 1 && text[0] == '一') return input
+    if (!strict && text.length == 1 && text[0] == '一' && unit.isEmpty()) return input
     val out = StringBuilder()
     for (ch in text) {
       val mapped = numMapper[ch] ?: return null
@@ -311,7 +334,7 @@ object ChineseItn {
 
   private fun convertValueNum(input: String): String? {
     val (raw, unit) = stripUnit(input)
-    val text = raw.replace(" ", "")
+    val text = stripWhitespace(raw)
     if (text.isEmpty()) return null
 
     val parts = text.split('点', limit = 2)
@@ -362,12 +385,14 @@ object ChineseItn {
   }
 
   private fun parseIntValue(input: String): Int? {
-    val value = convertValueNum(input) ?: convertPureNum(input, strict = true)
+    val text = stripWhitespace(input)
+    text.toIntOrNull()?.let { return it }
+    val value = convertValueNum(text) ?: convertPureNum(text, strict = true)
     return value?.toIntOrNull()
   }
 
   private fun parseValueWithoutUnit(input: String): Long? {
-    val text = input.replace(" ", "")
+    val text = stripWhitespace(input)
     if (text.isEmpty()) return null
 
     val parts = text.split('点', limit = 2)
@@ -426,6 +451,23 @@ object ChineseItn {
     return mapped ?: unit
   }
 
+  private fun convertDateTimeConnected(input: String): String? {
+    val text = stripWhitespace(input)
+    val dotIndex = text.indexOf('点')
+    if (dotIndex <= 0) return null
+    val splitIndex = text.lastIndexOfAny(charArrayOf('日', '号', '月', '年'), startIndex = dotIndex - 1)
+    if (splitIndex < 0) return null
+
+    val dateCandidate = text.substring(0, splitIndex + 1)
+    val timeCandidate = text.substring(splitIndex + 1)
+    if (dateCandidate.isEmpty() || timeCandidate.isEmpty()) return null
+
+    val convertedDate = convertDate(dateCandidate) ?: dateCandidate
+    val convertedTime = convertTime(timeCandidate) ?: timeCandidate
+    val out = convertedDate + convertedTime
+    return out.takeIf { it != text }
+  }
+
   private fun containsChineseNumber(input: String): Boolean {
     for (ch in input) {
       if (numMapper.containsKey(ch) || valueMapper.containsKey(ch) || ch == '幺' || ch == '两') {
@@ -433,6 +475,81 @@ object ChineseItn {
       }
     }
     return false
+  }
+
+  private fun findIdiomRanges(input: String): List<IntRange> {
+    val ranges = idiomRegex.findAll(input).map { it.range }.toList()
+    if (ranges.isEmpty()) return emptyList()
+    val sorted = ranges.sortedBy { it.first }
+    val merged = ArrayList<IntRange>(sorted.size)
+    var current = sorted[0]
+    for (i in 1 until sorted.size) {
+      val next = sorted[i]
+      if (next.first <= current.last + 1) {
+        current = current.first..maxOf(current.last, next.last)
+      } else {
+        merged.add(current)
+        current = next
+      }
+    }
+    merged.add(current)
+    return merged
+  }
+
+  private fun rangesOverlap(a: IntRange, b: IntRange): Boolean {
+    return a.first <= b.last && b.first <= a.last
+  }
+
+  private fun splitOuterWhitespace(input: String): Triple<String, String, String> {
+    if (input.isEmpty()) return Triple("", "", "")
+    var start = 0
+    while (start < input.length && isAnyWhitespace(input[start])) start++
+    var end = input.length
+    while (end > start && isAnyWhitespace(input[end - 1])) end--
+    return Triple(input.substring(0, start), input.substring(start, end), input.substring(end))
+  }
+
+  private fun stripWhitespace(input: String): String {
+    if (input.isEmpty()) return input
+    return input.filterNot { isAnyWhitespace(it) }
+  }
+
+  private fun isAnyWhitespace(ch: Char): Boolean {
+    return ch.isWhitespace() || Character.isSpaceChar(ch)
+  }
+
+  private fun normalizeArabicDecimalDotSpacing(input: String): String {
+    if (input.isEmpty()) return input
+    if (!input.contains('.') && !input.contains('．')) return input
+
+    fun isAsciiDigit(ch: Char): Boolean = ch in '0'..'9'
+
+    val out = StringBuilder(input.length)
+    var i = 0
+    while (i < input.length) {
+      val ch = input[i]
+      if (isAsciiDigit(ch)) {
+        out.append(ch)
+        val afterDigit = i + 1
+        var k = afterDigit
+        while (k < input.length && isAnyWhitespace(input[k])) k++
+        if (k < input.length && (input[k] == '.' || input[k] == '．')) {
+          var l = k + 1
+          while (l < input.length && isAnyWhitespace(input[l])) l++
+          if (l < input.length && isAsciiDigit(input[l])) {
+            out.append('.')
+            out.append(input[l])
+            i = l + 1
+            continue
+          }
+        }
+        i = afterDigit
+        continue
+      }
+      out.append(ch)
+      i++
+    }
+    return out.toString()
   }
 
   private fun buildAllowedCharClass(): String {
