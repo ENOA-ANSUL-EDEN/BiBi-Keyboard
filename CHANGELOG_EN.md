@@ -1,5 +1,33 @@
 # Changelog
 
+## v3.12.0 (2025-01-20)
+
+### New Features
+
+- **Parallel Primary-Backup Dual-Engine Recognition**: Added parallel primary-backup dual-engine recognition feature to improve speech recognition accuracy and reliability
+- **FunASR Nano Independent Vendor**: Separated FunASR Nano from SenseVoice as an independent ASR vendor
+- **FunASR Nano Inference Optimization**: Added support for FunASR Nano full version to improve recognition accuracy
+- **Post-Processing Typewriter Effect**: Added typewriter animation effect for streaming AI post-processing results to enhance interaction experience
+- **Post-Processing Typewriter Toggle**: Added typewriter effect toggle option in post-processing settings
+- **Switch IME Tile**: Added new system settings quick tile for convenient input method switching
+- **Vendor Tags**: Added tags for speech recognition vendors to help users choose the appropriate vendor
+- **[Pro] One-Tap Hotword Deletion**: Added one-tap delete all hotwords feature in hotword management interface
+- **[Pro] Regex Post-Processing Optimization**: Built-in common regex templates with configurable descriptions and optimized UI
+
+### Improvements
+
+- **Local Model Loading Coordinator**: Introduced local model loading coordinator to optimize model loading process and improve loading reliability
+- **Optimized ITN Effect**: Optimized Chinese number normalization effect to improve number recognition accuracy
+- **Soniox Streaming Engine Refactor**: Fixed several issues with Soniox streaming engine
+- **ASR Option Display Names**: Simplified multi-ASR option display names to improve interface cleanliness
+
+### Bug Fixes
+
+- Attempted to fix Paraformer end-of-sentence character loss issue
+- Prevented false timeout trigger on first local model load
+
+---
+
 ## v3.11.2 (2025-01-07)
 
 ### New Features
