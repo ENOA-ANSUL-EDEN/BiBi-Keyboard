@@ -1331,9 +1331,15 @@ class KeyboardActionHandler(
                 val audioMs = asrManager.popLastAudioMsForStats()
                 val procMs = asrManager.getLastRequestDuration() ?: 0L
                 val aiUsed = (res.usedAi && res.ok)
+                val vendorForRecord = try {
+                    asrManager.peekLastFinalVendorForStats()
+                } catch (t: Throwable) {
+                    Log.w(TAG, "Failed to get final vendor for stats", t)
+                    prefs.asrVendor
+                }
                 AnalyticsManager.recordAsrEvent(
                     context = context,
-                    vendorId = prefs.asrVendor.id,
+                    vendorId = vendorForRecord.id,
                     audioMs = audioMs,
                     procMs = procMs,
                     source = "ime",
@@ -1341,7 +1347,7 @@ class KeyboardActionHandler(
                     charCount = chars
                 )
                 if (!prefs.disableUsageStats) {
-                    prefs.recordUsageCommit("ime", prefs.asrVendor, audioMs, chars, procMs)
+                    prefs.recordUsageCommit("ime", vendorForRecord, audioMs, chars, procMs)
                 }
                 // 写入历史记录（AI 后处理：以实际“是否使用 AI 输出”记录）
                 if (!prefs.disableAsrHistory) {
@@ -1351,7 +1357,7 @@ class KeyboardActionHandler(
                             com.brycewg.asrkb.store.AsrHistoryStore.AsrHistoryRecord(
                                 timestamp = System.currentTimeMillis(),
                                 text = finalOut,
-                                vendorId = prefs.asrVendor.id,
+                                vendorId = vendorForRecord.id,
                                 audioMs = audioMs,
                                 procMs = procMs,
                                 source = "ime",
@@ -1462,9 +1468,15 @@ class KeyboardActionHandler(
                 val audioMs = asrManager.popLastAudioMsForStats()
                 val procMs = asrManager.getLastRequestDuration() ?: 0L
                 val chars = TextSanitizer.countEffectiveChars(finalToCommit)
+                val vendorForRecord = try {
+                    asrManager.peekLastFinalVendorForStats()
+                } catch (t: Throwable) {
+                    Log.w(TAG, "Failed to get final vendor for stats", t)
+                    prefs.asrVendor
+                }
                 AnalyticsManager.recordAsrEvent(
                     context = context,
-                    vendorId = prefs.asrVendor.id,
+                    vendorId = vendorForRecord.id,
                     audioMs = audioMs,
                     procMs = procMs,
                     source = "ime",
@@ -1472,7 +1484,7 @@ class KeyboardActionHandler(
                     charCount = chars
                 )
                 if (!prefs.disableUsageStats) {
-                    prefs.recordUsageCommit("ime", prefs.asrVendor, audioMs, chars, procMs)
+                    prefs.recordUsageCommit("ime", vendorForRecord, audioMs, chars, procMs)
                 }
                 // 写入历史记录（无 AI 后处理）
                 if (!prefs.disableAsrHistory) {
@@ -1482,7 +1494,7 @@ class KeyboardActionHandler(
                             com.brycewg.asrkb.store.AsrHistoryStore.AsrHistoryRecord(
                                 timestamp = System.currentTimeMillis(),
                                 text = finalToCommit,
-                                vendorId = prefs.asrVendor.id,
+                                vendorId = vendorForRecord.id,
                                 audioMs = audioMs,
                                 procMs = procMs,
                                 source = "ime",

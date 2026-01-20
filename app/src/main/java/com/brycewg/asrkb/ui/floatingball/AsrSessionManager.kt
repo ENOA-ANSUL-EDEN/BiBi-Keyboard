@@ -65,6 +65,9 @@ class AsrSessionManager(
     private val localModelReadyWaitMs = AtomicLong(0L)
     // 标记：最近一次提交是否实际使用了 AI 输出
     private var lastAiUsed: Boolean = false
+    // 统计/历史：最近一次最终结果的实际供应商（备用引擎场景下不再固定记录 prefs.asrVendor）
+    private var sessionPrimaryVendor: AsrVendor = try { prefs.asrVendor } catch (_: Throwable) { AsrVendor.Volc }
+    private var lastFinalVendorForStats: AsrVendor? = null
     // 音频焦点请求句柄
     private var audioFocusRequest: AudioFocusRequest? = null
 
@@ -83,6 +86,13 @@ class AsrSessionManager(
     /** 开始录音 */
     fun startRecording() {
         Log.d(TAG, "startRecording called")
+        try {
+            sessionPrimaryVendor = prefs.asrVendor
+        } catch (t: Throwable) {
+            Log.w(TAG, "Failed to snapshot vendor on startRecording", t)
+        } finally {
+            lastFinalVendorForStats = null
+        }
         try { sessionStartUptimeMs = SystemClock.uptimeMillis() } catch (t: Throwable) {
             Log.w(TAG, "Failed to read uptime for session start", t)
             sessionStartUptimeMs = 0L
@@ -176,6 +186,10 @@ class AsrSessionManager(
     /** 最近一次提交是否实际使用了 AI 输出 */
     fun wasLastAiUsed(): Boolean = lastAiUsed
 
+    fun peekLastFinalVendorForStats(): AsrVendor {
+        return lastFinalVendorForStats ?: sessionPrimaryVendor
+    }
+
     /** 清理会话 */
     fun cleanup() {
         try {
@@ -199,6 +213,10 @@ class AsrSessionManager(
 
     override fun onFinal(text: String) {
         Log.d(TAG, "onFinal called with text: $text")
+        lastFinalVendorForStats = when (val e = asrEngine) {
+            is ParallelAsrEngine -> if (e.wasLastResultFromBackup()) e.backupVendor else e.primaryVendor
+            else -> sessionPrimaryVendor
+        }
         serviceScope.launch {
             try {
                 processingTimeoutJob?.cancel()

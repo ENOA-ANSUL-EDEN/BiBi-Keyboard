@@ -269,6 +269,14 @@ class ExternalSpeechService : Service() {
             return (total - wait).coerceAtLeast(0L)
         }
 
+        private fun resolveFinalVendorForRecord(): AsrVendor {
+            val e = engine
+            return when (e) {
+                is ParallelAsrEngine -> if (e.wasLastResultFromBackup()) e.backupVendor else e.primaryVendor
+                else -> vendor ?: try { prefs.asrVendor } catch (_: Throwable) { AsrVendor.Volc }
+            }
+        }
+
         private fun scheduleProcessingTimeoutIfNeeded() {
             val audioMs = lastAudioMsForStats
             val baseTimeoutMs = AsrTimeoutCalculator.calculateTimeoutMs(audioMs)
@@ -805,9 +813,10 @@ class ExternalSpeechService : Service() {
                         val audioMs = lastAudioMsForStats
                         val procMs = computeProcMsForStats()
                         val chars = try { com.brycewg.asrkb.util.TextSanitizer.countEffectiveChars(out) } catch (_: Throwable) { out.length }
+                        val vendorForRecord = resolveFinalVendorForRecord()
                         AnalyticsManager.recordAsrEvent(
                             context = context,
-                            vendorId = prefs.asrVendor.id,
+                            vendorId = vendorForRecord.id,
                             audioMs = audioMs,
                             procMs = procMs,
                             source = "ime",
@@ -815,7 +824,7 @@ class ExternalSpeechService : Service() {
                             charCount = chars
                         )
                         if (!prefs.disableUsageStats) {
-                            prefs.recordUsageCommit("ime", prefs.asrVendor, audioMs, chars, procMs)
+                            prefs.recordUsageCommit("ime", vendorForRecord, audioMs, chars, procMs)
                         }
                         if (!prefs.disableAsrHistory) {
                             val store = com.brycewg.asrkb.store.AsrHistoryStore(context)
@@ -823,7 +832,7 @@ class ExternalSpeechService : Service() {
                                 com.brycewg.asrkb.store.AsrHistoryStore.AsrHistoryRecord(
                                     timestamp = System.currentTimeMillis(),
                                     text = out,
-                                    vendorId = prefs.asrVendor.id,
+                                    vendorId = vendorForRecord.id,
                                     audioMs = audioMs,
                                     procMs = procMs,
                                     source = "ime",
@@ -854,9 +863,10 @@ class ExternalSpeechService : Service() {
                     val audioMs = lastAudioMsForStats
                     val procMs = computeProcMsForStats()
                     val chars = try { com.brycewg.asrkb.util.TextSanitizer.countEffectiveChars(out) } catch (_: Throwable) { out.length }
+                    val vendorForRecord = resolveFinalVendorForRecord()
                     AnalyticsManager.recordAsrEvent(
                         context = context,
-                        vendorId = prefs.asrVendor.id,
+                        vendorId = vendorForRecord.id,
                         audioMs = audioMs,
                         procMs = procMs,
                         source = "ime",
@@ -864,7 +874,7 @@ class ExternalSpeechService : Service() {
                         charCount = chars
                     )
                     if (!prefs.disableUsageStats) {
-                        prefs.recordUsageCommit("ime", prefs.asrVendor, audioMs, chars, procMs)
+                        prefs.recordUsageCommit("ime", vendorForRecord, audioMs, chars, procMs)
                     }
                     if (!prefs.disableAsrHistory) {
                         val store = com.brycewg.asrkb.store.AsrHistoryStore(context)
@@ -872,7 +882,7 @@ class ExternalSpeechService : Service() {
                             com.brycewg.asrkb.store.AsrHistoryStore.AsrHistoryRecord(
                                 timestamp = System.currentTimeMillis(),
                                 text = out,
-                                vendorId = prefs.asrVendor.id,
+                                vendorId = vendorForRecord.id,
                                 audioMs = audioMs,
                                 procMs = procMs,
                                 source = "ime",

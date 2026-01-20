@@ -95,6 +95,10 @@ class AsrSessionManager(
     // ASR 请求耗时记录
     private var lastRequestDurationMs: Long? = null
 
+    // 统计/历史：本次会话主/备供应商快照（避免设置变更导致 vendorId 串台）
+    private var sessionPrimaryVendor: AsrVendor = try { prefs.asrVendor } catch (_: Throwable) { AsrVendor.Volc }
+    private var lastFinalVendorForStats: AsrVendor? = null
+
     // 本地模型：Processing 阶段等待“模型就绪”的耗时（用于将处理耗时统计从模型就绪开始）
     private var sessionSeq: Long = 0L
     private var localModelWaitStartUptimeMs: Long = 0L
@@ -135,6 +139,10 @@ class AsrSessionManager(
      * 获取最后一次请求耗时
      */
     fun getLastRequestDuration(): Long? = lastRequestDurationMs
+
+    fun peekLastFinalVendorForStats(): AsrVendor {
+        return lastFinalVendorForStats ?: sessionPrimaryVendor
+    }
 
     /**
      * 构建符合当前配置的 ASR 引擎
@@ -341,6 +349,13 @@ class AsrSessionManager(
      */
     fun startRecording(state: KeyboardState) {
         currentState = state
+        try {
+            sessionPrimaryVendor = prefs.asrVendor
+        } catch (t: Throwable) {
+            Log.w(TAG, "Failed to snapshot vendors on startRecording", t)
+        } finally {
+            lastFinalVendorForStats = null
+        }
         sessionSeq++
         localModelWaitStartUptimeMs = 0L
         localModelReadyWaitMs.set(0L)
@@ -561,6 +576,10 @@ class AsrSessionManager(
 
     override fun onFinal(text: String) {
         Log.d(TAG, "onFinal: text='$text', state=$currentState")
+        lastFinalVendorForStats = when (val e = asrEngine) {
+            is ParallelAsrEngine -> if (e.wasLastResultFromBackup()) e.backupVendor else e.primaryVendor
+            else -> sessionPrimaryVendor
+        }
         // 若尚未收到 onStopped，则以当前时间近似计算一次时长
         if (lastAudioMsForStats == 0L && sessionStartUptimeMs > 0L) {
             try {

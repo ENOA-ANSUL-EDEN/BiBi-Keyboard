@@ -442,9 +442,15 @@ class FloatingAsrService : Service(),
                     val procMs = asrSessionManager.getLastRequestDuration() ?: 0L
                     val chars = com.brycewg.asrkb.util.TextSanitizer.countEffectiveChars(text)
                     val ai = try { asrSessionManager.wasLastAiUsed() } catch (_: Throwable) { false }
+                    val vendorForRecord = try {
+                        asrSessionManager.peekLastFinalVendorForStats()
+                    } catch (t: Throwable) {
+                        Log.w(TAG, "Failed to get final vendor for stats", t)
+                        prefs.asrVendor
+                    }
                     AnalyticsManager.recordAsrEvent(
                         context = this@FloatingAsrService,
-                        vendorId = prefs.asrVendor.id,
+                        vendorId = vendorForRecord.id,
                         audioMs = audioMs,
                         procMs = procMs,
                         source = "floating",
@@ -454,7 +460,7 @@ class FloatingAsrService : Service(),
                     if (!prefs.disableUsageStats) {
                         prefs.recordUsageCommit(
                             "floating",
-                            prefs.asrVendor,
+                            vendorForRecord,
                             audioMs,
                             chars,
                             procMs
@@ -468,7 +474,7 @@ class FloatingAsrService : Service(),
                                 com.brycewg.asrkb.store.AsrHistoryStore.AsrHistoryRecord(
                                     timestamp = System.currentTimeMillis(),
                                     text = text,
-                                    vendorId = prefs.asrVendor.id,
+                                    vendorId = vendorForRecord.id,
                                     audioMs = audioMs,
                                     procMs = procMs,
                                     source = "floating",
