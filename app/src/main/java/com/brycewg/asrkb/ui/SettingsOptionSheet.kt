@@ -63,7 +63,7 @@ object SettingsOptionSheet {
       listView.setSelection(safeIndex)
     }
 
-    listView.setOnItemClickListener { view, _, position, _ ->
+    listView.setOnItemClickListener { _, view, position, _ ->
       HapticFeedbackHelper.performTap(context, prefs, view)
       onSelected(position)
       dialog.dismiss()
@@ -108,7 +108,7 @@ object SettingsOptionSheet {
       listView.setSelection(safeIndex)
     }
 
-    listView.setOnItemClickListener { view, _, position, _ ->
+    listView.setOnItemClickListener { _, view, position, _ ->
       HapticFeedbackHelper.performTap(context, prefs, view)
       onSelected(position)
       dialog.dismiss()
@@ -136,9 +136,17 @@ object SettingsOptionSheet {
       val titleView = row.findViewById<CheckedTextView>(android.R.id.text1)
       val tagGroup = row.findViewById<ChipGroup>(R.id.cgOptionTags)
       val item = items[position]
+      val listView = parent as? ListView
+      row.setOnClickListener {
+        listView?.performItemClick(row, position, getItemId(position))
+      }
 
       titleView.text = item.title
       titleView.isChecked = position == selectedIndex
+      tagGroup.isClickable = false
+      tagGroup.isFocusable = false
+      tagGroup.isFocusableInTouchMode = false
+      tagGroup.isLongClickable = false
 
       val tags = item.tags.filter { it.label.isNotBlank() }
       if (tags.isEmpty()) {
@@ -149,6 +157,11 @@ object SettingsOptionSheet {
         tagGroup.removeAllViews()
         tags.forEach { tag ->
           val chip = inflater.inflate(R.layout.item_settings_tag_chip, tagGroup, false) as Chip
+          chip.isCheckable = false
+          chip.isClickable = false
+          chip.isFocusable = false
+          chip.isFocusableInTouchMode = false
+          chip.isLongClickable = false
           chip.text = tag.label
           applyTagColors(chip, tag)
           tagGroup.addView(chip)
@@ -234,6 +247,12 @@ object SettingsOptionSheet {
     })
 
     listView.setOnTouchListener { _, event ->
+      when (event.actionMasked) {
+        MotionEvent.ACTION_DOWN,
+        MotionEvent.ACTION_MOVE -> listView.parent?.requestDisallowInterceptTouchEvent(true)
+        MotionEvent.ACTION_UP,
+        MotionEvent.ACTION_CANCEL -> listView.parent?.requestDisallowInterceptTouchEvent(false)
+      }
       when (event.actionMasked) {
         MotionEvent.ACTION_DOWN,
         MotionEvent.ACTION_MOVE,
