@@ -268,7 +268,14 @@ class AsrSessionManager(
         val backupVendor = prefs.backupAsrVendor
         val backupEnabled = shouldUseBackupAsr(primaryVendor, backupVendor)
         if (backupEnabled) {
-            val engine = buildEngine()
+            val current = asrEngine
+            val matched = when (current) {
+                is ParallelAsrEngine -> if (current.primaryVendor == primaryVendor && current.backupVendor == backupVendor) {
+                    current
+                } else null
+                else -> null
+            }
+            val engine = matched ?: buildEngine()
             if (engine != null && engine !== asrEngine) {
                 asrEngine?.stop()
                 asrEngine = engine

@@ -85,12 +85,13 @@ class KeyboardActionHandler(
     private fun scheduleProcessingTimeout(audioMsOverride: Long? = null) {
         try { processingTimeoutJob?.cancel() } catch (t: Throwable) { Log.w(TAG, "Cancel previous processingTimeoutJob failed", t) }
         val audioMs = audioMsOverride ?: try { asrManager.peekLastAudioMsForStats() } catch (_: Throwable) { 0L }
-        val timeoutMs = AsrTimeoutCalculator.calculateTimeoutMs(audioMs)
         val usingBackupEngine = try {
             asrManager.getEngine() is com.brycewg.asrkb.asr.ParallelAsrEngine
         } catch (_: Throwable) {
             false
         }
+        val baseTimeoutMs = AsrTimeoutCalculator.calculateTimeoutMs(audioMs)
+        val timeoutMs = if (usingBackupEngine) baseTimeoutMs + 2_000L else baseTimeoutMs
         val shouldDeferForLocalModel = try {
             !usingBackupEngine && isLocalAsrVendor(prefs.asrVendor)
         } catch (t: Throwable) {

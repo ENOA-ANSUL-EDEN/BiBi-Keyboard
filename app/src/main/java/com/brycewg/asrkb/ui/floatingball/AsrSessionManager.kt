@@ -632,9 +632,10 @@ class AsrSessionManager(
             Log.w(TAG, "Failed to cancel previous timeout job", e)
         }
         val audioMs = audioMsOverride ?: lastAudioMsForStats
-        val timeoutMs = AsrTimeoutCalculator.calculateTimeoutMs(audioMs)
+        val usingBackupEngine = asrEngine is ParallelAsrEngine
+        val baseTimeoutMs = AsrTimeoutCalculator.calculateTimeoutMs(audioMs)
+        val timeoutMs = if (usingBackupEngine) baseTimeoutMs + 2_000L else baseTimeoutMs
         processingTimeoutJob = serviceScope.launch {
-            val usingBackupEngine = asrEngine is ParallelAsrEngine
             val shouldDeferForLocalModel = try {
                 !usingBackupEngine && isLocalAsrVendor(prefs.asrVendor)
             } catch (t: Throwable) {
