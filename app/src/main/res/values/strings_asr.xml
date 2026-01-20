@@ -9,4 +9,14 @@
     <!-- Auto stop on silence -->
     <string name="feature_auto_stop_silence_off_desc">Recording continues until you manually stop it. Useful for capturing longer speech or when pauses are part of your content.</string>
     <string name="feature_auto_stop_silence_on_desc">Automatically stops recording when no voice is detected for a specified duration, saving time and bandwidth. You can adjust the sensitivity and window settings.</string>
+
+    <!-- Provider tags (for selector UI) -->
+    <string name="asr_vendor_tag_streaming">Streaming</string>
+    <string name="asr_vendor_tag_non_streaming">Non-streaming</string>
+    <string name="asr_vendor_tag_online">Online</string>
+    <string name="asr_vendor_tag_local">On-device</string>
+    <string name="asr_vendor_tag_custom">Custom</string>
+    <string name="asr_vendor_tag_pseudo_streaming">Pseudo-streaming</string>
+    <string name="asr_vendor_tag_chinese_dialect">Chinese dialects</string>
+    <string name="asr_vendor_tag_accurate">Accurate</string>
 </resources>

@@ -10,4 +10,14 @@
     <!-- 无人说话自动停止录音 - Auto-stop on silence -->
     <string name="feature_auto_stop_silence_off_desc">录音会持续到你手动停止。适合录制较长的语音或者停顿是内容的一部分的场景。</string>
     <string name="feature_auto_stop_silence_on_desc">检测到指定时长的无人声时自动停止录音，节省时间和流量。你可以调整灵敏度和窗口时长。</string>
+
+    <!-- 服务商标签（用于选择器展示） -->
+    <string name="asr_vendor_tag_streaming">流式</string>
+    <string name="asr_vendor_tag_non_streaming">非流</string>
+    <string name="asr_vendor_tag_online">在线</string>
+    <string name="asr_vendor_tag_local">本地</string>
+    <string name="asr_vendor_tag_custom">自定义</string>
+    <string name="asr_vendor_tag_pseudo_streaming">伪流</string>
+    <string name="asr_vendor_tag_chinese_dialect">中文方言</string>
+    <string name="asr_vendor_tag_accurate">准确</string>
 </resources>

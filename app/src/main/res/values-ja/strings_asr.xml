@@ -9,4 +9,14 @@
     <!-- 無音時自動停止 -->
     <string name="feature_auto_stop_silence_off_desc">録音は手動で停止するまで継続されます。長いスピーチや、休止がコンテンツの一部である場合に便利です。</string>
     <string name="feature_auto_stop_silence_on_desc">指定した時間音声が検出されないと自動的に録音を停止し、時間と帯域幅を節約します。感度とウィンドウ設定を調整できます。</string>
+
+    <!-- Provider tags (for selector UI) -->
+    <string name="asr_vendor_tag_streaming">ストリーミング</string>
+    <string name="asr_vendor_tag_non_streaming">非ストリーミング</string>
+    <string name="asr_vendor_tag_online">オンライン</string>
+    <string name="asr_vendor_tag_local">端末内</string>
+    <string name="asr_vendor_tag_custom">カスタム</string>
+    <string name="asr_vendor_tag_pseudo_streaming">擬似ストリーミング</string>
+    <string name="asr_vendor_tag_chinese_dialect">中国語方言</string>
+    <string name="asr_vendor_tag_accurate">高精度</string>
 </resources>

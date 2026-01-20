@@ -40,6 +40,78 @@ object AsrVendorUi {
     AsrVendor.Paraformer -> context.getString(R.string.vendor_paraformer)
   }
 
+  /** 指定 vendor 的标签（用于选择器展示；可后续按需调整） */
+  fun tags(v: AsrVendor): List<AsrVendorTag> = when (v) {
+    AsrVendor.SiliconFlow -> listOf(
+      AsrVendorTag.Online,
+      AsrVendorTag.NonStreaming,
+      AsrVendorTag.Custom
+    )
+    AsrVendor.Volc -> listOf(
+      AsrVendorTag.Online,
+      AsrVendorTag.Streaming,
+      AsrVendorTag.NonStreaming,
+      AsrVendorTag.ChineseDialect,
+      AsrVendorTag.Accurate
+    )
+    AsrVendor.ElevenLabs -> listOf(
+      AsrVendorTag.Online,
+      AsrVendorTag.Streaming,
+      AsrVendorTag.NonStreaming
+    )
+    AsrVendor.OpenAI -> listOf(
+      AsrVendorTag.Online,
+      AsrVendorTag.NonStreaming,
+      AsrVendorTag.Custom
+    )
+    AsrVendor.DashScope -> listOf(
+      AsrVendorTag.Online,
+      AsrVendorTag.Streaming,
+      AsrVendorTag.NonStreaming,
+      AsrVendorTag.ChineseDialect,
+      AsrVendorTag.Accurate
+    )
+    AsrVendor.Gemini -> listOf(
+      AsrVendorTag.Online,
+      AsrVendorTag.NonStreaming,
+      AsrVendorTag.Accurate,
+      AsrVendorTag.Custom
+    )
+    AsrVendor.Soniox -> listOf(
+      AsrVendorTag.Online,
+      AsrVendorTag.Streaming,
+      AsrVendorTag.NonStreaming,
+      AsrVendorTag.Accurate
+    )
+    AsrVendor.Zhipu -> listOf(
+      AsrVendorTag.Online,
+      AsrVendorTag.NonStreaming,
+      AsrVendorTag.ChineseDialect
+    )
+    AsrVendor.SenseVoice -> listOf(
+      AsrVendorTag.Local,
+      AsrVendorTag.NonStreaming,
+      AsrVendorTag.PseudoStreaming
+    )
+    AsrVendor.FunAsrNano -> listOf(
+      AsrVendorTag.Local,
+      AsrVendorTag.NonStreaming,
+      AsrVendorTag.ChineseDialect,
+      AsrVendorTag.Accurate
+    )
+    AsrVendor.Telespeech -> listOf(
+      AsrVendorTag.Local,
+      AsrVendorTag.NonStreaming,
+      AsrVendorTag.PseudoStreaming,
+      AsrVendorTag.ChineseDialect
+    )
+    AsrVendor.Paraformer -> listOf(
+      AsrVendorTag.Local,
+      AsrVendorTag.Streaming,
+      AsrVendorTag.Accurate
+    )
+  }
+
   /** 顺序化的 (Vendor, 显示名) 列表 */
   fun pairs(context: Context): List<Pair<AsrVendor, String>> = ordered().map { it to name(context, it) }
 

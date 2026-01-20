@@ -513,6 +513,18 @@
         <item name="android:maxLines">2</item>
     </style>
 
+    <!-- 底部面板标签 Chip（用于“名称 + 标签”展示） -->
+    <style name="SettingsTagChip" parent="Widget.Material3.Chip.Assist">
+        <item name="android:textSize">12sp</item>
+        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
+        <item name="chipBackgroundColor">?attr/colorSurfaceVariant</item>
+        <item name="chipMinHeight">24dp</item>
+        <item name="chipStartPadding">8dp</item>
+        <item name="chipEndPadding">8dp</item>
+        <item name="textStartPadding">0dp</item>
+        <item name="textEndPadding">0dp</item>
+    </style>
+
     <!-- ==================== 引导页样式 ==================== -->
 
     <!-- 引导页卡片 -->

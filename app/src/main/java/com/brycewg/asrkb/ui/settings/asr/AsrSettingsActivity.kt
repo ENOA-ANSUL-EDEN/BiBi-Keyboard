@@ -165,15 +165,27 @@ class AsrSettingsActivity : BaseActivity() {
 
     private fun setupVendorSelection() {
         val vendorOrder = AsrVendorUi.ordered()
-        val vendorItems = AsrVendorUi.names(this)
+        val vendorItems = vendorOrder.map { vendor ->
+            SettingsOptionSheet.TaggedItem(
+                title = AsrVendorUi.name(this, vendor),
+                tags = AsrVendorUi.tags(vendor).map { tag ->
+                    SettingsOptionSheet.Tag(
+                        label = getString(tag.labelResId),
+                        bgColorResId = tag.bgColorResId,
+                        textColorResId = tag.textColorResId
+                    )
+                }
+            )
+        }
 
         tvAsrVendor.setOnClickListener { v ->
             hapticTapIfEnabled(v)
             val curIdx = vendorOrder.indexOf(prefs.asrVendor).coerceAtLeast(0)
-            showSingleChoiceDialog(
+            SettingsOptionSheet.showSingleChoiceTagged(
+                context = this,
                 titleResId = R.string.label_asr_vendor,
-                items = vendorItems.toTypedArray(),
-                currentIndex = curIdx
+                items = vendorItems,
+                selectedIndex = curIdx
             ) { selectedIdx ->
                 val vendor = vendorOrder.getOrNull(selectedIdx) ?: AsrVendor.Volc
                 viewModel.updateVendor(vendor)

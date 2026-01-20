@@ -9,4 +9,14 @@
     <!-- 無人說話自動停止錄音 -->
     <string name="feature_auto_stop_silence_off_desc">錄音會持續到你手動停止。適合錄製較長的語音或者停頓是內容一部分的場景。</string>
     <string name="feature_auto_stop_silence_on_desc">偵測到指定時長的無人聲時自動停止錄音，節省時間和流量。你可以調整靈敏度和視窗時長。</string>
+
+    <!-- 服務商標籤（用於選擇器展示） -->
+    <string name="asr_vendor_tag_streaming">流式</string>
+    <string name="asr_vendor_tag_non_streaming">非流</string>
+    <string name="asr_vendor_tag_online">在線</string>
+    <string name="asr_vendor_tag_local">本地</string>
+    <string name="asr_vendor_tag_custom">自訂</string>
+    <string name="asr_vendor_tag_pseudo_streaming">偽流</string>
+    <string name="asr_vendor_tag_chinese_dialect">中文方言</string>
+    <string name="asr_vendor_tag_accurate">準確</string>
 </resources>

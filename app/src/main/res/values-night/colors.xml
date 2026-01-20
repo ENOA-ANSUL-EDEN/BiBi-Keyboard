@@ -7,5 +7,29 @@
     <!-- 启动画面颜色（深色模式：黑色背景、白色前景） -->
     <color name="splash_background">#000000</color>
     <color name="splash_foreground">#FFFFFF</color>
-</resources>
 
+    <!-- ASR 标签色（深色，莫兰迪自然色系） -->
+    <color name="asr_tag_bg_online">#1E2B3A</color>
+    <color name="asr_tag_fg_online">#BBD4F4</color>
+
+    <color name="asr_tag_bg_local">#1D3328</color>
+    <color name="asr_tag_fg_local">#BFE6D2</color>
+
+    <color name="asr_tag_bg_streaming">#3A321E</color>
+    <color name="asr_tag_fg_streaming">#FFE7B6</color>
+
+    <color name="asr_tag_bg_non_streaming">#263233</color>
+    <color name="asr_tag_fg_non_streaming">#CBE0E0</color>
+
+    <color name="asr_tag_bg_pseudo_streaming">#322B1A</color>
+    <color name="asr_tag_fg_pseudo_streaming">#FFE7B6</color>
+
+    <color name="asr_tag_bg_custom">#2B2035</color>
+    <color name="asr_tag_fg_custom">#E0C9F2</color>
+
+    <color name="asr_tag_bg_cn_dialect">#3A1F28</color>
+    <color name="asr_tag_fg_cn_dialect">#FFB8C8</color>
+
+    <color name="asr_tag_bg_accurate">#2A2F38</color>
+    <color name="asr_tag_fg_accurate">#D8E0EF</color>
+</resources>

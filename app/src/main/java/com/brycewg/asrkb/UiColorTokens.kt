@@ -61,6 +61,12 @@ object UiColorTokens {
     /** 第三强调色 */
     val tertiary = com.google.android.material.R.attr.colorTertiary
 
+    /** 第三强调容器色 */
+    val tertiaryContainer = com.google.android.material.R.attr.colorTertiaryContainer
+
+    /** 第三强调容器前景色 */
+    val onTertiaryContainer = com.google.android.material.R.attr.colorOnTertiaryContainer
+
     /** 错误/警告色 */
     val error = android.R.attr.colorError
 
