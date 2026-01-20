@@ -1,7 +1,7 @@
 <resources>
     <!-- FunASR Nano ローカル ASR 設定文字列 -->
     <string name="funasr_section_title">FunASR NanoローカルASR</string>
-    <string name="vendor_funasr_nano">FunASR Nano（ローカル）</string>
+    <string name="vendor_funasr_nano">FunASR Nano</string>
 
     <!-- FunASR Nano local settings -->
     <string name="label_fn_model_variant">モデルバージョン</string>

@@ -1,7 +1,7 @@
 <resources>
     <!-- TeleSpeech local ASR configuration strings -->
     <string name="telespeech_section_title">TeleSpeech (Local)</string>
-    <string name="vendor_telespeech">TeleSpeech (Local offline)</string>
+    <string name="vendor_telespeech">TeleSpeech</string>
 
     <!-- TeleSpeech configuration -->
     <string name="label_ts_model_variant">Model variant</string>

@@ -1,7 +1,7 @@
 <resources>
     <!-- TeleSpeech 本地 ASR 配置字符串 -->
     <string name="telespeech_section_title">TeleSpeech 本地 ASR</string>
-    <string name="vendor_telespeech">TeleSpeech（本地离线）</string>
+    <string name="vendor_telespeech">TeleSpeech</string>
 
     <!-- TeleSpeech configuration -->
     <string name="label_ts_model_variant">模型版本</string>

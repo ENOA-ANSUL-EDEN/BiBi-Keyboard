@@ -1,7 +1,7 @@
 <resources>
     <!-- FunASR Nano 本地 ASR 配置字符串 -->
     <string name="funasr_section_title">FunASR Nano 本地 ASR</string>
-    <string name="vendor_funasr_nano">FunASR Nano（本地非流）</string>
+    <string name="vendor_funasr_nano">FunASR Nano</string>
 
     <!-- FunASR Nano local settings -->
     <string name="label_fn_model_variant">模型版本</string>

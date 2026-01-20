@@ -1,7 +1,7 @@
 <resources>
     <!-- DashScope (阿里雲百煉) ASR 配置字串 -->
     <string name="dash_section_title">阿里雲百煉 ASR 參數</string>
-    <string name="vendor_dashscope">阿里雲百煉（DashScope）</string>
+    <string name="vendor_dashscope">阿里雲百煉</string>
 
     <!-- DashScope configuration -->
     <string name="label_dash_api_key">DashScope API Key（Bearer）</string>

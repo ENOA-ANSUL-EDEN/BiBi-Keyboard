@@ -1,7 +1,7 @@
 <resources>
     <!-- Paraformer local streaming ASR configuration strings -->
     <string name="paraformer_section_title">Paraformer (Local)</string>
-    <string name="vendor_paraformer">Paraformer (Local streaming)</string>
+    <string name="vendor_paraformer">Paraformer</string>
 
     <!-- Paraformer configuration -->
     <string name="label_pf_model_variant">Model variant</string>

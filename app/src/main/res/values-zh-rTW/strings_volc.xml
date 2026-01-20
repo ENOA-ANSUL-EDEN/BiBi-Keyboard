@@ -1,7 +1,7 @@
 <resources>
     <!-- Volcengine (Volcano Engine) ASR 配置字串 -->
     <string name="volc_section_title">Volcano Engine API設定</string>
-    <string name="vendor_volc">Volcano Engine（豆包語音）</string>
+    <string name="vendor_volc">豆包語音</string>
 
     <!-- Volc configuration -->
     <string name="label_volc_streaming">使用串流識別（WebSocket）</string>

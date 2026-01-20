@@ -1,7 +1,7 @@
 <resources>
     <!-- TeleSpeech ローカル ASR 設定文字列 -->
     <string name="telespeech_section_title">TeleSpeech ローカル ASR</string>
-    <string name="vendor_telespeech">TeleSpeech（ローカル・オフライン）</string>
+    <string name="vendor_telespeech">TeleSpeech</string>
 
     <!-- TeleSpeech configuration -->
     <string name="label_ts_model_variant">モデルバリアント</string>

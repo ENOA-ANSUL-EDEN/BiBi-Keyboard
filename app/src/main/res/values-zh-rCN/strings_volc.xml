@@ -1,7 +1,7 @@
 <resources>
     <!-- Volcengine (Volcano Engine) ASR 配置字符串 -->
     <string name="volc_section_title">Volcano Engine API设置</string>
-    <string name="vendor_volc">Volcano Engine（豆包语音）</string>
+    <string name="vendor_volc">豆包语音</string>
 
     <!-- Volc configuration -->
     <string name="label_volc_streaming">使用流式识别（WebSocket）</string>

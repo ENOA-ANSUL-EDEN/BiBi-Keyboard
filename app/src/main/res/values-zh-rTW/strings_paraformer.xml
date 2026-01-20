@@ -1,7 +1,7 @@
 <resources>
     <!-- Paraformer 本地流式 ASR 配置字串 -->
     <string name="paraformer_section_title">Paraformer（本機）</string>
-    <string name="vendor_paraformer">Paraformer（本機串流）</string>
+    <string name="vendor_paraformer">Paraformer</string>
 
     <!-- Paraformer configuration -->
     <string name="label_pf_model_variant">模型版本</string>

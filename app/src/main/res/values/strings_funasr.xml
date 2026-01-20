@@ -1,7 +1,7 @@
 <resources>
     <!-- FunASR Nano local ASR configuration strings -->
     <string name="funasr_section_title">FunASR Nano Local ASR</string>
-    <string name="vendor_funasr_nano">FunASR Nano (Local Non-stream)</string>
+    <string name="vendor_funasr_nano">FunASR Nano</string>
 
     <!-- FunASR Nano local settings -->
     <string name="label_fn_model_variant">Model Version</string>
