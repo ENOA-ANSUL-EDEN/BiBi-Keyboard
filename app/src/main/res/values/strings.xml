@@ -6,6 +6,8 @@
   <!-- PocketBase 统计服务地址（渠道可覆盖）；为空则不上报 -->
   <string name="pocketbase_base_url" translatable="false"></string>
 
+  <string name="qs_tile_ime_picker">Switch input method</string>
+
   <!-- ============================================== -->
   <!-- Keyboard Status Information -->
   <!-- ============================================== -->
