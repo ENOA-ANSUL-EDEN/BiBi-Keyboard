@@ -1271,6 +1271,9 @@ class KeyboardActionHandler(
             typewriter?.cancel()
             return
         }
+        // 最终结果已就绪：取消 Processing 超时，避免“追赶等待”期间触发超时导致 opSeq 递增而丢提交
+        processingTimeoutJob?.cancel()
+        processingTimeoutJob = null
         if (typewriter != null && finalOut.isNotEmpty()) {
             // 最终结果到达后：不再“秒出”，改为让打字机以最快速度追到最终文本
             typewriter.submit(finalOut, rush = true)
