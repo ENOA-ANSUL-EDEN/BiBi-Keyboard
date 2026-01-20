@@ -513,16 +513,22 @@
         <item name="android:maxLines">2</item>
     </style>
 
-    <!-- 底部面板标签 Chip（用于“名称 + 标签”展示） -->
-    <style name="SettingsTagChip" parent="Widget.Material3.Chip.Assist">
+    <!-- 底部面板标签（用于“名称 + 标签”展示；使用轻量 TextView，避免 Chip 首次渲染卡顿） -->
+    <style name="SettingsTagChip">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:minHeight">24dp</item>
+        <item name="android:paddingStart">8dp</item>
+        <item name="android:paddingEnd">8dp</item>
+        <item name="android:paddingTop">2dp</item>
+        <item name="android:paddingBottom">2dp</item>
+        <item name="android:layout_marginEnd">6dp</item>
+        <item name="android:layout_marginBottom">6dp</item>
+        <item name="android:gravity">center</item>
         <item name="android:textSize">12sp</item>
         <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
-        <item name="chipBackgroundColor">?attr/colorSurfaceVariant</item>
-        <item name="chipMinHeight">24dp</item>
-        <item name="chipStartPadding">8dp</item>
-        <item name="chipEndPadding">8dp</item>
-        <item name="textStartPadding">0dp</item>
-        <item name="textEndPadding">0dp</item>
+        <item name="android:background">@drawable/bg_settings_tag_pill</item>
+        <item name="android:backgroundTint">?attr/colorSurfaceVariant</item>
     </style>
 
     <!-- ==================== 引导页样式 ==================== -->
