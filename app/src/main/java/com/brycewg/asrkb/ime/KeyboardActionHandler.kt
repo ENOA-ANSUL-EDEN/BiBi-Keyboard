@@ -86,8 +86,13 @@ class KeyboardActionHandler(
         try { processingTimeoutJob?.cancel() } catch (t: Throwable) { Log.w(TAG, "Cancel previous processingTimeoutJob failed", t) }
         val audioMs = audioMsOverride ?: try { asrManager.peekLastAudioMsForStats() } catch (_: Throwable) { 0L }
         val timeoutMs = AsrTimeoutCalculator.calculateTimeoutMs(audioMs)
+        val usingBackupEngine = try {
+            asrManager.getEngine() is com.brycewg.asrkb.asr.ParallelAsrEngine
+        } catch (_: Throwable) {
+            false
+        }
         val shouldDeferForLocalModel = try {
-            isLocalAsrVendor(prefs.asrVendor)
+            !usingBackupEngine && isLocalAsrVendor(prefs.asrVendor)
         } catch (t: Throwable) {
             Log.w(TAG, "Failed to determine local ASR vendor for timeout gating", t)
             false
@@ -1375,9 +1380,12 @@ class KeyboardActionHandler(
                 transitionToIdle()
                 uiListener?.onStatusMessage(context.getString(R.string.status_llm_failed_used_raw))
             } else {
+                val usedBackupResult =
+                    (asrManager.getEngine() as? com.brycewg.asrkb.asr.ParallelAsrEngine)
+                        ?.wasLastResultFromBackup() == true
                 transitionToState(KeyboardState.Processing)
                 scheduleProcessingTimeout()
-                transitionToIdleWithTiming()
+                transitionToIdleWithTiming(showBackupUsedHint = usedBackupResult)
             }
         }
     }
@@ -1497,9 +1505,12 @@ class KeyboardActionHandler(
         if (asrManager.isRunning()) {
             transitionToState(KeyboardState.Listening(lockedBySwipe = state.lockedBySwipe))
         } else {
+            val usedBackupResult =
+                (asrManager.getEngine() as? com.brycewg.asrkb.asr.ParallelAsrEngine)
+                    ?.wasLastResultFromBackup() == true
             transitionToState(KeyboardState.Processing)
             scheduleProcessingTimeout()
-            transitionToIdleWithTiming()
+            transitionToIdleWithTiming(showBackupUsedHint = usedBackupResult)
         }
     }
 
@@ -1588,21 +1599,46 @@ class KeyboardActionHandler(
         }
     }
 
-    private fun transitionToIdleWithTiming() {
+    private fun transitionToIdleWithTiming(showBackupUsedHint: Boolean = false) {
         val ms = asrManager.getLastRequestDuration()
         if (ms != null) {
             // 立刻切到 Idle，确保此时再次点按可直接开始录音，同时取消任何兜底定时器，避免后续误判为“取消”
             transitionToIdle(keepMessage = true)
-            // 切换到 Idle 后再设置耗时文案，避免被 UI 的 Idle 文案覆盖
-            uiListener?.onStatusMessage(context.getString(R.string.status_last_request_ms, ms))
-            scope.launch {
-                kotlinx.coroutines.delay(1500)
-                if (currentState !is KeyboardState.Listening) {
-                    uiListener?.onStatusMessage(context.getString(R.string.status_idle))
+            if (showBackupUsedHint) {
+                uiListener?.onStatusMessage(context.getString(R.string.status_backup_asr_used))
+                scope.launch {
+                    delay(700)
+                    if (currentState !is KeyboardState.Listening) {
+                        uiListener?.onStatusMessage(context.getString(R.string.status_last_request_ms, ms))
+                    }
+                    delay(800)
+                    if (currentState !is KeyboardState.Listening) {
+                        uiListener?.onStatusMessage(context.getString(R.string.status_idle))
+                    }
+                }
+            } else {
+                // 切换到 Idle 后再设置耗时文案，避免被 UI 的 Idle 文案覆盖
+                uiListener?.onStatusMessage(context.getString(R.string.status_last_request_ms, ms))
+                scope.launch {
+                    delay(1500)
+                    if (currentState !is KeyboardState.Listening) {
+                        uiListener?.onStatusMessage(context.getString(R.string.status_idle))
+                    }
                 }
             }
         } else {
-            transitionToIdle()
+            if (showBackupUsedHint) {
+                transitionToIdle(keepMessage = true)
+                uiListener?.onStatusMessage(context.getString(R.string.status_backup_asr_used))
+                scope.launch {
+                    delay(1500)
+                    if (currentState !is KeyboardState.Listening) {
+                        uiListener?.onStatusMessage(context.getString(R.string.status_idle))
+                    }
+                }
+            } else {
+                transitionToIdle()
+            }
         }
     }
 

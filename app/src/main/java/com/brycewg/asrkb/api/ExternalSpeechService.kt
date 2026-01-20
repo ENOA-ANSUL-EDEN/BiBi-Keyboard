@@ -192,6 +192,7 @@ class ExternalSpeechService : Service() {
         private var localModelWaitStartUptimeMs: Long = 0L
         private val localModelReadyWaitMs = AtomicLong(0L)
         private var localModelReadyWaitJob: Job? = null
+        private var pcmBytesForStats: Long = 0L
         private val sessionJob = SupervisorJob()
         private val sessionScope = CoroutineScope(sessionJob + Dispatchers.Default)
         private val processingTimeoutLock = Any()
@@ -270,11 +271,13 @@ class ExternalSpeechService : Service() {
 
         private fun scheduleProcessingTimeoutIfNeeded() {
             val audioMs = lastAudioMsForStats
-            val timeoutMs = AsrTimeoutCalculator.calculateTimeoutMs(audioMs)
+            val baseTimeoutMs = AsrTimeoutCalculator.calculateTimeoutMs(audioMs)
+            val timeoutMs = if (engine is ParallelAsrEngine) baseTimeoutMs + 2_000L else baseTimeoutMs
             synchronized(processingTimeoutLock) {
                 if (processingTimeoutJob != null) return
                 processingTimeoutJob = sessionScope.launch {
-                    val shouldDeferForLocalModel = vendor?.let { isLocalAsrVendor(it) } ?: false
+                    val usingBackupEngine = engine is ParallelAsrEngine
+                    val shouldDeferForLocalModel = !usingBackupEngine && (vendor?.let { isLocalAsrVendor(it) } ?: false)
                     if (shouldDeferForLocalModel) {
                         // 本地模型：将超时计时起点推移到“模型加载完成”之后，避免首次加载期间误触发超时
                         val ok = awaitLocalAsrReady(prefs, maxWaitMs = LOCAL_MODEL_READY_WAIT_MAX_MS)
@@ -320,18 +323,47 @@ class ExternalSpeechService : Service() {
 
         fun prepare(): Boolean {
             // 完全跟随应用内当前设置：供应商与是否流式均以 Prefs 为准
-            val vendor = prefs.asrVendor
-            this.vendor = vendor
-            val streamingPref = resolveStreamingBySettings(vendor)
-            engine = buildEngine(vendor, streamingPref)
+            val primaryVendor = prefs.asrVendor
+            val backupVendor = prefs.backupAsrVendor
+            this.vendor = primaryVendor
+            val streamingPref = resolveStreamingBySettings(primaryVendor)
+            val backupEnabled = shouldUseBackupAsr(primaryVendor, backupVendor)
+            engine = if (backupEnabled) {
+                ParallelAsrEngine(
+                    context = context,
+                    scope = CoroutineScope(sessionJob + Dispatchers.Main),
+                    prefs = prefs,
+                    listener = this,
+                    primaryVendor = primaryVendor,
+                    backupVendor = backupVendor,
+                    onPrimaryRequestDuration = ::onRequestDuration
+                )
+            } else {
+                buildEngine(primaryVendor, streamingPref)
+            }
             return engine != null
         }
 
         fun preparePushPcm(): Boolean {
-            val vendor = prefs.asrVendor
-            this.vendor = vendor
-            val streamingPref = resolveStreamingBySettings(vendor)
-            engine = buildPushPcmEngine(vendor, streamingPref)
+            val primaryVendor = prefs.asrVendor
+            val backupVendor = prefs.backupAsrVendor
+            this.vendor = primaryVendor
+            val streamingPref = resolveStreamingBySettings(primaryVendor)
+            val backupEnabled = shouldUseBackupAsr(primaryVendor, backupVendor)
+            engine = if (backupEnabled) {
+                ParallelAsrEngine(
+                    context = context,
+                    scope = CoroutineScope(sessionJob + Dispatchers.Main),
+                    prefs = prefs,
+                    listener = this,
+                    primaryVendor = primaryVendor,
+                    backupVendor = backupVendor,
+                    onPrimaryRequestDuration = ::onRequestDuration,
+                    externalPcmInput = true
+                )
+            } else {
+                buildPushPcmEngine(primaryVendor, streamingPref)
+            }
             return engine != null
         }
 
@@ -347,6 +379,7 @@ class ExternalSpeechService : Service() {
                 processingEndUptimeMs = 0L
                 localModelWaitStartUptimeMs = 0L
                 localModelReadyWaitMs.set(0L)
+                pcmBytesForStats = 0L
                 cancelLocalModelReadyWait()
                 canceled = false
                 hasAsrPartial = false
@@ -363,8 +396,10 @@ class ExternalSpeechService : Service() {
             // 记录一次会话录音时长（用于超时与统计）；部分引擎 stop() 不会回调 onStopped（如外部推流的本地流式），因此这里也做一次兜底快照。
             if (sessionStartUptimeMs > 0L) {
                 try {
-                    val dur = (SystemClock.uptimeMillis() - sessionStartUptimeMs).coerceAtLeast(0)
-                    lastAudioMsForStats = dur
+                    if (lastAudioMsForStats == 0L) {
+                        val dur = (SystemClock.uptimeMillis() - sessionStartUptimeMs).coerceAtLeast(0)
+                        lastAudioMsForStats = dur
+                    }
                 } catch (t: Throwable) {
                     Log.w(TAG, "Failed to compute audio duration on stop()", t)
                 } finally {
@@ -402,10 +437,32 @@ class ExternalSpeechService : Service() {
             val e = engine
             if (e !is com.brycewg.asrkb.asr.ExternalPcmConsumer) return
 
+            if (sampleRate == 16000 && channels == 1 && pcm.isNotEmpty()) {
+                pcmBytesForStats += pcm.size.toLong()
+                val denom = sampleRate.toLong() * channels.toLong() * 2L
+                if (denom > 0L) {
+                    lastAudioMsForStats = (pcmBytesForStats * 1000L / denom).coerceAtLeast(0L)
+                }
+            }
             try {
                 e.appendPcm(pcm, sampleRate, channels)
             } catch (t: Throwable) {
                 Log.w(TAG, "appendPcm failed for sid=$id", t)
+            }
+        }
+
+        private fun shouldUseBackupAsr(primaryVendor: AsrVendor, backupVendor: AsrVendor): Boolean {
+            val enabled = try { prefs.backupAsrEnabled } catch (_: Throwable) { false }
+            if (!enabled) return false
+            if (backupVendor == primaryVendor) return false
+            return try {
+                when (backupVendor) {
+                    AsrVendor.SiliconFlow -> prefs.hasSfKeys()
+                    else -> prefs.hasVendorKeys(backupVendor)
+                }
+            } catch (t: Throwable) {
+                Log.w(TAG, "Failed to check backup vendor keys: $backupVendor", t)
+                false
             }
         }
 

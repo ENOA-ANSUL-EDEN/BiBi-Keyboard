@@ -12,6 +12,7 @@
   <string name="status_idle">就绪</string>
   <string name="status_listening">正在聆听…</string>
   <string name="status_recognizing">识别中…</string>
+  <string name="status_backup_asr_used">使用备用引擎结果</string>
   <string name="status_ai_processing">AI后处理中…</string>
   <string name="status_ai_edit_listening">请说出编辑指令…</string>
   <string name="status_ai_editing">AI编辑中…</string>
@@ -61,6 +62,10 @@
   <string name="label_app_key">X-Api-App-Key</string>
   <string name="label_access_key">X-Api-Access-Key</string>
   <string name="label_asr_vendor">语音识别服务商</string>
+  <string name="label_backup_asr_engine">备用语音识别引擎</string>
+  <string name="label_backup_asr_enabled">启用备用引擎</string>
+  <string name="label_backup_asr_vendor">备用服务商</string>
+  <string name="hint_backup_asr_uses_existing_config">直接使用本页已有的服务商配置，无需额外设置</string>
 
   <!-- ============================================== -->
   <!-- 自定义标点 -->
@@ -101,6 +106,7 @@
   <!-- ============================================== -->
   <!-- 通用提示 -->
   <!-- ============================================== -->
+  <string name="toast_backup_asr_used">使用备用引擎结果</string>
   <string name="toast_preset_added">已新增预设</string>
   <string name="toast_preset_deleted">已删除预设</string>
   <string name="untitled_preset">未命名预设</string>

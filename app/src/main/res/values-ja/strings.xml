@@ -13,6 +13,7 @@
   <string name="status_idle">準備完了</string>
   <string name="status_listening">聴き取り中…</string>
   <string name="status_recognizing">認識中…</string>
+  <string name="status_backup_asr_used">バックアップエンジンの結果を使用しました</string>
   <string name="status_ai_processing">AI後処理中…</string>
   <string name="status_ai_edit_listening">編集指示を話してください…</string>
   <string name="status_ai_editing">AI編集中…</string>
@@ -62,6 +63,10 @@
   <string name="label_app_key">X-Api-App-Key</string>
   <string name="label_access_key">X-Api-Access-Key</string>
   <string name="label_asr_vendor">音声認識プロバイダー</string>
+  <string name="label_backup_asr_engine">バックアップ音声認識エンジン</string>
+  <string name="label_backup_asr_enabled">バックアップエンジンを有効にする</string>
+  <string name="label_backup_asr_vendor">バックアッププロバイダー</string>
+  <string name="hint_backup_asr_uses_existing_config">このページで設定済みのプロバイダー設定をそのまま使用します</string>
 
   <!-- ============================================== -->
   <!-- 自定义标点 -->
@@ -102,6 +107,7 @@
   <!-- ============================================== -->
   <!-- 通用提示 -->
   <!-- ============================================== -->
+  <string name="toast_backup_asr_used">バックアップエンジンの結果を使用しました</string>
   <string name="toast_preset_added">プリセットが追加されました</string>
   <string name="toast_preset_deleted">プリセットが削除されました</string>
   <string name="untitled_preset">無題のプリセット</string>

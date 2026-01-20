@@ -311,6 +311,13 @@ class AsrSessionManager(
             if (finalText.isNotEmpty()) {
                 val success = insertTextToFocus(finalText)
                 listener.onResultCommitted(finalText, success)
+                if ((asrEngine as? ParallelAsrEngine)?.wasLastResultFromBackup() == true) {
+                    android.widget.Toast.makeText(
+                        context,
+                        context.getString(com.brycewg.asrkb.R.string.toast_backup_asr_used),
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
             } else {
                 Log.w(TAG, "Final text is empty")
                 listener.onError(context.getString(com.brycewg.asrkb.R.string.asr_error_empty_result))
@@ -493,7 +500,22 @@ class AsrSessionManager(
     }
 
     private fun buildEngineForCurrentMode(): StreamingAsrEngine? {
-        return when (prefs.asrVendor) {
+        val primaryVendor = prefs.asrVendor
+        val backupVendor = prefs.backupAsrVendor
+        val backupEnabled = shouldUseBackupAsr(primaryVendor, backupVendor)
+        if (backupEnabled) {
+            return ParallelAsrEngine(
+                context = context,
+                scope = serviceScope,
+                prefs = prefs,
+                listener = this,
+                primaryVendor = primaryVendor,
+                backupVendor = backupVendor,
+                onPrimaryRequestDuration = ::onRequestDuration
+            )
+        }
+
+        return when (primaryVendor) {
             AsrVendor.Volc -> if (prefs.hasVolcKeys()) {
                 if (prefs.volcStreamingEnabled) {
                     VolcStreamAsrEngine(context, serviceScope, prefs, this)
@@ -562,6 +584,21 @@ class AsrSessionManager(
         }
     }
 
+    private fun shouldUseBackupAsr(primaryVendor: AsrVendor, backupVendor: AsrVendor): Boolean {
+        val enabled = try { prefs.backupAsrEnabled } catch (_: Throwable) { false }
+        if (!enabled) return false
+        if (backupVendor == primaryVendor) return false
+        return try {
+            when (backupVendor) {
+                AsrVendor.SiliconFlow -> prefs.hasSfKeys()
+                else -> prefs.hasVendorKeys(backupVendor)
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "Failed to check backup vendor keys: $backupVendor", t)
+            false
+        }
+    }
+
     private fun onRequestDuration(ms: Long) {
         val waitMs = localModelReadyWaitMs.getAndSet(LOCAL_MODEL_READY_WAIT_CONSUMED)
         val adjusted = if (waitMs > 0L && ms > waitMs) ms - waitMs else ms
@@ -579,8 +616,9 @@ class AsrSessionManager(
         val audioMs = audioMsOverride ?: lastAudioMsForStats
         val timeoutMs = AsrTimeoutCalculator.calculateTimeoutMs(audioMs)
         processingTimeoutJob = serviceScope.launch {
+            val usingBackupEngine = asrEngine is ParallelAsrEngine
             val shouldDeferForLocalModel = try {
-                isLocalAsrVendor(prefs.asrVendor)
+                !usingBackupEngine && isLocalAsrVendor(prefs.asrVendor)
             } catch (t: Throwable) {
                 Log.w(TAG, "Failed to determine local ASR vendor for timeout gating", t)
                 false

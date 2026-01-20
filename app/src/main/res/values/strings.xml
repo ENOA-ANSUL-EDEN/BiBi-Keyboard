@@ -14,6 +14,7 @@
   <string name="status_idle">Ready</string>
   <string name="status_listening">Listening…</string>
   <string name="status_recognizing">Recognizing…</string>
+  <string name="status_backup_asr_used">Used backup engine result</string>
   <string name="status_ai_processing">AI post-processing…</string>
   <string name="status_ai_edit_listening">Speak your edit instruction…</string>
   <string name="status_ai_editing">AI editing…</string>
@@ -63,6 +64,10 @@
   <string name="label_app_key">X-Api-App-Key</string>
   <string name="label_access_key">X-Api-Access-Key</string>
   <string name="label_asr_vendor">Speech Recognition Provider</string>
+  <string name="label_backup_asr_engine">Backup speech recognition engine</string>
+  <string name="label_backup_asr_enabled">Enable backup engine</string>
+  <string name="label_backup_asr_vendor">Backup provider</string>
+  <string name="hint_backup_asr_uses_existing_config">Uses the provider settings already configured on this page</string>
 
   <!-- ============================================== -->
   <!-- Custom Punctuation -->
@@ -103,6 +108,7 @@
   <!-- ============================================== -->
   <!-- General Toasts -->
   <!-- ============================================== -->
+  <string name="toast_backup_asr_used">Used backup engine result</string>
   <string name="toast_preset_added">Preset added</string>
   <string name="toast_preset_deleted">Preset deleted</string>
   <string name="untitled_preset">Untitled preset</string>

@@ -27,6 +27,7 @@ class AsrRecognitionService : RecognitionService() {
 
     companion object {
         private const val TAG = "AsrRecognitionSvc"
+        private const val EXTRA_USED_BACKUP_ASR = "com.brycewg.asrkb.extra.USED_BACKUP_ASR"
     }
 
     private val prefs by lazy { Prefs(this) }
@@ -140,6 +141,19 @@ class AsrRecognitionService : RecognitionService() {
      */
     private fun buildEngine(listener: StreamingAsrEngine.Listener): StreamingAsrEngine? {
         val vendor = prefs.asrVendor
+        val backupVendor = prefs.backupAsrVendor
+        val backupEnabled = shouldUseBackupAsr(vendor, backupVendor)
+        if (backupEnabled) {
+            return ParallelAsrEngine(
+                context = this,
+                scope = serviceScope,
+                prefs = prefs,
+                listener = listener,
+                primaryVendor = vendor,
+                backupVendor = backupVendor
+            )
+        }
+
         val streamingPref = resolveStreamingBySettings(vendor)
         val scope = serviceScope
 
@@ -191,6 +205,21 @@ class AsrRecognitionService : RecognitionService() {
                 }
             }
             AsrVendor.Paraformer -> ParaformerStreamAsrEngine(this, scope, prefs, listener)
+        }
+    }
+
+    private fun shouldUseBackupAsr(primaryVendor: AsrVendor, backupVendor: AsrVendor): Boolean {
+        val enabled = try { prefs.backupAsrEnabled } catch (_: Throwable) { false }
+        if (!enabled) return false
+        if (backupVendor == primaryVendor) return false
+        return try {
+            when (backupVendor) {
+                AsrVendor.SiliconFlow -> prefs.hasSfKeys()
+                else -> prefs.hasVendorKeys(backupVendor)
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "Failed to check backup vendor keys: $backupVendor", t)
+            false
         }
     }
 
@@ -323,6 +352,8 @@ class AsrRecognitionService : RecognitionService() {
             finalReceived = true
             cancelProcessingTimeout()
 
+            val usedBackupResult = (engine as? ParallelAsrEngine)?.wasLastResultFromBackup() == true
+
             val doAi = try { prefs.postProcessEnabled && prefs.hasLlmKeys() } catch (_: Throwable) { false }
 
             serviceScope.launch {
@@ -431,6 +462,7 @@ class AsrRecognitionService : RecognitionService() {
                         SpeechRecognizer.CONFIDENCE_SCORES,
                         floatArrayOf(1.0f) // 单结果，置信度设为 1.0
                     )
+                    putBoolean(EXTRA_USED_BACKUP_ASR, usedBackupResult)
                 }
 
                 try {
@@ -539,9 +571,11 @@ class AsrRecognitionService : RecognitionService() {
             // stop->processing 后必须最终回调 results/error；否则会卡住 currentSession，导致后续 startListening 永久 BUSY。
             cancelProcessingTimeout()
             val audioMs = lastAudioMsForTimeout
-            val timeoutMs = com.brycewg.asrkb.asr.AsrTimeoutCalculator.calculateTimeoutMs(audioMs)
+            val baseTimeoutMs = com.brycewg.asrkb.asr.AsrTimeoutCalculator.calculateTimeoutMs(audioMs)
+            val timeoutMs = if (engine is ParallelAsrEngine) baseTimeoutMs + 2_000L else baseTimeoutMs
             processingTimeoutJob = serviceScope.launch {
-                val shouldDeferForLocalModel = isLocalAsrVendor(prefs.asrVendor)
+                val usingBackupEngine = engine is ParallelAsrEngine
+                val shouldDeferForLocalModel = !usingBackupEngine && isLocalAsrVendor(prefs.asrVendor)
                 if (shouldDeferForLocalModel) {
                     // 本地模型：将超时计时起点推移到“模型加载完成”之后，避免首次加载期间误触发超时
                     val ok = awaitLocalAsrReady(prefs, maxWaitMs = LOCAL_MODEL_READY_WAIT_MAX_MS)

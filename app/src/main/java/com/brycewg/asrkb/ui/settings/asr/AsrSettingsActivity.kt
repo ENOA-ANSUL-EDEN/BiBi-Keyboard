@@ -72,6 +72,9 @@ class AsrSettingsActivity : BaseActivity() {
 
     // View references grouped by function
     private lateinit var tvAsrVendor: TextView
+    private lateinit var switchBackupAsrEnabled: MaterialSwitch
+    private lateinit var groupBackupAsr: View
+    private lateinit var tvBackupAsrVendor: TextView
 
     // Silence detection views
     private lateinit var switchAutoStopSilence: MaterialSwitch
@@ -140,6 +143,9 @@ class AsrSettingsActivity : BaseActivity() {
     private fun initializeViews() {
         // ASR Vendor
         tvAsrVendor = findViewById(R.id.tvAsrVendorValue)
+        switchBackupAsrEnabled = findViewById(R.id.switchBackupAsrEnabled)
+        groupBackupAsr = findViewById(R.id.groupBackupAsr)
+        tvBackupAsrVendor = findViewById(R.id.tvBackupAsrVendorValue)
 
         // Silence auto-stop controls
         switchAutoStopSilence = findViewById(R.id.switchAutoStopSilence)
@@ -253,6 +259,52 @@ class AsrSettingsActivity : BaseActivity() {
         setupFunAsrNanoSettings()
         setupTelespeechSettings()
         setupParaformerSettings()
+        setupBackupAsrSettings()
+    }
+
+    private fun setupBackupAsrSettings() {
+        fun updateBackupUi() {
+            val enabled = prefs.backupAsrEnabled
+            groupBackupAsr.visibility = if (enabled) View.VISIBLE else View.GONE
+            updateBackupVendorSummary()
+        }
+
+        switchBackupAsrEnabled.isChecked = prefs.backupAsrEnabled
+        updateBackupUi()
+
+        switchBackupAsrEnabled.setOnCheckedChangeListener { _, isChecked ->
+            prefs.backupAsrEnabled = isChecked
+            updateBackupUi()
+            hapticTapIfEnabled(switchBackupAsrEnabled)
+        }
+
+        tvBackupAsrVendor.setOnClickListener { v ->
+            hapticTapIfEnabled(v)
+            val vendorOrder = AsrVendorUi.ordered()
+            val vendorItems = vendorOrder.map { vendor ->
+                SettingsOptionSheet.TaggedItem(
+                    title = AsrVendorUi.name(this, vendor),
+                    tags = AsrVendorUi.tags(vendor).map { tag ->
+                        SettingsOptionSheet.Tag(
+                            label = getString(tag.labelResId),
+                            bgColorResId = tag.bgColorResId,
+                            textColorResId = tag.textColorResId
+                        )
+                    }
+                )
+            }
+            val curIdx = vendorOrder.indexOf(prefs.backupAsrVendor).coerceAtLeast(0)
+            SettingsOptionSheet.showSingleChoiceTagged(
+                context = this,
+                titleResId = R.string.label_backup_asr_vendor,
+                items = vendorItems,
+                selectedIndex = curIdx
+            ) { selectedIdx ->
+                val vendor = vendorOrder.getOrNull(selectedIdx) ?: AsrVendor.SiliconFlow
+                prefs.backupAsrVendor = vendor
+                updateBackupVendorSummary()
+            }
+        }
     }
 
     private fun setupVolcengineSettings() {
@@ -2113,6 +2165,7 @@ class AsrSettingsActivity : BaseActivity() {
         lifecycleScope.launch {
             viewModel.uiState.collect { state ->
                 updateVendorSummary(state.selectedVendor)
+                updateBackupVendorSummary()
                 updateVendorVisibility(state)
                 updateSilenceOptionsVisibility(state.autoStopSilenceEnabled)
                 updateSfOmniVisibility(state.sfUseOmni)
@@ -2140,6 +2193,13 @@ class AsrSettingsActivity : BaseActivity() {
         val vendorItems = AsrVendorUi.names(this)
         val idx = vendorOrder.indexOf(vendor).coerceAtLeast(0)
         tvAsrVendor.text = vendorItems[idx]
+    }
+
+    private fun updateBackupVendorSummary() {
+        val vendorOrder = AsrVendorUi.ordered()
+        val vendorItems = AsrVendorUi.names(this)
+        val idx = vendorOrder.indexOf(prefs.backupAsrVendor).coerceAtLeast(0)
+        tvBackupAsrVendor.text = vendorItems[idx]
     }
 
     private fun updateVendorVisibility(state: AsrSettingsUiState) {

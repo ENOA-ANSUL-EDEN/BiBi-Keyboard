@@ -1064,6 +1064,40 @@
             android:text="" />
         </LinearLayout>
 
+        <!-- Backup ASR engine -->
+        <TextView
+          style="@style/SettingsLabel"
+          android:layout_marginTop="16dp"
+          android:text="@string/label_backup_asr_engine" />
+
+        <com.google.android.material.materialswitch.MaterialSwitch
+          android:id="@+id/switchBackupAsrEnabled"
+          style="@style/SettingsSwitch"
+          android:layout_marginTop="0dp"
+          android:text="@string/label_backup_asr_enabled" />
+
+        <LinearLayout
+          android:id="@+id/groupBackupAsr"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:orientation="vertical"
+          android:visibility="gone">
+
+          <TextView
+            style="@style/SettingsLabel"
+            android:text="@string/label_backup_asr_vendor" />
+
+          <TextView
+            android:id="@+id/tvBackupAsrVendorValue"
+            style="@style/SettingsClickableValue.Dropdown"
+            android:text="@string/vendor_volc" />
+          <Spinner style="@style/SettingsHiddenSpinner" />
+
+          <TextView
+            style="@style/SettingsHint"
+            android:text="@string/hint_backup_asr_uses_existing_config" />
+        </LinearLayout>
+
       </LinearLayout>
 
     </LinearLayout>

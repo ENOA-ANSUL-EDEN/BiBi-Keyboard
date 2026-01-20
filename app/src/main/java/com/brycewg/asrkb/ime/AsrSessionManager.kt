@@ -140,6 +140,20 @@ class AsrSessionManager(
      * 构建符合当前配置的 ASR 引擎
      */
     fun buildEngine(): StreamingAsrEngine? {
+        val primaryVendor = prefs.asrVendor
+        val backupVendor = prefs.backupAsrVendor
+        val backupEnabled = shouldUseBackupAsr(primaryVendor, backupVendor)
+        if (backupEnabled) {
+            return ParallelAsrEngine(
+                context = context,
+                scope = scope,
+                prefs = prefs,
+                listener = this,
+                primaryVendor = primaryVendor,
+                backupVendor = backupVendor,
+                onPrimaryRequestDuration = ::onRequestDuration
+            )
+        }
         return when (prefs.asrVendor) {
             AsrVendor.Volc -> if (prefs.hasVolcKeys()) {
                 if (prefs.volcStreamingEnabled) {
@@ -221,11 +235,38 @@ class AsrSessionManager(
         }
     }
 
+    private fun shouldUseBackupAsr(primaryVendor: AsrVendor, backupVendor: AsrVendor): Boolean {
+        val enabled = try { prefs.backupAsrEnabled } catch (_: Throwable) { false }
+        if (!enabled) return false
+        if (backupVendor == primaryVendor) return false
+        return try {
+            when (backupVendor) {
+                AsrVendor.SiliconFlow -> prefs.hasSfKeys()
+                else -> prefs.hasVendorKeys(backupVendor)
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "Failed to check backup vendor keys: $backupVendor", t)
+            false
+        }
+    }
+
     /**
      * 确保引擎与当前模式匹配（用于模式切换时避免重建引擎）
      */
     fun ensureEngineMatchesMode(): StreamingAsrEngine? {
         if (!prefs.hasAsrKeys()) return null
+
+        val primaryVendor = prefs.asrVendor
+        val backupVendor = prefs.backupAsrVendor
+        val backupEnabled = shouldUseBackupAsr(primaryVendor, backupVendor)
+        if (backupEnabled) {
+            val engine = buildEngine()
+            if (engine != null && engine !== asrEngine) {
+                asrEngine?.stop()
+                asrEngine = engine
+            }
+            return asrEngine
+        }
 
         val current = asrEngine
         val matched = when (prefs.asrVendor) {

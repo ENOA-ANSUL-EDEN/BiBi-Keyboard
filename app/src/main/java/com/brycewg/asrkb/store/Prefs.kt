@@ -1124,6 +1124,19 @@ class Prefs(context: Context) {
         get() = AsrVendor.fromId(sp.getString(KEY_ASR_VENDOR, AsrVendor.SiliconFlow.id))
         set(value) = sp.edit { putString(KEY_ASR_VENDOR, value.id) }
 
+    // 备用 ASR 引擎：开关（默认关闭）
+    var backupAsrEnabled: Boolean
+        get() = sp.getBoolean(KEY_BACKUP_ASR_ENABLED, false)
+        set(value) = sp.edit { putBoolean(KEY_BACKUP_ASR_ENABLED, value) }
+
+    // 备用 ASR 引擎：供应商（默认跟随主引擎）
+    var backupAsrVendor: AsrVendor
+        get() {
+            val stored = sp.getString(KEY_BACKUP_ASR_VENDOR, null)
+            return if (stored.isNullOrBlank()) asrVendor else AsrVendor.fromId(stored)
+        }
+        set(value) = sp.edit { putString(KEY_BACKUP_ASR_VENDOR, value.id) }
+
     // ElevenLabs：语言代码（空=自动识别）
     var elevenLanguageCode: String
         get() = sp.getString(KEY_ELEVEN_LANGUAGE_CODE, "") ?: ""
@@ -1728,6 +1741,7 @@ class Prefs(context: Context) {
         private const val KEY_FLOATING_WRITE_COMPAT_PACKAGES = "floating_write_compat_packages"
         private const val KEY_FLOATING_WRITE_PASTE_PACKAGES = "floating_write_paste_packages"
         private const val KEY_POSTPROC_ENABLED = "postproc_enabled"
+        private const val KEY_POSTPROC_TYPEWRITER_ENABLED = "postproc_typewriter_enabled"
         private const val KEY_APP_LANGUAGE_TAG = "app_language_tag"
         private const val KEY_AUTO_UPDATE_CHECK_ENABLED = "auto_update_check_enabled"
         private const val KEY_LAST_UPDATE_CHECK_DATE = "last_update_check_date"
@@ -1744,6 +1758,8 @@ class Prefs(context: Context) {
         private const val KEY_SPEECH_PRESETS = "speech_presets"
         private const val KEY_SPEECH_PRESET_ACTIVE_ID = "speech_preset_active_id"
         private const val KEY_ASR_VENDOR = "asr_vendor"
+        private const val KEY_BACKUP_ASR_ENABLED = "backup_asr_enabled"
+        private const val KEY_BACKUP_ASR_VENDOR = "backup_asr_vendor"
         private const val KEY_SF_API_KEY = "sf_api_key"
         private const val KEY_SF_MODEL = "sf_model"
         private const val KEY_SF_USE_OMNI = "sf_use_omni"
@@ -2200,6 +2216,8 @@ class Prefs(context: Context) {
         o.put(KEY_SPEECH_PRESET_ACTIVE_ID, activeSpeechPresetId)
         // 供应商设置（通用导出）
         o.put(KEY_ASR_VENDOR, asrVendor.id)
+        o.put(KEY_BACKUP_ASR_ENABLED, backupAsrEnabled)
+        o.put(KEY_BACKUP_ASR_VENDOR, backupAsrVendor.id)
         // 遍历所有供应商字段，统一导出，避免逐个硬编码
         vendorFields.values.flatten().forEach { f ->
             o.put(f.key, getPrefString(f.key, f.default))
@@ -2430,6 +2448,8 @@ class Prefs(context: Context) {
             optString(KEY_SPEECH_PRESET_ACTIVE_ID)?.let { activeSpeechPresetId = it }
 
             optString(KEY_ASR_VENDOR)?.let { asrVendor = AsrVendor.fromId(it) }
+            optBool(KEY_BACKUP_ASR_ENABLED)?.let { backupAsrEnabled = it }
+            optString(KEY_BACKUP_ASR_VENDOR)?.let { backupAsrVendor = AsrVendor.fromId(it) }
             // 供应商设置（通用导入）
             vendorFields.values.flatten().forEach { f ->
                 optString(f.key)?.let { v ->
