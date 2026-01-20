@@ -3,8 +3,10 @@ package com.brycewg.asrkb.ui
 import android.content.Context
 import android.content.res.ColorStateList
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.widget.AbsListView
 import android.widget.ArrayAdapter
 import android.widget.CheckedTextView
 import android.widget.ListView
@@ -202,6 +204,44 @@ object SettingsOptionSheet {
     behavior.isHideable = true
     behavior.skipCollapsed = true
     behavior.state = BottomSheetBehavior.STATE_EXPANDED
+    installDragGuard(behavior, listView)
+  }
+
+  private fun installDragGuard(
+    behavior: BottomSheetBehavior<out View>,
+    listView: ListView
+  ) {
+    fun updateDraggable() {
+      behavior.isDraggable = !listView.canScrollVertically(-1)
+    }
+
+    updateDraggable()
+    listView.post { updateDraggable() }
+
+    listView.setOnScrollListener(object : AbsListView.OnScrollListener {
+      override fun onScrollStateChanged(view: AbsListView, scrollState: Int) {
+        updateDraggable()
+      }
+
+      override fun onScroll(
+        view: AbsListView,
+        firstVisibleItem: Int,
+        visibleItemCount: Int,
+        totalItemCount: Int
+      ) {
+        updateDraggable()
+      }
+    })
+
+    listView.setOnTouchListener { _, event ->
+      when (event.actionMasked) {
+        MotionEvent.ACTION_DOWN,
+        MotionEvent.ACTION_MOVE,
+        MotionEvent.ACTION_UP,
+        MotionEvent.ACTION_CANCEL -> updateDraggable()
+      }
+      false
+    }
   }
 
   private fun measureViewHeight(view: View?, maxWidth: Int): Int {
