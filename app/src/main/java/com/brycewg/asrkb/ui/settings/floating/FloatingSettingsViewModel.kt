@@ -260,6 +260,9 @@ class FloatingSettingsViewModel : ViewModel() {
             val prefs = Prefs(context)
             prefs.floatingBallPosX = -1
             prefs.floatingBallPosY = -1
+            prefs.floatingBallDockSide = 0
+            prefs.floatingBallDockFraction = -1f
+            prefs.floatingBallDockHidden = false
         } catch (e: Throwable) {
             Log.e(TAG, "Failed to reset floating position in prefs", e)
         }

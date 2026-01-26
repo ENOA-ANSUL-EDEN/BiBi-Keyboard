@@ -326,6 +326,29 @@ class Prefs(context: Context) {
         get() = sp.getInt(KEY_FLOATING_POS_Y, -1)
         set(value) = sp.edit { putInt(KEY_FLOATING_POS_Y, value) }
 
+    /**
+     * 悬浮球贴边锚点：
+     * - side: 0=未设置 1=左 2=右 3=底
+     * - fraction: 0..1，左右贴边使用 Y 比例，底部贴边使用 X 比例（-1 表示未设置）
+     * - hidden: 左右贴边时是否处于半隐
+     */
+    var floatingBallDockSide: Int
+        get() = sp.getInt(KEY_FLOATING_DOCK_SIDE, 0)
+        set(value) = sp.edit { putInt(KEY_FLOATING_DOCK_SIDE, value) }
+
+    var floatingBallDockFraction: Float
+        get() = sp.getFloat(KEY_FLOATING_DOCK_FRACTION, -1f)
+        set(value) = sp.edit {
+            putFloat(
+                KEY_FLOATING_DOCK_FRACTION,
+                if (value < 0f) -1f else value.coerceIn(0f, 1f)
+            )
+        }
+
+    var floatingBallDockHidden: Boolean
+        get() = sp.getBoolean(KEY_FLOATING_DOCK_HIDDEN, false)
+        set(value) = sp.edit { putBoolean(KEY_FLOATING_DOCK_HIDDEN, value) }
+
     // 悬浮球：直接拖动移动（无需长按进入移动模式）
     var floatingBallDirectDragEnabled: Boolean
         get() = sp.getBoolean(KEY_FLOATING_DIRECT_DRAG_ENABLED, true)
@@ -1726,6 +1749,9 @@ class Prefs(context: Context) {
         private const val KEY_FLOATING_BALL_SIZE_DP = "floating_ball_size_dp"
         private const val KEY_FLOATING_POS_X = "floating_ball_pos_x"
         private const val KEY_FLOATING_POS_Y = "floating_ball_pos_y"
+        private const val KEY_FLOATING_DOCK_SIDE = "floating_ball_dock_side"
+        private const val KEY_FLOATING_DOCK_FRACTION = "floating_ball_dock_fraction"
+        private const val KEY_FLOATING_DOCK_HIDDEN = "floating_ball_dock_hidden"
         private const val KEY_FLOATING_DIRECT_DRAG_ENABLED = "floating_ball_direct_drag_enabled"
         private const val KEY_SWAP_AI_EDIT_IME_SWITCHER = "swap_ai_edit_ime_switcher"
         private const val KEY_FCITX5_RETURN_ON_SWITCHER = "fcitx5_return_on_switcher"
@@ -2155,6 +2181,9 @@ class Prefs(context: Context) {
         o.put(KEY_FLOATING_BALL_SIZE_DP, floatingBallSizeDp)
         o.put(KEY_FLOATING_POS_X, floatingBallPosX)
         o.put(KEY_FLOATING_POS_Y, floatingBallPosY)
+        o.put(KEY_FLOATING_DOCK_SIDE, floatingBallDockSide)
+        o.put(KEY_FLOATING_DOCK_FRACTION, floatingBallDockFraction.toDouble())
+        o.put(KEY_FLOATING_DOCK_HIDDEN, floatingBallDockHidden)
         o.put(KEY_FLOATING_DIRECT_DRAG_ENABLED, floatingBallDirectDragEnabled)
         o.put(KEY_FLOATING_ASR_ENABLED, floatingAsrEnabled)
         o.put(KEY_FLOATING_ONLY_WHEN_IME_VISIBLE, floatingSwitcherOnlyWhenImeVisible)
@@ -2376,6 +2405,9 @@ class Prefs(context: Context) {
             optInt(KEY_FLOATING_BALL_SIZE_DP)?.let { floatingBallSizeDp = it.coerceIn(28, 96) }
             optInt(KEY_FLOATING_POS_X)?.let { floatingBallPosX = it }
             optInt(KEY_FLOATING_POS_Y)?.let { floatingBallPosY = it }
+            optInt(KEY_FLOATING_DOCK_SIDE)?.let { floatingBallDockSide = it }
+            optFloat(KEY_FLOATING_DOCK_FRACTION)?.let { floatingBallDockFraction = it }
+            optBool(KEY_FLOATING_DOCK_HIDDEN)?.let { floatingBallDockHidden = it }
             optBool(KEY_FLOATING_DIRECT_DRAG_ENABLED)?.let { floatingBallDirectDragEnabled = it }
             optBool(KEY_FLOATING_ASR_ENABLED)?.let { floatingAsrEnabled = it }
             optBool(KEY_FLOATING_ONLY_WHEN_IME_VISIBLE)?.let { floatingSwitcherOnlyWhenImeVisible = it }

@@ -55,6 +55,9 @@ class FloatingBallViewManager(
     // 贴边半隐可视比例（仅显示该比例的宽度）
     private val visibleFractionWhenHidden = 0.5f
 
+    // 记录“旋转前”的贴边锚点，用于横竖屏切换时的位置映射
+    private var cachedDockAnchor: DockAnchor? = null
+
     /** 获取悬浮球视图 */
     fun getBallView(): View? = ballView
 
@@ -541,25 +544,40 @@ class FloatingBallViewManager(
         )
         params.gravity = Gravity.TOP or Gravity.START
 
-        // 恢复上次位置
-        try {
-            val sx = prefs.floatingBallPosX
-            val sy = prefs.floatingBallPosY
-            val (screenW, screenH) = getUsableScreenSize()
-            val vw = params.width
-            val vh = params.height
-            if (sx >= 0 && sy >= 0) {
-                params.x = sx.coerceIn(0, (screenW - vw).coerceAtLeast(0))
-                params.y = sy.coerceIn(0, (screenH - vh).coerceAtLeast(0))
-            } else {
-                params.x = dp(12)
-                params.y = dp(180)
+        val defaultX = dp(12)
+        val defaultY = dp(180)
+        val (screenW, screenH) = getUsableScreenSize()
+        val vw = params.width
+        val vh = params.height
+
+        val sx = try {
+            prefs.floatingBallPosX
+        } catch (t: Throwable) {
+            Log.w(TAG, "Failed to read legacy X", t)
+            -1
+        }
+        val sy = try {
+            prefs.floatingBallPosY
+        } catch (t: Throwable) {
+            Log.w(TAG, "Failed to read legacy Y", t)
+            -1
+        }
+        val legacyX = if (sx == -1) defaultX else sx
+        val legacyY = if (sy == -1) defaultY else sy
+
+        // 优先使用“贴边锚点”恢复位置，避免横竖屏切换后绝对坐标导致偏移到屏幕中间
+        val anchor = try {
+            readDockAnchorFromPrefs() ?: run {
+                computeDockAnchorFromLegacyPosition(legacyX, legacyY, screenW, screenH, vw, vh)
             }
         } catch (e: Throwable) {
-            Log.w(TAG, "Failed to restore ball position, using default", e)
-            params.x = dp(12)
-            params.y = dp(180)
+            Log.w(TAG, "Failed to restore ball anchor, using default", e)
+            computeDockAnchorFromLegacyPosition(defaultX, defaultY, screenW, screenH, vw, vh)
         }
+        val (rx, ry) = positionForDockAnchor(anchor, screenW, screenH, vw, vh, visibleXHint = legacyX)
+        params.x = rx
+        params.y = ry
+        cachedDockAnchor = anchor
 
         return params
     }
@@ -575,12 +593,35 @@ class FloatingBallViewManager(
         } catch (e: Throwable) {
             Log.e(TAG, "Failed to reset position to default", e)
         }
-        // 覆盖并持久化当前位置
+        // 覆盖并持久化当前位置（含贴边锚点）
+        persistBallPosition()
+    }
+
+    /**
+     * 当横竖屏切换/窗口尺寸变化时，根据“贴边锚点”重新计算位置。
+     * 目标：保持左右/底部贴边与相对位置一致，避免旋转后跑到屏幕中间。
+     */
+    fun remapPositionForCurrentDisplay(reason: String = "config_changed") {
+        val v = ballView ?: return
+        val p = lp ?: return
+
+        val anchor = cachedDockAnchor ?: readDockAnchorFromPrefs() ?: run {
+            Log.w(TAG, "No cached/persisted dock anchor; fallback to current layout ($reason)")
+            computeDockAnchorForCurrentLayout()
+        } ?: return
+
         try {
-            prefs.floatingBallPosX = p.x
-            prefs.floatingBallPosY = p.y
+            val (screenW, screenH) = getUsableScreenSize()
+            val vw = (v.width.takeIf { it > 0 }) ?: p.width
+            val vh = (v.height.takeIf { it > 0 }) ?: p.height
+            val (nx, ny) = positionForDockAnchor(anchor, screenW, screenH, vw, vh, visibleXHint = p.x)
+            p.x = nx
+            p.y = ny
+            windowManager.updateViewLayout(v, p)
+            cachedDockAnchor = anchor
+            persistBallPosition()
         } catch (e: Throwable) {
-            Log.e(TAG, "Failed to persist default position after reset", e)
+            Log.w(TAG, "Failed to remap ball position on display change: $reason", e)
         }
     }
 
@@ -624,6 +665,178 @@ class FloatingBallViewManager(
     // ============== 贴边/半隐计算 ==============
 
     private enum class DockSide { LEFT, RIGHT, BOTTOM, NONE }
+
+    private data class DockAnchor(
+        val side: DockSide,
+        val fraction: Float,
+        val hidden: Boolean
+    )
+
+    private fun dockSideToPrefValue(side: DockSide): Int {
+        return when (side) {
+            DockSide.LEFT -> 1
+            DockSide.RIGHT -> 2
+            DockSide.BOTTOM -> 3
+            DockSide.NONE -> 0
+        }
+    }
+
+    private fun dockSideFromPrefValue(value: Int): DockSide {
+        return when (value) {
+            1 -> DockSide.LEFT
+            2 -> DockSide.RIGHT
+            3 -> DockSide.BOTTOM
+            else -> DockSide.NONE
+        }
+    }
+
+    private fun readDockAnchorFromPrefs(): DockAnchor? {
+        return try {
+            val side = dockSideFromPrefValue(prefs.floatingBallDockSide)
+            val fraction = prefs.floatingBallDockFraction
+            if (side == DockSide.NONE || fraction < 0f) return null
+            val hidden = prefs.floatingBallDockHidden
+            DockAnchor(side, fraction.coerceIn(0f, 1f), hidden)
+        } catch (e: Throwable) {
+            Log.w(TAG, "Failed to read floating ball dock anchor", e)
+            null
+        }
+    }
+
+    private fun computeDockAnchorFromLegacyPosition(
+        x: Int,
+        y: Int,
+        screenW: Int,
+        screenH: Int,
+        vw: Int,
+        vh: Int
+    ): DockAnchor {
+        val margin = dp(0)
+        val minX = margin
+        val maxX = (screenW - vw - margin).coerceAtLeast(minX)
+        val minY = margin
+        val maxY = (screenH - vh - margin).coerceAtLeast(minY)
+
+        val bottomY = maxY
+        val bottomSnapThreshold = dp(64)
+        val side = if (bottomY - y <= bottomSnapThreshold || y >= bottomY) {
+            DockSide.BOTTOM
+        } else {
+            val leftX = minX
+            val rightX = maxX
+            val edgeThresholdX = dp(28)
+            when {
+                x <= leftX + edgeThresholdX -> DockSide.LEFT
+                x >= rightX - edgeThresholdX -> DockSide.RIGHT
+                else -> {
+                    val centerX = x + vw / 2
+                    if (centerX < screenW / 2) DockSide.LEFT else DockSide.RIGHT
+                }
+            }
+        }
+
+        val hidden = when (side) {
+            DockSide.LEFT -> x < minX
+            DockSide.RIGHT -> x > maxX
+            else -> false
+        }
+
+        val fraction = when (side) {
+            DockSide.BOTTOM -> {
+                val denom = (maxX - minX).toFloat()
+                if (denom <= 0f) 0f else (x.coerceIn(minX, maxX) - minX).toFloat() / denom
+            }
+            DockSide.LEFT, DockSide.RIGHT -> {
+                val denom = (maxY - minY).toFloat()
+                if (denom <= 0f) 0f else (y.coerceIn(minY, maxY) - minY).toFloat() / denom
+            }
+            DockSide.NONE -> 0f
+        }
+
+        return DockAnchor(side, fraction.coerceIn(0f, 1f), hidden)
+    }
+
+    private fun computeDockAnchorForCurrentLayout(): DockAnchor? {
+        val p = lp ?: return null
+        val (screenW, screenH) = getUsableScreenSize()
+        val vw = (ballView?.width?.takeIf { it > 0 }) ?: (p.width)
+        val vh = (ballView?.height?.takeIf { it > 0 }) ?: (p.height)
+        val side = detectDockSide(allowChooseNearest = true)
+
+        val margin = dp(0)
+        val minX = margin
+        val maxX = (screenW - vw - margin).coerceAtLeast(minX)
+        val minY = margin
+        val maxY = (screenH - vh - margin).coerceAtLeast(minY)
+
+        val hidden = when (side) {
+            DockSide.LEFT -> p.x < minX
+            DockSide.RIGHT -> p.x > maxX
+            else -> false
+        }
+
+        val fraction = when (side) {
+            DockSide.BOTTOM -> {
+                val denom = (maxX - minX).toFloat()
+                if (denom <= 0f) 0f else (p.x.coerceIn(minX, maxX) - minX).toFloat() / denom
+            }
+            DockSide.LEFT, DockSide.RIGHT -> {
+                val denom = (maxY - minY).toFloat()
+                if (denom <= 0f) 0f else (p.y.coerceIn(minY, maxY) - minY).toFloat() / denom
+            }
+            DockSide.NONE -> 0f
+        }
+
+        return DockAnchor(side, fraction.coerceIn(0f, 1f), hidden)
+    }
+
+    private fun positionForDockAnchor(
+        anchor: DockAnchor,
+        screenW: Int,
+        screenH: Int,
+        vw: Int,
+        vh: Int,
+        visibleXHint: Int? = null
+    ): Pair<Int, Int> {
+        val margin = dp(0)
+        val minX = margin
+        val maxX = (screenW - vw - margin).coerceAtLeast(minX)
+        val minY = margin
+        val maxY = (screenH - vh - margin).coerceAtLeast(minY)
+        val edgeThresholdX = dp(28)
+
+        val f = anchor.fraction.coerceIn(0f, 1f)
+        val y = (minY + (maxY - minY) * f).toInt().coerceIn(minY, maxY)
+
+        return when (anchor.side) {
+            DockSide.LEFT -> {
+                val visibleW = (vw * visibleFractionWhenHidden).toInt()
+                val x = if (anchor.hidden) {
+                    (minX - (vw - visibleW))
+                } else {
+                    val candidateX = visibleXHint?.coerceIn(minX, maxX)
+                    if (candidateX != null && candidateX <= minX + edgeThresholdX) candidateX else minX
+                }
+                x to y
+            }
+            DockSide.RIGHT -> {
+                val visibleW = (vw * visibleFractionWhenHidden).toInt()
+                val fullX = maxX
+                val x = if (anchor.hidden) {
+                    (screenW - visibleW - margin)
+                } else {
+                    val candidateX = visibleXHint?.coerceIn(minX, maxX)
+                    if (candidateX != null && candidateX >= fullX - edgeThresholdX) candidateX else fullX
+                }
+                x to y
+            }
+            DockSide.BOTTOM -> {
+                val x = (minX + (maxX - minX) * f).toInt().coerceIn(minX, maxX)
+                x to maxY
+            }
+            DockSide.NONE -> minX to y
+        }
+    }
 
     /**
      * 检测当前贴边方向；当 allowChooseNearest=true 且未贴边时，选择更近的左右边。
@@ -725,6 +938,22 @@ class FloatingBallViewManager(
             prefs.floatingBallPosY = p.y
         } catch (e: Throwable) {
             Log.e(TAG, "Failed to persist ball position", e)
+        }
+
+        val anchor = try {
+            computeDockAnchorForCurrentLayout()
+        } catch (e: Throwable) {
+            Log.w(TAG, "Failed to compute dock anchor for ball", e)
+            null
+        } ?: return
+
+        cachedDockAnchor = anchor
+        try {
+            prefs.floatingBallDockSide = dockSideToPrefValue(anchor.side)
+            prefs.floatingBallDockFraction = anchor.fraction
+            prefs.floatingBallDockHidden = anchor.hidden
+        } catch (e: Throwable) {
+            Log.e(TAG, "Failed to persist ball dock anchor", e)
         }
     }
 

@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.IBinder
@@ -142,6 +143,16 @@ class FloatingAsrService : Service(),
             Log.e(TAG, "Failed to register hint receiver", e)
         }
 
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (!::viewManager.isInitialized) return
+        try {
+            viewManager.remapPositionForCurrentDisplay("service_onConfigurationChanged:${newConfig.orientation}")
+        } catch (e: Throwable) {
+            Log.w(TAG, "Failed to remap floating ball position on configuration change", e)
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -313,6 +324,9 @@ class FloatingAsrService : Service(),
             // 先将记录位置清空为默认标记
             prefs.floatingBallPosX = -1
             prefs.floatingBallPosY = -1
+            prefs.floatingBallDockSide = 0
+            prefs.floatingBallDockFraction = -1f
+            prefs.floatingBallDockHidden = false
         } catch (e: Throwable) {
             Log.w(TAG, "Failed to reset saved position in prefs", e)
         }
