@@ -162,7 +162,8 @@ object SettingsOptionSheet {
           tagGroup.removeViewAt(tagGroup.childCount - 1)
         }
         while (tagGroup.childCount < tags.size) {
-          val tagView = inflater.inflate(R.layout.item_settings_tag_chip, tagGroup, false) as TextView
+          val tagView =
+            inflater.inflate(R.layout.item_settings_tag_chip, tagGroup, false) as TextView
           tagGroup.addView(tagView)
         }
         for (index in tags.indices) {
@@ -191,15 +192,22 @@ object SettingsOptionSheet {
     val bottomSheet =
       dialog.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)
         ?: return
-    val maxHeight = (contentView.resources.displayMetrics.heightPixels * 0.75f).roundToInt()
+    val parentHeight = (bottomSheet.parent as? View)?.height ?: 0
+    val availableHeight =
+      parentHeight.takeIf { it > 0 } ?: contentView.resources.displayMetrics.heightPixels
+    val maxHeight = (availableHeight * 0.75f).roundToInt()
+    val sheetVerticalPadding = bottomSheet.paddingTop + bottomSheet.paddingBottom
 
     val headerView = contentView.findViewById<View>(R.id.layoutBottomSheetHeader)
     val sheetWidth = bottomSheet.width
       .takeIf { it > 0 }
       ?: contentView.resources.displayMetrics.widthPixels
-    val headerHeight = measureViewHeight(headerView, sheetWidth)
-    val verticalPadding = contentView.paddingTop + contentView.paddingBottom
-    val maxListHeight = (maxHeight - headerHeight - verticalPadding).coerceAtLeast(0)
+    val availableWidth =
+      (sheetWidth - bottomSheet.paddingLeft - bottomSheet.paddingRight).coerceAtLeast(0)
+    val headerHeight = measureViewHeight(headerView, availableWidth)
+    val contentVerticalPadding = contentView.paddingTop + contentView.paddingBottom
+    val maxListHeight =
+      (maxHeight - sheetVerticalPadding - headerHeight - contentVerticalPadding).coerceAtLeast(0)
     val targetListHeight = computeListHeightForSheet(listView, maxListHeight)
 
     val listLayoutParams = listView.layoutParams
@@ -208,8 +216,9 @@ object SettingsOptionSheet {
       listView.layoutParams = listLayoutParams
     }
 
-    val targetHeight = (headerHeight + verticalPadding + targetListHeight)
-      .coerceAtMost(maxHeight)
+    val targetHeight =
+      (sheetVerticalPadding + headerHeight + contentVerticalPadding + targetListHeight)
+        .coerceAtMost(maxHeight)
     val sheetLayoutParams = bottomSheet.layoutParams
     if (sheetLayoutParams.height != targetHeight) {
       sheetLayoutParams.height = targetHeight
