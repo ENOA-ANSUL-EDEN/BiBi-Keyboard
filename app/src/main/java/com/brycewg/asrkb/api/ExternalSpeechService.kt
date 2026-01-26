@@ -754,58 +754,49 @@ class ExternalSpeechService : Service() {
                             safe { cb.onPartial(id, streamed) }
                         }
                     }
-                    val (out, usedAi) = try {
-                        val res = com.brycewg.asrkb.util.AsrFinalFilters.applyWithAi(
-                            context,
-                            prefs,
-                            text,
-                            onStreamingUpdate = onStreamingUpdate
-                        )
-                        val processed = res.text
-                        val finalOut = processed.ifBlank {
-                            // AI 返回空：回退到简单后处理（包含正则/繁体）
-                            try {
+	                    val (out, usedAi) = try {
+	                        val res = com.brycewg.asrkb.util.AsrFinalFilters.applyWithAi(
+	                            context,
+	                            prefs,
+	                            text,
+	                            onStreamingUpdate = onStreamingUpdate
+	                        )
+	                        val aiUsed = (res.usedAi && res.ok)
+	                        val processed = res.text
+	                        val finalOut = processed.ifBlank {
+	                            // AI 返回空：回退到简单后处理（包含正则/繁体）
+	                            try {
                                 com.brycewg.asrkb.util.AsrFinalFilters.applySimple(
                                     context,
                                     prefs,
                                     text
                                 )
                             } catch (_: Throwable) {
-                                text
-                            }
-                        }
-                        if (typewriter != null && finalOut.isNotEmpty()) {
-                            typewriter.submit(finalOut, rush = true)
-                            val finalLen = finalOut.length
-                            val t0 = SystemClock.uptimeMillis()
-                            while (!canceled && (SystemClock.uptimeMillis() - t0) < 2_000L &&
+	                                text
+	                            }
+	                        }
+	                        if (typewriter != null && aiUsed && finalOut.isNotEmpty()) {
+	                            typewriter.submit(finalOut, rush = true)
+	                            val finalLen = finalOut.length
+	                            val t0 = SystemClock.uptimeMillis()
+	                            while (!canceled && (SystemClock.uptimeMillis() - t0) < 2_000L &&
                                 typewriter.currentText().length != finalLen
                             ) {
-                                delay(20)
-                            }
-                        }
-                        finalOut to (res.usedAi && res.ok)
-                    } catch (t: Throwable) {
-                        Log.w(TAG, "applyWithAi failed, fallback to simple", t)
-                        val fallback = try {
-                            com.brycewg.asrkb.util.AsrFinalFilters.applySimple(context, prefs, text)
-                        } catch (_: Throwable) {
-                            text
-                        }
-                        if (typewriter != null && fallback.isNotEmpty()) {
-                            typewriter.submit(fallback, rush = true)
-                            val finalLen = fallback.length
-                            val t0 = SystemClock.uptimeMillis()
-                            while (!canceled && (SystemClock.uptimeMillis() - t0) < 2_000L &&
-                                typewriter.currentText().length != finalLen
-                            ) {
-                                delay(20)
-                            }
-                        }
-                        fallback to false
-                    } finally {
-                        postprocCommitted = true
-                        typewriter?.cancel()
+	                                delay(20)
+	                            }
+	                        }
+	                        finalOut to aiUsed
+	                    } catch (t: Throwable) {
+	                        Log.w(TAG, "applyWithAi failed, fallback to simple", t)
+	                        val fallback = try {
+	                            com.brycewg.asrkb.util.AsrFinalFilters.applySimple(context, prefs, text)
+	                        } catch (_: Throwable) {
+	                            text
+	                        }
+	                        fallback to false
+	                    } finally {
+	                        postprocCommitted = true
+	                        typewriter?.cancel()
                     }
                     if (canceled) return@launch
                     // 记录使用统计与识别历史（来源标记为 ime；尊重开关）

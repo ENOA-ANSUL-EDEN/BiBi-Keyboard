@@ -296,8 +296,9 @@ class AsrSessionManager(
                     com.brycewg.asrkb.asr.LlmPostProcessor.LlmProcessResult(false, text)
                 }
                 if (!res.ok) Log.w(TAG, "Post-processing failed; using processed text anyway")
+                val aiUsed = (res.usedAi && res.ok)
                 finalText = res.text.ifBlank { text }
-                if (typewriter != null && finalText.isNotEmpty() && focusContext != null) {
+                if (typewriter != null && aiUsed && finalText.isNotEmpty() && focusContext != null) {
                     // 最终结果到达后：让打字机以最快速度追到最终文本，再进行最终提交
                     typewriter.submit(finalText, rush = true)
                     val finalLen = finalText.length
@@ -311,7 +312,7 @@ class AsrSessionManager(
                 }
                 postprocCommitted = true
                 typewriter?.cancel()
-                lastAiUsed = (res.usedAi && res.ok)
+                lastAiUsed = aiUsed
                 Log.d(TAG, "Post-processing completed: $finalText")
             } else {
                 finalText = com.brycewg.asrkb.util.AsrFinalFilters.applySimple(context, prefs, text)

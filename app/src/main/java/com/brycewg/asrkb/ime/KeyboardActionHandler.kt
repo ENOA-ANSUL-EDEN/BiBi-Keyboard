@@ -1270,6 +1270,7 @@ class KeyboardActionHandler(
         } else {
             res.text
         }
+        val aiUsed = (res.usedAi && res.ok)
 
         // 若已被取消，不再提交
         if (seq != opSeq) {
@@ -1280,7 +1281,7 @@ class KeyboardActionHandler(
         // 最终结果已就绪：取消 Processing 超时，避免“追赶等待”期间触发超时导致 opSeq 递增而丢提交
         processingTimeoutJob?.cancel()
         processingTimeoutJob = null
-        if (typewriter != null && finalOut.isNotEmpty()) {
+        if (typewriter != null && aiUsed && finalOut.isNotEmpty()) {
             // 最终结果到达后：不再“秒出”，改为让打字机以最快速度追到最终文本
             typewriter.submit(finalOut, rush = true)
             val finalLen = finalOut.length
@@ -1331,7 +1332,6 @@ class KeyboardActionHandler(
             try {
                 val audioMs = asrManager.popLastAudioMsForStats()
                 val procMs = asrManager.getLastRequestDuration() ?: 0L
-                val aiUsed = (res.usedAi && res.ok)
                 val vendorForRecord = try {
                     asrManager.peekLastFinalVendorForStats()
                 } catch (t: Throwable) {

@@ -392,30 +392,31 @@ class AsrRecognitionService : RecognitionService() {
                             }
                         }
                     } else null
-                    try {
-                        val res = com.brycewg.asrkb.util.AsrFinalFilters.applyWithAi(
-                            this@AsrRecognitionService,
-                            prefs,
-                            text,
-                            onStreamingUpdate = onStreamingUpdate
-                        )
-                        val finalOut = res.text.ifBlank {
-                            try {
-                                com.brycewg.asrkb.util.AsrFinalFilters.applySimple(
-                                    this@AsrRecognitionService,
-                                    prefs,
-                                    text
-                                )
-                            } catch (_: Throwable) {
-                                text
-                            }
-                        }
-                        if (typewriter != null && finalOut.isNotEmpty()) {
-                            typewriter?.submit(finalOut, rush = true)
-                            val finalLen = finalOut.length
-                            val t0 = SystemClock.uptimeMillis()
-                            while (!canceled && !finished && (SystemClock.uptimeMillis() - t0) < 2_000L &&
-                                typewriter?.currentText()?.length != finalLen
+	                    try {
+	                        val res = com.brycewg.asrkb.util.AsrFinalFilters.applyWithAi(
+	                            this@AsrRecognitionService,
+	                            prefs,
+	                            text,
+	                            onStreamingUpdate = onStreamingUpdate
+	                        )
+	                        val aiUsed = (res.usedAi && res.ok)
+	                        val finalOut = res.text.ifBlank {
+	                            try {
+	                                com.brycewg.asrkb.util.AsrFinalFilters.applySimple(
+	                                    this@AsrRecognitionService,
+	                                    prefs,
+	                                    text
+	                                )
+	                            } catch (_: Throwable) {
+	                                text
+	                            }
+	                        }
+	                        if (typewriter != null && aiUsed && finalOut.isNotEmpty()) {
+	                            typewriter?.submit(finalOut, rush = true)
+	                            val finalLen = finalOut.length
+	                            val t0 = SystemClock.uptimeMillis()
+	                            while (!canceled && !finished && (SystemClock.uptimeMillis() - t0) < 2_000L &&
+	                                typewriter?.currentText()?.length != finalLen
                             ) {
                                 delay(20)
                             }
