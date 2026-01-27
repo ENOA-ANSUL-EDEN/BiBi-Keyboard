@@ -1,5 +1,25 @@
 # Changelog
 
+## v3.12.1 (2025-01-27)
+
+### New Features
+
+- **Floating Ball Icon Optimization**: Optimized floating ball icon and animation effects, added arrow handle when floating ball is docked at screen edge in persistent mode
+- **History Statistics Enhancement**: Enhanced history statistics with AI post-processing time display
+- **External IME Linkage Enhancement**: Improved external input method linkage guidance with added support for Trime input method
+
+### Improvements
+
+- **AI Post-Processing Typewriter Effect**: Only use typewriter animation when AI post-processing is actually active
+
+### Bug Fixes
+
+- Added edge anchor system to fix position offset issues when switching between portrait and landscape modes
+- Fixed options menu display issue when using Android navigation bar
+- Fixed layout issues caused by abnormal system insets during cold start
+
+---
+
 ## v3.12.0 (2025-01-20)
 
 ### New Features
