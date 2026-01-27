@@ -172,10 +172,12 @@
   <!-- 外部輸入法聯動（AIDL） -->
   <string name="label_external_ime_link_aidl">允許外部輸入法聯動（AIDL）</string>
   <string name="external_aidl_guide_title">如何使用聯動功能</string>
-  <string name="external_aidl_guide_message">支援了從小企鵝輸入法調用說點啥的語音識別能力。使用方式：\n\n1. 下載修改版的 Fcitx：https://github.com/BryceWG/fcitx5-android-lexi-keyboard/releases，需要解除安裝之前的 Fcitx，注意資料備份\n\n2. 開啟 Fcitx 設定 - 虛擬鍵盤 - 空格鍵長按行為 - 語音輸入(AIDL)\n\n3. 更新說點啥到 3.6.2 以上，在說點啥設定 - 輸入設定 - 允許外部輸入法聯動(AIDL)，無需啟用懸浮球和無障礙功能\n\n4. 在小企鵝輸入法面板，長按空格鍵即可語音輸入。</string>
+  <string name="external_aidl_guide_message">支援從外部輸入法調用說點啥的語音識別能力（AIDL）。目前支援：小企鵝輸入法（Fcitx）與同文輸入法（Trime）。\n\n請先在說點啥中啟用：設定 - 輸入設定 - 允許外部輸入法聯動（AIDL）（無需啟用懸浮球和無障礙功能）。\n\n然後依你使用的輸入法進行設定：\n\n【Fcitx（小企鵝）】\n1. 下載修改版 Fcitx：https://github.com/BryceWG/fcitx5-android-lexi-keyboard/releases（需解除安裝原版並注意備份資料）\n2. 開啟 Fcitx 設定 - 虛擬鍵盤 - 空格鍵長按行為 - 語音輸入(AIDL)\n3. 在輸入法面板長按空格鍵即可語音輸入\n\n【Trime（同文）】\n1. 下載修改版同文：https://github.com/BryceWG/trime-bibi-keyboard/releases\n2. 在同文設定 - 一般設定 - 開啟「說點啥 AIDL 語音輸入」，若使用的主題方案無長按 VOICE_ASSIST 功能，則可啟用「工具列麥克風按鈕」\n3. 長按具備 VOICE_ASSIST 功能的按鈕開始錄音，放開即停止；或在輸入法工具列點選麥克風按鈕開始錄音，再次點選則停止並上屏。</string>
   <string name="external_aidl_guide_btn_close">關閉</string>
-  <string name="external_aidl_guide_btn_no_remind">不再提醒</string>
   <string name="external_aidl_guide_btn_open_release">開啟Release頁</string>
+  <string name="external_aidl_guide_choose_release_title">選擇要開啟的 Release 頁</string>
+  <string name="external_aidl_guide_release_fcitx">Fcitx（小企鵝）修改版</string>
+  <string name="external_aidl_guide_release_trime">Trime（同文）修改版</string>
   <string name="external_aidl_guide_open_failed">無法開啟瀏覽器，請手動存取</string>
 
   <!-- 模型選擇引導 -->

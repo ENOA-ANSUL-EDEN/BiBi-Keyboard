@@ -173,10 +173,12 @@
   <!-- 外部IME連携（AIDL） -->
   <string name="label_external_ime_link_aidl">外部IME連携（AIDL）を許可</string>
   <string name="external_aidl_guide_title">連携機能の使用方法</string>
-  <string name="external_aidl_guide_message">Fcitx（小企鹅）入力法からBiBi Keyboardの音声認識機能を呼び出すことができます。使用方法：\n\n1. 改造版Fcitxをダウンロード：https://github.com/BryceWG/fcitx5-android-lexi-keyboard/releases（元のFcitxをアンインストールし、データをバックアップしてください）\n\n2. Fcitx設定 - 仮想キーボード - スペースキー長押し動作 - 音声入力（AIDL）を選択\n\n3. BiBi Keyboardを3.6.2以上に更新し、設定 - 入力設定 - 外部IME連携（AIDL）を許可を有効化。フローティングボールやアクセシビリティサービスは不要です\n\n4. Fcitx入力法パネルでスペースキーを長押しすると音声入力が起動します。</string>
+  <string name="external_aidl_guide_message">外部IMEからBiBi Keyboardの音声認識機能を呼び出せます（AIDL）。現在対応：Fcitx（小企鹅）/ Trime（同文）。\n\nまずBiBi Keyboardで有効化：設定 - 入力設定 - 外部IME連携（AIDL）を許可（フローティングボールやアクセシビリティは不要）。\n\n次に利用するIMEを設定してください：\n\n【Fcitx（小企鹅）】\n1. 改造版Fcitxをダウンロード：https://github.com/BryceWG/fcitx5-android-lexi-keyboard/releases（元のFcitxをアンインストールし、データをバックアップしてください）\n2. Fcitx設定 - 仮想キーボード - スペースキー長押し動作 - 音声入力（AIDL）\n3. パネルでスペースキーを長押しすると音声入力が起動します\n\n【Trime（同文）】\n1. 改造版Trimeをダウンロード：https://github.com/BryceWG/trime-bibi-keyboard/releases\n2. 同文設定－一般設定にて「なにか話す AIDL 音声入力」を有効にします。使用中のテーマスキームに長押し VOICE_ASSIST 機能が備わっていない場合は、「ツールバーマイクボタン」を有効にすることができます。\n3.VOICE_ASSIST 機能付きのボタンを長押して録音を開始し、指を離すと停止します。または入力法ツールバーのマイクボタンをタップして録音を開始し、再度タップすると録音が停止して文字が画面に出力されます。</string>
   <string name="external_aidl_guide_btn_close">閉じる</string>
-  <string name="external_aidl_guide_btn_no_remind">再表示しない</string>
   <string name="external_aidl_guide_btn_open_release">リリースページを開く</string>
+  <string name="external_aidl_guide_choose_release_title">開くリリースページを選択</string>
+  <string name="external_aidl_guide_release_fcitx">改造版Fcitx（小企鹅）</string>
+  <string name="external_aidl_guide_release_trime">改造版Trime（同文）</string>
   <string name="external_aidl_guide_open_failed">ブラウザを開けません。手動でアクセスしてください</string>
 
   <!-- モデル選択ガイド -->

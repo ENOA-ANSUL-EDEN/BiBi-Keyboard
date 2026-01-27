@@ -153,9 +153,9 @@ class InputSettingsActivity : BaseActivity() {
             hapticTapIfEnabled(btn)
             prefs.externalAidlEnabled = isChecked
 
-            // 当开启时显示使用指引（如果尚未显示过）
-            if (isChecked && !prefs.externalAidlGuideShown) {
-                showExternalAidlGuide(prefs)
+            // 当开启时显示使用指引（每次开启都提醒）
+            if (isChecked) {
+                showExternalAidlGuide()
             }
         }
         switchMicTapToggle.installExplainedSwitch(
@@ -718,24 +718,40 @@ class InputSettingsActivity : BaseActivity() {
 
     /**
      * 显示外部输入法联动使用指引弹窗
-     * 按钮布局：不再提醒(左) - 打开Release页(中) - 关闭(右)
+     * 按钮布局：打开Release页(左) - 关闭(右)
      */
-    private fun showExternalAidlGuide(prefs: Prefs) {
+    private fun showExternalAidlGuide() {
         val message = getString(R.string.external_aidl_guide_message)
 
         MaterialAlertDialogBuilder(this)
             .setTitle(R.string.external_aidl_guide_title)
             .setMessage(message)
-            .setNeutralButton(R.string.external_aidl_guide_btn_no_remind) { _, _ ->
-                prefs.externalAidlGuideShown = true
-            }
             .setNegativeButton(R.string.external_aidl_guide_btn_open_release) { _, _ ->
-                val intent = Intent(Intent.ACTION_VIEW).apply {
-                    data = android.net.Uri.parse("https://github.com/BryceWG/fcitx5-android-lexi-keyboard/releases")
-                }
-                startActivity(intent)
+                showExternalAidlReleaseChooser()
             }
             .setPositiveButton(R.string.external_aidl_guide_btn_close, null)
+            .show()
+    }
+
+    private fun showExternalAidlReleaseChooser() {
+        val items =
+            arrayOf(
+                getString(R.string.external_aidl_guide_release_fcitx),
+                getString(R.string.external_aidl_guide_release_trime),
+            )
+        val urls =
+            arrayOf(
+                "https://github.com/BryceWG/fcitx5-android-lexi-keyboard/releases",
+                "https://github.com/BryceWG/trime-bibi-keyboard/releases",
+            )
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.external_aidl_guide_choose_release_title)
+            .setItems(items) { _, which ->
+                val url = urls.getOrNull(which) ?: return@setItems
+                val intent = Intent(Intent.ACTION_VIEW).apply { data = android.net.Uri.parse(url) }
+                startActivity(intent)
+            }
+            .setNegativeButton(R.string.btn_cancel, null)
             .show()
     }
 }

@@ -174,10 +174,12 @@
   <!-- External IME linking (AIDL) -->
   <string name="label_external_ime_link_aidl">Allow external IME linking (AIDL)</string>
   <string name="external_aidl_guide_title">How to Use the Linking Feature</string>
-  <string name="external_aidl_guide_message">This feature enables voice recognition from Fcitx (Little Penguin) input method. Usage:\n\n1. Download the modified Fcitx: https://github.com/BryceWG/fcitx5-android-lexi-keyboard/releases (uninstall the original Fcitx first and backup your data)\n\n2. Open Fcitx Settings - Virtual Keyboard - Long-press Space Bar Behavior - Voice Input (AIDL)\n\n3. Update BiBi Keyboard to 3.6.2 or later, enable Settings - Input Settings - Allow external IME linking (AIDL), no need to enable floating ball or accessibility service\n\n4. In Fcitx keyboard panel, long-press the space bar to activate voice input.</string>
+  <string name="external_aidl_guide_message">This feature enables voice recognition from external IMEs via AIDL. Currently supported: Fcitx (Little Penguin) and Trime.\n\nFirst enable it in BiBi Keyboard: Settings - Input Settings - Allow external IME linking (AIDL) (no floating ball or accessibility service required).\n\nThen set up your IME:\n\n[Fcitx (Little Penguin)]\n1. Download the modified Fcitx: https://github.com/BryceWG/fcitx5-android-lexi-keyboard/releases (uninstall the original Fcitx first and back up your data)\n2. Open Fcitx Settings - Virtual Keyboard - Long-press Space Bar Behavior - Voice Input (AIDL)\n3. Long-press the space bar in the IME panel to start voice input\n\n[Trime]\n1. Download the modified Trime: https://github.com/BryceWG/trime-bibi-keyboard/releases\n2. In Trime Settings - General, enable \"BiBi Keyboard AIDL voice input\".If the theme scheme you are using does not have the long-press VOICE_ASSIST function, you can enable the "Microphone Button in Toolbar".\n3. Long-press the button with the VOICE_ASSIST function to start recording, and release it to stop; or click the microphone button in the input method toolbar to start recording, and click again to stop and display the text on the screen.</string>
   <string name="external_aidl_guide_btn_close">Close</string>
-  <string name="external_aidl_guide_btn_no_remind">Don\'t remind again</string>
   <string name="external_aidl_guide_btn_open_release">Open Release Page</string>
+  <string name="external_aidl_guide_choose_release_title">Select a release page</string>
+  <string name="external_aidl_guide_release_fcitx">Modified Fcitx (Little Penguin)</string>
+  <string name="external_aidl_guide_release_trime">Modified Trime</string>
   <string name="external_aidl_guide_open_failed">Cannot open browser, please visit manually</string>
 
   <!-- Model Selection Guide -->
