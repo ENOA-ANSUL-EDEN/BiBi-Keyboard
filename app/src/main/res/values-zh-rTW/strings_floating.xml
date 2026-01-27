@@ -23,6 +23,7 @@
     <string name="hint_floating_write_paste_pkgs">請填寫完整套件名稱進行精確匹配（例如 com.tencent.mm）。如需全域生效，單獨新增一行 all。</string>
     <string name="toast_need_accessibility_perm">請在系統設定中授予「無障礙服務」權限以支援此功能</string>
     <string name="cd_floating_asr">懸浮球語音識別</string>
+    <string name="cd_floating_edge_handle">展開懸浮球</string>
     <string name="toast_battery_whitelist_already">已在電池最佳化白名單中</string>
     <string name="toast_battery_whitelist_failed">申請電池最佳化白名單失敗</string>
 

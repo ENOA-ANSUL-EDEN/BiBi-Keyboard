@@ -219,8 +219,10 @@ class FloatingBallTouchHandler(
         val root = viewManager.getBallView() ?: v
         val vw = if (root.width > 0) root.width else lp.width
         val vh = if (root.height > 0) root.height else lp.height
-        val nx = (startX + dx).coerceIn(0, screenW - vw)
-        val ny = (startY + dy).coerceIn(0, screenH - vh)
+        val maxX = (screenW - vw).coerceAtLeast(0)
+        val maxY = (screenH - vh).coerceAtLeast(0)
+        val nx = (startX + dx).coerceIn(0, maxX)
+        val ny = (startY + dy).coerceIn(0, maxY)
         lp.x = nx
         lp.y = ny
         viewManager.updateViewLayout(viewManager.getBallView() ?: v, lp)

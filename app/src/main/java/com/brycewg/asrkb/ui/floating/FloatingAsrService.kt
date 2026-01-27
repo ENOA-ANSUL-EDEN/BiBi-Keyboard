@@ -57,6 +57,7 @@ class FloatingAsrService : Service(),
         const val ACTION_SHOW = "com.brycewg.asrkb.action.FLOATING_ASR_SHOW"
         const val ACTION_HIDE = "com.brycewg.asrkb.action.FLOATING_ASR_HIDE"
         const val ACTION_RESET_POSITION = "com.brycewg.asrkb.action.FLOATING_ASR_RESET_POS"
+        private const val EDGE_HANDLE_AUTO_HIDE_DELAY_MS = 2500L
     }
 
     // 核心组件
@@ -77,6 +78,7 @@ class FloatingAsrService : Service(),
     private val handler = Handler(Looper.getMainLooper())
     private var imeVisible: Boolean = false
     private var currentToast: Toast? = null
+    private var edgeHandleAutoHideRunnable: Runnable? = null
 
     // 菜单状态
     private var radialMenuView: View? = null
@@ -200,6 +202,7 @@ class FloatingAsrService : Service(),
         super.onDestroy()
         Log.d(TAG, "onDestroy")
 
+        cancelEdgeHandleAutoHide()
         viewManager.cleanup()
         asrSessionManager.cleanup()
         touchHandler.cleanup()
@@ -302,13 +305,16 @@ class FloatingAsrService : Service(),
         // 悬浮球首次出现时，按需异步预加载本地模型
         tryPreloadLocalAsrOnce()
 
-        // 初始为静息场景：若在左右边缘或就近吸附，则执行半隐
-        // 仅当未开启“仅在键盘显示时显示悬浮球”时启用半隐
+        // 初始为静息场景：常驻模式下按键盘可见性切换“本体/把手”
         if (stateMachine.isIdle && !prefs.floatingSwitcherOnlyWhenImeVisible) {
             try {
-                viewManager.animateHideToEdgePartialIfNeeded()
+                if (imeVisible) {
+                    viewManager.animateRevealFromEdgeIfNeeded()
+                } else {
+                    viewManager.animateHideToEdgePartialIfNeeded()
+                }
             } catch (e: Throwable) {
-                Log.w(TAG, "Failed to apply initial partial hide", e)
+                Log.w(TAG, "Failed to apply initial edge reveal/hide", e)
             }
         }
     }
@@ -332,15 +338,15 @@ class FloatingAsrService : Service(),
         }
 
         val hasView = viewManager.getBallView() != null
-        if (hasView) {
-            try {
-                viewManager.resetPositionToDefault()
-                if (!prefs.floatingSwitcherOnlyWhenImeVisible) {
-                    viewManager.animateHideToEdgePartialIfNeeded()
-                }
-            } catch (e: Throwable) {
-                Log.e(TAG, "Failed to apply default position reset on existing view", e)
-            }
+	        if (hasView) {
+	            try {
+	                viewManager.resetPositionToDefault()
+	                if (!prefs.floatingSwitcherOnlyWhenImeVisible && !imeVisible) {
+	                    viewManager.animateHideToEdgePartialIfNeeded()
+	                }
+	            } catch (e: Throwable) {
+	                Log.e(TAG, "Failed to apply default position reset on existing view", e)
+	            }
         } else {
             // 没有视图时，按当前可见性策略尝试显示（首次显示会走默认位置）
             updateVisibilityByPref("reset_pos_no_view")
@@ -362,28 +368,33 @@ class FloatingAsrService : Service(),
             hideBall()
             return
         }
-        showBall(src)
+	        showBall(src)
 
-        // 常驻模式下：在非交互（无菜单/拖拽保护）、非录音/处理中时，自动恢复半隐
-        if (!prefs.floatingSwitcherOnlyWhenImeVisible &&
-            !stateMachine.isRecording &&
-            !stateMachine.isProcessing &&
-            !stateMachine.isMoveMode &&
-            !completionActive2 &&
-            !forceVisible
-        ) {
-            try {
-                viewManager.animateHideToEdgePartialIfNeeded()
-            } catch (e: Throwable) {
-                Log.w(TAG, "Failed to apply partial hide in updateVisibilityByPref", e)
-            }
-        }
+	        // 常驻模式下：在非交互（无菜单/拖拽保护）、非录音/处理中时，自动恢复半隐
+	        if (!prefs.floatingSwitcherOnlyWhenImeVisible &&
+	            !stateMachine.isRecording &&
+	            !stateMachine.isProcessing &&
+	            !stateMachine.isMoveMode &&
+	            !completionActive2 &&
+	            !forceVisible
+	        ) {
+	            try {
+	                if (imeVisible) {
+	                    viewManager.animateRevealFromEdgeIfNeeded()
+	                } else {
+	                    viewManager.animateHideToEdgePartialIfNeeded()
+	                }
+	            } catch (e: Throwable) {
+	                Log.w(TAG, "Failed to apply edge reveal/hide in updateVisibilityByPref", e)
+	            }
+	        }
     }
 
     // ==================== ASR 会话控制 ====================
 
     private fun startRecording() {
         Log.d(TAG, "startRecording called")
+        cancelEdgeHandleAutoHide()
 
         // 检查权限
         if (!hasRecordAudioPermission()) {
@@ -401,7 +412,7 @@ class FloatingAsrService : Service(),
         // 开始录音前切换为激活态图标
         try {
             viewManager.getBallView()?.findViewById<android.widget.ImageView>(R.id.ballIcon)
-                ?.setImageResource(R.drawable.microphone_fill)
+                ?.setImageResource(R.drawable.microphone_floatingball)
         } catch (e: Throwable) {
             Log.w(TAG, "Failed to reset icon to mic", e)
         }
@@ -413,8 +424,50 @@ class FloatingAsrService : Service(),
 
     private fun stopRecording() {
         Log.d(TAG, "stopRecording called")
+        cancelEdgeHandleAutoHide()
         asrSessionManager.stopRecording()
         updateVisibilityByPref()
+    }
+
+    private fun cancelEdgeHandleAutoHide() {
+        val r = edgeHandleAutoHideRunnable ?: return
+        try {
+            handler.removeCallbacks(r)
+        } catch (e: Throwable) {
+            Log.w(TAG, "Failed to cancel edge-handle auto hide", e)
+        }
+        edgeHandleAutoHideRunnable = null
+    }
+
+    private fun scheduleEdgeHandleAutoHide() {
+        cancelEdgeHandleAutoHide()
+        if (try { prefs.floatingSwitcherOnlyWhenImeVisible } catch (_: Throwable) { false }) return
+
+        val runnable = Runnable {
+            try {
+                val completionActive = try { viewManager.isCompletionTickActive() } catch (_: Throwable) { false }
+                val forceVisible = (radialMenuView != null || vendorMenuView != null ||
+                        radialDragSession != null || stateMachine.isMoveMode || touchActiveGuard)
+                if (!imeVisible &&
+                    stateMachine.isIdle &&
+                    !stateMachine.isRecording &&
+                    !stateMachine.isProcessing &&
+                    !completionActive &&
+                    !forceVisible &&
+                    !viewManager.isEdgeHandleVisible()
+                ) {
+                    viewManager.animateHideToEdgePartialIfNeeded()
+                }
+            } catch (e: Throwable) {
+                Log.w(TAG, "Failed to auto hide after edge-handle reveal", e)
+            }
+        }
+        edgeHandleAutoHideRunnable = runnable
+        try {
+            handler.postDelayed(runnable, EDGE_HANDLE_AUTO_HIDE_DELAY_MS)
+        } catch (e: Throwable) {
+            Log.w(TAG, "Failed to schedule edge-handle auto hide", e)
+        }
     }
 
     // ==================== AsrSessionManager.AsrSessionListener ====================
@@ -423,20 +476,24 @@ class FloatingAsrService : Service(),
         stateMachine.transitionTo(state)
         handler.post {
             viewManager.updateStateVisual(state)
-            // 视觉与布局：激活态浮现、静息态半隐
-            try {
-                when (state) {
-                    is FloatingBallState.Recording, is FloatingBallState.Processing ->
-                        viewManager.animateRevealFromEdgeIfNeeded()
-                    is FloatingBallState.Idle -> {
-                        if (!viewManager.isCompletionTickActive() && !prefs.floatingSwitcherOnlyWhenImeVisible) {
-                            // 仅当未开启“仅在键盘显示时显示悬浮球”时执行半隐
-                            viewManager.animateHideToEdgePartialIfNeeded()
-                        } else {
-                            // 正在展示对勾：避免立刻半隐，交由 onResultCommitted 的延迟兜底处理
-                        }
-                    }
-                    else -> {
+	            // 视觉与布局：激活态浮现、静息态半隐
+	            try {
+	                when (state) {
+	                    is FloatingBallState.Recording, is FloatingBallState.Processing ->
+	                        viewManager.animateRevealFromEdgeIfNeeded()
+	                    is FloatingBallState.Idle -> {
+	                        if (!viewManager.isCompletionTickActive() && !prefs.floatingSwitcherOnlyWhenImeVisible) {
+	                            // 常驻模式：键盘隐藏 -> 半隐把手；键盘显示 -> 悬浮球本体
+	                            if (imeVisible) {
+	                                viewManager.animateRevealFromEdgeIfNeeded()
+	                            } else {
+	                                viewManager.animateHideToEdgePartialIfNeeded()
+	                            }
+	                        } else {
+	                            // 正在展示对勾：避免立刻半隐，交由 onResultCommitted 的延迟兜底处理
+	                        }
+	                    }
+	                    else -> {
                         // Error/MoveMode：不改动贴边半隐
                     }
                 }
@@ -506,13 +563,13 @@ class FloatingAsrService : Service(),
 
                 // 在展示完成对勾后，稍作延迟再尝试半隐（仅左右边缘）。
                 // 即使状态回调遗漏，这里也能保证一次隐入体验。
-                try {
-                    handler.postDelayed({
-                        if (stateMachine.isIdle && !prefs.floatingSwitcherOnlyWhenImeVisible) {
-                            // 仅当未开启“仅在键盘显示时显示悬浮球”时执行半隐
-                            try {
-                                viewManager.animateHideToEdgePartialIfNeeded()
-                            } catch (e: Throwable) {
+	                try {
+	                    handler.postDelayed({
+	                        if (stateMachine.isIdle && !prefs.floatingSwitcherOnlyWhenImeVisible && !imeVisible) {
+	                            // 仅当未开启“仅在键盘显示时显示悬浮球”时执行半隐
+	                            try {
+	                                viewManager.animateHideToEdgePartialIfNeeded()
+	                            } catch (e: Throwable) {
                                 Log.w(TAG, "Failed to partial hide after commit", e)
                             }
                         }
@@ -535,13 +592,13 @@ class FloatingAsrService : Service(),
 
             // 错误或空结果等同于一次会话结束：
             // 为了统一体验，在错误动画完成后，尝试执行一次边缘半隐。
-            try {
-                handler.postDelayed({
-                    if (!prefs.floatingSwitcherOnlyWhenImeVisible) {
-                        // 仅当未开启“仅在键盘显示时显示悬浮球”时执行半隐
-                        try {
-                            viewManager.animateHideToEdgePartialIfNeeded()
-                        } catch (e: Throwable) {
+	            try {
+	                handler.postDelayed({
+	                    if (!prefs.floatingSwitcherOnlyWhenImeVisible && !imeVisible) {
+	                        // 仅当未开启“仅在键盘显示时显示悬浮球”时执行半隐
+	                        try {
+	                            viewManager.animateHideToEdgePartialIfNeeded()
+	                        } catch (e: Throwable) {
                             Log.w(TAG, "Failed to partial hide after error", e)
                         }
                     }
@@ -573,6 +630,7 @@ class FloatingAsrService : Service(),
     // ==================== FloatingBallTouchHandler.TouchEventListener ====================
 
     override fun onSingleTap() {
+        cancelEdgeHandleAutoHide()
         // 移动模式：点击退出
         if (stateMachine.isMoveMode) {
             stateMachine.transitionTo(FloatingBallState.Idle)
@@ -580,7 +638,7 @@ class FloatingAsrService : Service(),
                 try {
                     viewManager.animateSnapToEdge(it) {
                         try {
-                            if (!prefs.floatingSwitcherOnlyWhenImeVisible) {
+                            if (!prefs.floatingSwitcherOnlyWhenImeVisible && !imeVisible) {
                                 viewManager.animateHideToEdgePartialIfNeeded()
                             }
                         } catch (e: Throwable) {
@@ -591,7 +649,7 @@ class FloatingAsrService : Service(),
                     Log.e(TAG, "Failed to animate snap, falling back", e)
                     viewManager.snapToEdge(it)
                     try {
-                        if (!prefs.floatingSwitcherOnlyWhenImeVisible) {
+                        if (!prefs.floatingSwitcherOnlyWhenImeVisible && !imeVisible) {
                             viewManager.animateHideToEdgePartialIfNeeded()
                         }
                     } catch (ex: Throwable) {
@@ -606,6 +664,17 @@ class FloatingAsrService : Service(),
 
         // 处理中：忽略点击
         if (stateMachine.isProcessing) {
+            return
+        }
+
+        // 贴边半隐把手：点击仅浮现悬浮球本体，不触发录音/权限提示
+        if (viewManager.isEdgeHandleVisible()) {
+            try {
+                viewManager.animateRevealFromEdgeIfNeeded()
+            } catch (e: Throwable) {
+                Log.w(TAG, "Failed to reveal from edge handle tap", e)
+            }
+            scheduleEdgeHandleAutoHide()
             return
         }
 
@@ -641,13 +710,19 @@ class FloatingAsrService : Service(),
     override fun onLongPress() {
         // 新交互：不在长按瞬间弹出面板，等待左右滑动开始再弹出。
         // 但此时先设置可见保护，避免 IME 隐藏导致悬浮球被系统收起从而丢失触摸事件链。
+        cancelEdgeHandleAutoHide()
         touchActiveGuard = true
         updateVisibilityByPref()
     }
 
     override fun onLongPressDragStart(initialRawX: Float, initialRawY: Float) {
         touchActiveGuard = true
-        try { viewManager.animateRevealFromEdgeIfNeeded() } catch (_: Throwable) {}
+        cancelEdgeHandleAutoHide()
+        try {
+            viewManager.animateRevealFromEdgeIfNeeded()
+        } catch (e: Throwable) {
+            Log.w(TAG, "Failed to reveal on long-press drag start", e)
+        }
 
         if (radialDragSession != null) return
 
@@ -743,10 +818,13 @@ class FloatingAsrService : Service(),
 
     override fun onMoveStarted() {
         touchActiveGuard = true
-        try {
-            viewManager.animateRevealFromEdgeIfNeeded()
-        } catch (e: Throwable) {
-            Log.w(TAG, "Failed to reveal on move start", e)
+        cancelEdgeHandleAutoHide()
+        if (!viewManager.isEdgeHandleVisible()) {
+            try {
+                viewManager.animateRevealFromEdgeIfNeeded()
+            } catch (e: Throwable) {
+                Log.w(TAG, "Failed to reveal on move start", e)
+            }
         }
         updateVisibilityByPref()
     }
@@ -766,7 +844,8 @@ class FloatingAsrService : Service(),
             if (!stateMachine.isMoveMode &&
                 !stateMachine.isRecording &&
                 !stateMachine.isProcessing &&
-                !prefs.floatingSwitcherOnlyWhenImeVisible
+                !prefs.floatingSwitcherOnlyWhenImeVisible &&
+                !imeVisible
             ) {
                 // 仅当未开启“仅在键盘显示时显示悬浮球”时执行半隐
                 viewManager.animateHideToEdgePartialIfNeeded()

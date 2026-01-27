@@ -24,6 +24,7 @@
     <string name="hint_floating_write_paste_pkgs">正確なパッケージ名を入力（例：com.tencent.mm）。グローバルに適用するには、allを含む行を1つ追加してください。</string>
     <string name="toast_need_accessibility_perm">この機能をサポートするには、システム設定でアクセシビリティサービスを有効にしてください</string>
     <string name="cd_floating_asr">フローティングボール音声認識</string>
+    <string name="cd_floating_edge_handle">フローティングボールを表示</string>
     <string name="toast_battery_whitelist_already">すでに電池最適化の除外済みです</string>
     <string name="toast_battery_whitelist_failed">電池最適化の除外申請に失敗しました</string>
 

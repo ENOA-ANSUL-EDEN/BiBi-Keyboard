@@ -23,6 +23,7 @@
     <string name="hint_floating_write_paste_pkgs">请填写完整包名进行精确匹配（例如 com.tencent.mm）。如需全局生效，单独添加一行 all。</string>
     <string name="toast_need_accessibility_perm">请在系统设置中授予"无障碍服务"权限以支持此功能</string>
     <string name="cd_floating_asr">悬浮球语音识别</string>
+    <string name="cd_floating_edge_handle">展开悬浮球</string>
     <string name="toast_battery_whitelist_already">已在电池优化白名单中</string>
     <string name="toast_battery_whitelist_failed">申请电池优化白名单失败</string>
 

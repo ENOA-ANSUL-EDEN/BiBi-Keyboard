@@ -23,6 +23,7 @@
     <string name="hint_floating_write_paste_pkgs">Enter exact package names (e.g., com.tencent.mm). To apply globally, add a single line with all.</string>
     <string name="toast_need_accessibility_perm">Please enable Accessibility Service in system settings to support this feature</string>
     <string name="cd_floating_asr">Floating ball voice recognition</string>
+    <string name="cd_floating_edge_handle">Show floating ball</string>
     <string name="toast_battery_whitelist_already">Already ignoring battery optimizations</string>
     <string name="toast_battery_whitelist_failed">Failed to request battery whitelist</string>
 

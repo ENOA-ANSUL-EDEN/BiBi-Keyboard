@@ -6,9 +6,7 @@
     <FrameLayout
         android:id="@+id/ballContainer"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@drawable/bg_floating_ball_clip"
-        android:clipToOutline="true">
+        android:layout_height="match_parent">
 
         <FrameLayout
             android:id="@+id/rippleClip"
@@ -28,6 +26,20 @@
                 android:id="@+id/ripple3"
                 style="@style/FloatingBallRipple" />
         </FrameLayout>
+
+        <!-- 贴边半隐时的“箭头把手” -->
+        <ImageView
+            android:id="@+id/edgeHandleIcon"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_gravity="center_vertical|end"
+            android:alpha="0"
+            android:importantForAccessibility="yes"
+            android:visibility="gone"
+            android:scaleType="fitCenter"
+            android:src="@drawable/angle_bracket_right"
+            android:tint="?attr/colorSecondary"
+            android:contentDescription="@string/cd_floating_edge_handle" />
 
         <!-- 图标置于最上层，保证点击与可见性 -->
         <ImageView

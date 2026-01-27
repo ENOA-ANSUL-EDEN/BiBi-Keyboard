@@ -42,10 +42,12 @@ class FloatingBallViewManager(
         private const val RIPPLE_CLIP_INSET_FRACTION = 0.06f
         private const val RIPPLE_START_SCALE = 0.10f
         private const val RIPPLE_MAX_SCALE_EXTRA = 0.02f
+        private const val EDGE_HANDLE_SIZE_DP = 24
     }
 
     private var ballView: View? = null
     private var ballIcon: ImageView? = null
+    private var edgeHandleIcon: ImageView? = null
     private var processingSpinner: ProcessingSpinnerView? = null
     private var rippleClip: View? = null
     private var ripple1: View? = null
@@ -57,13 +59,13 @@ class FloatingBallViewManager(
     
     private var rippleAnimators: MutableList<Animator> = mutableListOf()
     private var edgeAnimator: ValueAnimator? = null
+    private var edgeHandleVisible: Boolean = false
     private var errorVisualActive: Boolean = false
     private var completionResetPosted: Boolean = false
     private var monetContext: Context? = null
     private var currentState: FloatingBallState = FloatingBallState.Idle
     
-    // 贴边半隐可视比例（仅显示该比例的宽度）
-    private val visibleFractionWhenHidden = 0.5f
+    // 贴边半隐时仅显示“箭头把手”的宽度（需与布局一致）
 
     // 记录“旋转前”的贴边锚点，用于横竖屏切换时的位置映射
     private var cachedDockAnchor: DockAnchor? = null
@@ -90,6 +92,7 @@ class FloatingBallViewManager(
 
             val view = LayoutInflater.from(dynCtx).inflate(R.layout.floating_asr_ball, null, false)
             ballIcon = view.findViewById(R.id.ballIcon)
+            edgeHandleIcon = view.findViewById(R.id.edgeHandleIcon)
             rippleClip = view.findViewById(R.id.rippleClip)
             ripple1 = view.findViewById(R.id.ripple1)
             ripple2 = view.findViewById(R.id.ripple2)
@@ -128,6 +131,7 @@ class FloatingBallViewManager(
             ballIcon?.setOnClickListener(onClickListener)
             view.setOnTouchListener(onTouchListener)
             ballIcon?.setOnTouchListener(onTouchListener)
+            edgeHandleIcon?.setOnTouchListener(onTouchListener)
 
             // 创建 WindowManager.LayoutParams
             val params = createWindowLayoutParams()
@@ -170,13 +174,17 @@ class FloatingBallViewManager(
         // 释放所有与旧视图树绑定的引用，确保下次 show 时重新创建/挂载
         ballView = null
         ballIcon = null
+        edgeHandleIcon = null
         processingSpinner = null
         ripple1 = null
         ripple2 = null
         ripple3 = null
         rippleClip = null
+        edgeHandleVisible = false
         lp = null
     }
+
+    fun isEdgeHandleVisible(): Boolean = edgeHandleVisible
 
     /** 应用悬浮球透明度 */
     fun applyBallAlpha() {
@@ -279,7 +287,20 @@ class FloatingBallViewManager(
         val v = ballView ?: return
 
         val dock = detectDockSide()
-        if (dock == DockSide.BOTTOM || dock == DockSide.NONE) return
+        if (dock == DockSide.BOTTOM || dock == DockSide.NONE) {
+            try {
+                switchToBallVisual(dock, animate = false)
+            } catch (e: Throwable) {
+                Log.w(TAG, "Failed to switch to ball visual (no-reveal dock)", e)
+            }
+            return
+        }
+
+        try {
+            switchToBallVisual(dock, animate = true)
+        } catch (e: Throwable) {
+            Log.w(TAG, "Failed to switch to ball visual on reveal", e)
+        }
 
         val target = fullyVisiblePositionForSide(dock)
         val startX = p.x
@@ -322,7 +343,20 @@ class FloatingBallViewManager(
         val v = ballView ?: return
 
         val dock = detectDockSide(allowChooseNearest = true)
-        if (dock == DockSide.BOTTOM || dock == DockSide.NONE) return
+        if (dock == DockSide.BOTTOM || dock == DockSide.NONE) {
+            try {
+                switchToBallVisual(dock, animate = false)
+            } catch (e: Throwable) {
+                Log.w(TAG, "Failed to switch to ball visual (no-hide dock)", e)
+            }
+            return
+        }
+
+        try {
+            switchToEdgeHandleVisual(dock, animate = true)
+        } catch (e: Throwable) {
+            Log.w(TAG, "Failed to switch to edge-handle visual on hide", e)
+        }
 
         val target = partiallyHiddenPositionForSide(dock)
         val startX = p.x
@@ -509,6 +543,135 @@ class FloatingBallViewManager(
         }
         applyRippleClipOutline()
         applyRippleOriginOffset()
+    }
+
+    private fun switchToEdgeHandleVisual(dock: DockSide, animate: Boolean) {
+        if (dock == DockSide.BOTTOM || dock == DockSide.NONE) return
+        val handle = edgeHandleIcon ?: return
+        val icon = ballIcon ?: return
+
+        applyEdgeHandleDockVisual(dock)
+        if (edgeHandleVisible && handle.visibility == View.VISIBLE && icon.visibility != View.VISIBLE) return
+
+        edgeHandleVisible = true
+
+        val offset = dp(8).toFloat()
+        val handleStartX = if (dock == DockSide.LEFT) offset else -offset
+        val iconEndX = if (dock == DockSide.LEFT) -offset else offset
+
+        cancelViewAnimator(handle)
+        cancelViewAnimator(icon)
+
+        handle.visibility = View.VISIBLE
+        icon.visibility = View.VISIBLE
+
+        if (!animate) {
+            handle.alpha = 1f
+            handle.translationX = 0f
+            icon.alpha = 0f
+            icon.translationX = 0f
+            icon.visibility = View.INVISIBLE
+            return
+        }
+
+        handle.alpha = 0f
+        handle.translationX = handleStartX
+        handle.animate()
+            .alpha(1f)
+            .translationX(0f)
+            .setDuration(230)
+            .setInterpolator(DecelerateInterpolator())
+            .start()
+
+        icon.alpha = 1f
+        icon.translationX = 0f
+        icon.animate()
+            .alpha(0f)
+            .translationX(iconEndX)
+            .setDuration(230)
+            .setInterpolator(DecelerateInterpolator())
+            .withEndAction {
+                icon.visibility = View.INVISIBLE
+                icon.translationX = 0f
+            }
+            .start()
+    }
+
+    private fun switchToBallVisual(dock: DockSide, animate: Boolean) {
+        val handle = edgeHandleIcon ?: return
+        val icon = ballIcon ?: return
+
+        if (!edgeHandleVisible && handle.visibility != View.VISIBLE && icon.visibility == View.VISIBLE) return
+
+        edgeHandleVisible = false
+
+        val offset = dp(8).toFloat()
+        val iconStartX = if (dock == DockSide.LEFT) -offset else offset
+        val handleEndX = if (dock == DockSide.LEFT) offset else -offset
+
+        cancelViewAnimator(handle)
+        cancelViewAnimator(icon)
+
+        icon.visibility = View.VISIBLE
+
+        if (!animate) {
+            icon.alpha = 1f
+            icon.translationX = 0f
+            handle.alpha = 0f
+            handle.translationX = 0f
+            handle.visibility = View.GONE
+            return
+        }
+
+        icon.alpha = 0f
+        icon.translationX = iconStartX
+        icon.animate()
+            .alpha(1f)
+            .translationX(0f)
+            .setDuration(230)
+            .setInterpolator(DecelerateInterpolator())
+            .start()
+
+        if (handle.visibility != View.VISIBLE) {
+            handle.visibility = View.VISIBLE
+            handle.alpha = 0f
+            handle.translationX = 0f
+        }
+        handle.animate()
+            .alpha(0f)
+            .translationX(handleEndX)
+            .setDuration(230)
+            .setInterpolator(DecelerateInterpolator())
+            .withEndAction {
+                handle.visibility = View.GONE
+                handle.translationX = 0f
+            }
+            .start()
+    }
+
+    private fun applyEdgeHandleDockVisual(dock: DockSide) {
+        val handle = edgeHandleIcon ?: return
+        val lp = handle.layoutParams as? android.widget.FrameLayout.LayoutParams ?: return
+        when (dock) {
+            DockSide.LEFT -> {
+                handle.setImageResource(R.drawable.angle_bracket_right)
+                lp.gravity = Gravity.CENTER_VERTICAL or Gravity.END
+            }
+            DockSide.RIGHT -> {
+                handle.setImageResource(R.drawable.angle_bracket_left)
+                lp.gravity = Gravity.CENTER_VERTICAL or Gravity.START
+            }
+            else -> return
+        }
+        handle.layoutParams = lp
+    }
+
+    private fun cancelViewAnimator(v: View) {
+        try {
+            v.animate().cancel()
+        } catch (e: Throwable) {
+            Log.w(TAG, "Failed to cancel view animator", e)
+        }
     }
 
     private fun applyRippleClipOutline() {
@@ -716,7 +879,15 @@ class FloatingBallViewManager(
             safeX to safeY
         } else {
             val centerX = p.x + vw / 2
-            val targetX = if (centerX < screenW / 2) margin else (screenW - vw - margin)
+            val dockLeft = centerX < screenW / 2
+            val fullX = if (dockLeft) margin else (screenW - vw - margin)
+            val hidden = if (dockLeft) p.x < margin else p.x > fullX
+            val targetX = if (edgeHandleVisible && hidden) {
+                val visibleW = visibleWidthWhenHidden(vw)
+                if (dockLeft) (margin - (vw - visibleW)) else (screenW - visibleW - margin)
+            } else {
+                fullX
+            }
             val minY = margin
             val maxY = (screenH - vh - margin).coerceAtLeast(minY)
             val targetY = p.y.coerceIn(minY, maxY)
@@ -872,7 +1043,7 @@ class FloatingBallViewManager(
 
         return when (anchor.side) {
             DockSide.LEFT -> {
-                val visibleW = (vw * visibleFractionWhenHidden).toInt()
+                val visibleW = visibleWidthWhenHidden(vw)
                 val x = if (anchor.hidden) {
                     (minX - (vw - visibleW))
                 } else {
@@ -882,7 +1053,7 @@ class FloatingBallViewManager(
                 x to y
             }
             DockSide.RIGHT -> {
-                val visibleW = (vw * visibleFractionWhenHidden).toInt()
+                val visibleW = visibleWidthWhenHidden(vw)
                 val fullX = maxX
                 val x = if (anchor.hidden) {
                     (screenW - visibleW - margin)
@@ -898,6 +1069,17 @@ class FloatingBallViewManager(
             }
             DockSide.NONE -> minX to y
         }
+    }
+
+    private fun visibleWidthWhenHidden(vw: Int): Int {
+        val handle = edgeHandleIcon
+        val lpW = handle?.layoutParams?.width
+        val w = when {
+            handle != null && handle.width > 0 -> handle.width
+            lpW != null && lpW > 0 -> lpW
+            else -> dp(EDGE_HANDLE_SIZE_DP)
+        }
+        return w.coerceIn(1, vw)
     }
 
     /**
@@ -947,7 +1129,7 @@ class FloatingBallViewManager(
         return x to y
     }
 
-    /** 左/右侧半隐位置（仅显示一定比例的宽度） */
+    /** 左/右侧半隐位置（仅显示“箭头把手”的宽度） */
     private fun partiallyHiddenPositionForSide(side: DockSide): Pair<Int, Int> {
         val p = lp ?: return 0 to 0
         val (screenW, screenH) = getUsableScreenSize()
@@ -955,7 +1137,7 @@ class FloatingBallViewManager(
         val vh = (ballView?.height?.takeIf { it > 0 }) ?: (p.height)
         val margin = dp(0)
 
-        val visibleW = (vw * visibleFractionWhenHidden).toInt()
+        val visibleW = visibleWidthWhenHidden(vw)
         val x = when (side) {
             DockSide.LEFT -> (margin - (vw - visibleW))
             DockSide.RIGHT -> (screenW - visibleW - margin)
