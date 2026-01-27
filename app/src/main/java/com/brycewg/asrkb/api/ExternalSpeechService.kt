@@ -182,8 +182,9 @@ class ExternalSpeechService : Service() {
     ) : StreamingAsrEngine.Listener {
         var engine: StreamingAsrEngine? = null
         // 统计：录音起止与耗时（用于历史记录展示）
-        private var sessionStartUptimeMs: Long = 0L
-        private var lastAudioMsForStats: Long = 0L
+	        private var sessionStartUptimeMs: Long = 0L
+	        private var sessionStartTotalUptimeMs: Long = 0L
+	        private var lastAudioMsForStats: Long = 0L
         private var lastRequestDurationMs: Long? = null
         private var lastPostprocPreview: String? = null
         private var vendor: AsrVendor? = null
@@ -258,7 +259,7 @@ class ExternalSpeechService : Service() {
             cancelLocalModelReadyWait()
         }
 
-        private fun computeProcMsForStats(): Long {
+	        private fun computeProcMsForStats(): Long {
             val fromEngine = lastRequestDurationMs
             if (fromEngine != null) return fromEngine
             val start = processingStartUptimeMs
@@ -267,7 +268,22 @@ class ExternalSpeechService : Service() {
             val total = (end - start).coerceAtLeast(0L)
             val wait = localModelReadyWaitMs.get().coerceAtLeast(0L)
             return (total - wait).coerceAtLeast(0L)
-        }
+	        }
+
+	        private fun popTotalElapsedMsForStats(): Long {
+	            val start = sessionStartTotalUptimeMs
+	            if (start <= 0L) return 0L
+	            val now = try {
+	                SystemClock.uptimeMillis()
+	            } catch (t: Throwable) {
+	                Log.w(TAG, "Failed to read uptime for total elapsed ms", t)
+	                sessionStartTotalUptimeMs = 0L
+	                return 0L
+	            }
+	            val elapsed = if (now >= start) (now - start).coerceAtLeast(0L) else 0L
+	            sessionStartTotalUptimeMs = if (engine?.isRunning == true) now else 0L
+	            return elapsed
+	        }
 
         private fun resolveFinalVendorForRecord(): AsrVendor {
             val e = engine
@@ -375,14 +391,15 @@ class ExternalSpeechService : Service() {
             return engine != null
         }
 
-        fun start() {
-            safe { cb.onState(id, STATE_RECORDING, "recording") }
-            try {
-                sessionStartUptimeMs = SystemClock.uptimeMillis()
-                // 新会话开始时重置上次请求耗时，避免串台（流式模式不会更新此值）
-                lastRequestDurationMs = null
-                lastAudioMsForStats = 0L
-                lastPostprocPreview = null
+	        fun start() {
+	            safe { cb.onState(id, STATE_RECORDING, "recording") }
+	            try {
+	                sessionStartUptimeMs = SystemClock.uptimeMillis()
+	                sessionStartTotalUptimeMs = sessionStartUptimeMs
+	                // 新会话开始时重置上次请求耗时，避免串台（流式模式不会更新此值）
+	                lastRequestDurationMs = null
+	                lastAudioMsForStats = 0L
+	                lastPostprocPreview = null
                 processingStartUptimeMs = 0L
                 processingEndUptimeMs = 0L
                 localModelWaitStartUptimeMs = 0L
@@ -393,16 +410,16 @@ class ExternalSpeechService : Service() {
                 hasAsrPartial = false
                 finished = false
                 cancelProcessingTimeout()
-            } catch (t: Throwable) {
-                Log.w(TAG, "Failed to mark session start", t)
-            }
-            engine?.start()
-        }
+	            } catch (t: Throwable) {
+	                Log.w(TAG, "Failed to mark session start", t)
+	            }
+	            engine?.start()
+	        }
 
         fun stop() {
             if (canceled || finished) return
             // 记录一次会话录音时长（用于超时与统计）；部分引擎 stop() 不会回调 onStopped（如外部推流的本地流式），因此这里也做一次兜底快照。
-            if (sessionStartUptimeMs > 0L) {
+	            if (sessionStartUptimeMs > 0L) {
                 try {
                     if (lastAudioMsForStats == 0L) {
                         val dur = (SystemClock.uptimeMillis() - sessionStartUptimeMs).coerceAtLeast(0)
@@ -414,14 +431,14 @@ class ExternalSpeechService : Service() {
                     sessionStartUptimeMs = 0L
                 }
             }
-            if (processingStartUptimeMs == 0L) {
-                processingStartUptimeMs = SystemClock.uptimeMillis()
-            }
+	            if (processingStartUptimeMs == 0L) {
+	                processingStartUptimeMs = SystemClock.uptimeMillis()
+	            }
             markLocalModelProcessingStartIfNeeded()
             scheduleProcessingTimeoutIfNeeded()
-            engine?.stop()
-            safe { cb.onState(id, STATE_PROCESSING, "processing") }
-        }
+	            engine?.stop()
+	            safe { cb.onState(id, STATE_PROCESSING, "processing") }
+	        }
 
         fun cancel() {
             canceled = true
@@ -754,84 +771,100 @@ class ExternalSpeechService : Service() {
                             safe { cb.onPartial(id, streamed) }
                         }
                     }
-	                    val (out, usedAi) = try {
-	                        val res = com.brycewg.asrkb.util.AsrFinalFilters.applyWithAi(
-	                            context,
-	                            prefs,
-	                            text,
-	                            onStreamingUpdate = onStreamingUpdate
-	                        )
-	                        val aiUsed = (res.usedAi && res.ok)
-	                        val processed = res.text
-	                        val finalOut = processed.ifBlank {
-	                            // AI 返回空：回退到简单后处理（包含正则/繁体）
-	                            try {
-                                com.brycewg.asrkb.util.AsrFinalFilters.applySimple(
-                                    context,
-                                    prefs,
-                                    text
-                                )
-                            } catch (_: Throwable) {
-	                                text
-	                            }
-	                        }
-	                        if (typewriter != null && aiUsed && finalOut.isNotEmpty()) {
-	                            typewriter.submit(finalOut, rush = true)
-	                            val finalLen = finalOut.length
-	                            val t0 = SystemClock.uptimeMillis()
-	                            while (!canceled && (SystemClock.uptimeMillis() - t0) < 2_000L &&
-                                typewriter.currentText().length != finalLen
-                            ) {
-	                                delay(20)
-	                            }
-	                        }
-	                        finalOut to aiUsed
-	                    } catch (t: Throwable) {
-	                        Log.w(TAG, "applyWithAi failed, fallback to simple", t)
-	                        val fallback = try {
-	                            com.brycewg.asrkb.util.AsrFinalFilters.applySimple(context, prefs, text)
-	                        } catch (_: Throwable) {
-	                            text
-	                        }
-	                        fallback to false
-	                    } finally {
-	                        postprocCommitted = true
-	                        typewriter?.cancel()
+                    var aiUsed = false
+                    var aiPostMs = 0L
+                    var aiPostStatus = com.brycewg.asrkb.store.AsrHistoryStore.AiPostStatus.NONE
+                    val out = try {
+                      val res = com.brycewg.asrkb.util.AsrFinalFilters.applyWithAi(
+                        context,
+                        prefs,
+                        text,
+                        onStreamingUpdate = onStreamingUpdate
+                      )
+                      aiUsed = (res.usedAi && res.ok)
+                      aiPostMs = if (res.attempted) res.llmMs else 0L
+                      aiPostStatus = when {
+                        res.attempted && aiUsed -> com.brycewg.asrkb.store.AsrHistoryStore.AiPostStatus.SUCCESS
+                        res.attempted -> com.brycewg.asrkb.store.AsrHistoryStore.AiPostStatus.FAILED
+                        else -> com.brycewg.asrkb.store.AsrHistoryStore.AiPostStatus.NONE
+                      }
+
+                      val processed = res.text
+                      val finalOut = processed.ifBlank {
+                        // AI 返回空：回退到简单后处理（包含正则/繁体）
+                        try {
+                          com.brycewg.asrkb.util.AsrFinalFilters.applySimple(
+                            context,
+                            prefs,
+                            text
+                          )
+                        } catch (_: Throwable) {
+                          text
+                        }
+                      }
+                      if (typewriter != null && aiUsed && finalOut.isNotEmpty()) {
+                        typewriter.submit(finalOut, rush = true)
+                        val finalLen = finalOut.length
+                        val t0 = SystemClock.uptimeMillis()
+                        while (!canceled && (SystemClock.uptimeMillis() - t0) < 2_000L &&
+                          typewriter.currentText().length != finalLen
+                        ) {
+                          delay(20)
+                        }
+                      }
+                      finalOut
+                    } catch (t: Throwable) {
+                      Log.w(TAG, "applyWithAi failed, fallback to simple", t)
+                      aiUsed = false
+                      aiPostMs = 0L
+                      aiPostStatus = com.brycewg.asrkb.store.AsrHistoryStore.AiPostStatus.FAILED
+                      try {
+                        com.brycewg.asrkb.util.AsrFinalFilters.applySimple(context, prefs, text)
+                      } catch (_: Throwable) {
+                        text
+                      }
+                    } finally {
+                      postprocCommitted = true
+                      typewriter?.cancel()
                     }
                     if (canceled) return@launch
-                    // 记录使用统计与识别历史（来源标记为 ime；尊重开关）
-                    try {
-                        val audioMs = lastAudioMsForStats
-                        val procMs = computeProcMsForStats()
-                        val chars = try { com.brycewg.asrkb.util.TextSanitizer.countEffectiveChars(out) } catch (_: Throwable) { out.length }
-                        val vendorForRecord = resolveFinalVendorForRecord()
-                        AnalyticsManager.recordAsrEvent(
-                            context = context,
-                            vendorId = vendorForRecord.id,
-                            audioMs = audioMs,
-                            procMs = procMs,
-                            source = "ime",
-                            aiProcessed = usedAi,
-                            charCount = chars
-                        )
+	                    // 记录使用统计与识别历史（来源标记为 ime；尊重开关）
+	                    try {
+	                        val audioMs = lastAudioMsForStats
+	                        val totalElapsedMs = popTotalElapsedMsForStats()
+	                        val procMs = computeProcMsForStats()
+	                        val chars = try { com.brycewg.asrkb.util.TextSanitizer.countEffectiveChars(out) } catch (_: Throwable) { out.length }
+	                        val vendorForRecord = resolveFinalVendorForRecord()
+	                        AnalyticsManager.recordAsrEvent(
+	                            context = context,
+	                            vendorId = vendorForRecord.id,
+	                            audioMs = audioMs,
+	                            procMs = procMs,
+	                            source = "ime",
+	                            aiProcessed = aiUsed,
+	                            charCount = chars
+	                        )
                         if (!prefs.disableUsageStats) {
                             prefs.recordUsageCommit("ime", vendorForRecord, audioMs, chars, procMs)
                         }
                         if (!prefs.disableAsrHistory) {
                             val store = com.brycewg.asrkb.store.AsrHistoryStore(context)
-                            store.add(
-                                com.brycewg.asrkb.store.AsrHistoryStore.AsrHistoryRecord(
-                                    timestamp = System.currentTimeMillis(),
-                                    text = out,
-                                    vendorId = vendorForRecord.id,
-                                    audioMs = audioMs,
-                                    procMs = procMs,
-                                    source = "ime",
-                                    aiProcessed = usedAi,
-                                    charCount = chars
-                                )
-                            )
-                        }
+	                            store.add(
+	                                com.brycewg.asrkb.store.AsrHistoryStore.AsrHistoryRecord(
+	                                    timestamp = System.currentTimeMillis(),
+	                                    text = out,
+	                                    vendorId = vendorForRecord.id,
+	                                    audioMs = audioMs,
+	                                    totalElapsedMs = totalElapsedMs,
+	                                    procMs = procMs,
+	                                    source = "ime",
+	                                    aiProcessed = aiUsed,
+	                                    aiPostMs = aiPostMs,
+	                                    aiPostStatus = aiPostStatus,
+	                                    charCount = chars
+	                                )
+	                            )
+	                        }
                     } catch (e: Exception) {
                         Log.e(TAG, "Failed to add ASR history (external, ai)", e)
                     }
@@ -849,12 +882,13 @@ class ExternalSpeechService : Service() {
                     Log.w(TAG, "applySimple failed, fallback to raw text", t)
                     text
                 }
-                // 记录使用统计与识别历史（来源标记为 ime；尊重开关）
-                try {
-                    val audioMs = lastAudioMsForStats
-                    val procMs = computeProcMsForStats()
-                    val chars = try { com.brycewg.asrkb.util.TextSanitizer.countEffectiveChars(out) } catch (_: Throwable) { out.length }
-                    val vendorForRecord = resolveFinalVendorForRecord()
+	                // 记录使用统计与识别历史（来源标记为 ime；尊重开关）
+	                try {
+	                    val audioMs = lastAudioMsForStats
+	                    val totalElapsedMs = popTotalElapsedMsForStats()
+	                    val procMs = computeProcMsForStats()
+	                    val chars = try { com.brycewg.asrkb.util.TextSanitizer.countEffectiveChars(out) } catch (_: Throwable) { out.length }
+	                    val vendorForRecord = resolveFinalVendorForRecord()
                     AnalyticsManager.recordAsrEvent(
                         context = context,
                         vendorId = vendorForRecord.id,
@@ -869,19 +903,20 @@ class ExternalSpeechService : Service() {
                     }
                     if (!prefs.disableAsrHistory) {
                         val store = com.brycewg.asrkb.store.AsrHistoryStore(context)
-                        store.add(
-                            com.brycewg.asrkb.store.AsrHistoryStore.AsrHistoryRecord(
-                                timestamp = System.currentTimeMillis(),
-                                text = out,
-                                vendorId = vendorForRecord.id,
-                                audioMs = audioMs,
-                                procMs = procMs,
-                                source = "ime",
-                                aiProcessed = false,
-                                charCount = chars
-                            )
-                        )
-                    }
+	                        store.add(
+	                            com.brycewg.asrkb.store.AsrHistoryStore.AsrHistoryRecord(
+	                                timestamp = System.currentTimeMillis(),
+	                                text = out,
+	                                vendorId = vendorForRecord.id,
+	                                audioMs = audioMs,
+	                                totalElapsedMs = totalElapsedMs,
+	                                procMs = procMs,
+	                                source = "ime",
+	                                aiProcessed = false,
+	                                charCount = chars
+	                            )
+	                        )
+	                    }
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to add ASR history (external, simple)", e)
                 }

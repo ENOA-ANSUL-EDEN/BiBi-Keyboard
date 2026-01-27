@@ -21,10 +21,13 @@
     <string name="label_chars_count">Text:%1$d</string>
     <string name="label_audio_duration_s">Duration:%1$.1f s</string>
     <!-- History list: total duration and processing duration (non-streaming) -->
-    <string name="meta_total_seconds">total %1$.1fs</string>
-    <string name="meta_proc_seconds">processing time %1$.1fs</string>
+    <string name="meta_total_seconds">audio %1$.1fs</string>
+    <string name="meta_total_elapsed_seconds">total %1$.1fs</string>
+    <string name="meta_proc_seconds">recognition time %1$.1fs</string>
+    <string name="meta_ai_postproc_seconds">post-processing time %1$.1fs</string>
     <string name="ai_processed_yes">Post-processed</string>
     <string name="ai_processed_no">Not post-processed</string>
+    <string name="ai_processed_failed">Post-processing failed</string>
     <string name="label_timestamp">Time</string>
     <string name="label_time">Time Range</string>
     <string name="filter_time_all">All</string>

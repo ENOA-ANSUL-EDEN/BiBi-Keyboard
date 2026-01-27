@@ -1271,6 +1271,12 @@ class KeyboardActionHandler(
             res.text
         }
         val aiUsed = (res.usedAi && res.ok)
+        val aiPostMs = if (res.attempted) res.llmMs else 0L
+        val aiPostStatus = when {
+            res.attempted && aiUsed -> com.brycewg.asrkb.store.AsrHistoryStore.AiPostStatus.SUCCESS
+            res.attempted -> com.brycewg.asrkb.store.AsrHistoryStore.AiPostStatus.FAILED
+            else -> com.brycewg.asrkb.store.AsrHistoryStore.AiPostStatus.NONE
+        }
 
         // 若已被取消，不再提交
         if (seq != opSeq) {
@@ -1331,6 +1337,7 @@ class KeyboardActionHandler(
             // 记录使用统计（IME）
             try {
                 val audioMs = asrManager.popLastAudioMsForStats()
+                val totalElapsedMs = asrManager.popLastTotalElapsedMsForStats()
                 val procMs = asrManager.getLastRequestDuration() ?: 0L
                 val vendorForRecord = try {
                     asrManager.peekLastFinalVendorForStats()
@@ -1360,9 +1367,12 @@ class KeyboardActionHandler(
                                 text = finalOut,
                                 vendorId = vendorForRecord.id,
                                 audioMs = audioMs,
+                                totalElapsedMs = totalElapsedMs,
                                 procMs = procMs,
                                 source = "ime",
                                 aiProcessed = aiUsed,
+                                aiPostMs = aiPostMs,
+                                aiPostStatus = aiPostStatus,
                                 charCount = chars
                             )
                         )
@@ -1467,6 +1477,7 @@ class KeyboardActionHandler(
             // 记录使用统计（IME）
             try {
                 val audioMs = asrManager.popLastAudioMsForStats()
+                val totalElapsedMs = asrManager.popLastTotalElapsedMsForStats()
                 val procMs = asrManager.getLastRequestDuration() ?: 0L
                 val chars = TextSanitizer.countEffectiveChars(finalToCommit)
                 val vendorForRecord = try {
@@ -1497,6 +1508,7 @@ class KeyboardActionHandler(
                                 text = finalToCommit,
                                 vendorId = vendorForRecord.id,
                                 audioMs = audioMs,
+                                totalElapsedMs = totalElapsedMs,
                                 procMs = procMs,
                                 source = "ime",
                                 aiProcessed = false,

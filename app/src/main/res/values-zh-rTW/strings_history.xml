@@ -21,10 +21,13 @@
     <string name="label_chars_count">字數：%1$d</string>
     <string name="label_audio_duration_s">用時：%1$.1f 秒</string>
     <!-- 歷史列表：總用時與處理耗時（非串流） -->
-    <string name="meta_total_seconds">總用時 %1$.1f 秒</string>
-    <string name="meta_proc_seconds">處理耗時 %1$.1f 秒</string>
+    <string name="meta_total_seconds">音訊時長 %1$.1f 秒</string>
+    <string name="meta_total_elapsed_seconds">總耗時 %1$.1f 秒</string>
+    <string name="meta_proc_seconds">識別耗時 %1$.1f 秒</string>
+    <string name="meta_ai_postproc_seconds">後處理用時 %1$.1f 秒</string>
     <string name="ai_processed_yes">已後處理</string>
     <string name="ai_processed_no">未後處理</string>
+    <string name="ai_processed_failed">後處理失敗</string>
     <string name="label_timestamp">時間</string>
     <string name="label_time">時間範圍</string>
     <string name="filter_time_all">不限</string>

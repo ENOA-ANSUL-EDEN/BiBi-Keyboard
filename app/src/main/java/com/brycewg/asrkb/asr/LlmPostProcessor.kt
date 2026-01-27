@@ -61,7 +61,11 @@ class LlmPostProcessor(private val client: OkHttpClient? = null) {
     val errorMessage: String? = null,
     val httpCode: Int? = null,
     // 表示本次结果是否“实际使用了 AI 输出”（调用成功并采用其文本）
-    val usedAi: Boolean = false
+    val usedAi: Boolean = false,
+    // 是否实际发起了 LLM 请求（跳过/空输入等场景为 false）
+    val attempted: Boolean = false,
+    // LLM 请求耗时（毫秒）；未尝试时为 0
+    val llmMs: Long = 0
   )
 
   /**
@@ -815,7 +819,7 @@ class LlmPostProcessor(private val client: OkHttpClient? = null) {
   ): LlmProcessResult = withContext(Dispatchers.IO) {
     if (input.isBlank()) {
       Log.d(TAG, "Input is blank, skipping processing")
-      return@withContext LlmProcessResult(ok = true, text = input, usedAi = false)
+      return@withContext LlmProcessResult(ok = true, text = input, usedAi = false, attempted = false, llmMs = 0)
     }
 
     val config = getActiveConfig(prefs)
@@ -833,19 +837,31 @@ class LlmPostProcessor(private val client: OkHttpClient? = null) {
       })
     }
 
+    val t0 = System.nanoTime()
     val result = performChatWithRetry(config, messages, onStreamingUpdate = onStreamingUpdate)
+    val dt = TimeUnit.NANOSECONDS
+      .toMillis((System.nanoTime() - t0).coerceAtLeast(0L))
+      .coerceAtLeast(0L)
     if (!result.ok) {
       if (result.httpCode != null) {
         Log.w(TAG, "LLM process() failed: HTTP ${result.httpCode}, ${result.error}")
       } else {
         Log.w(TAG, "LLM process() failed: ${result.error}")
       }
-      return@withContext LlmProcessResult(false, text = input, errorMessage = result.error, httpCode = result.httpCode, usedAi = false)
+      return@withContext LlmProcessResult(
+        false,
+        text = input,
+        errorMessage = result.error,
+        httpCode = result.httpCode,
+        usedAi = false,
+        attempted = true,
+        llmMs = dt
+      )
     }
 
     val text = result.text ?: input
     Log.d(TAG, "Text processing completed, output length: ${text.length}")
-    return@withContext LlmProcessResult(true, text = text, usedAi = true)
+    return@withContext LlmProcessResult(true, text = text, usedAi = true, attempted = true, llmMs = dt)
   }
 
   /**
@@ -854,7 +870,7 @@ class LlmPostProcessor(private val client: OkHttpClient? = null) {
   suspend fun editTextWithStatus(original: String, instruction: String, prefs: Prefs): LlmProcessResult = withContext(Dispatchers.IO) {
     if (original.isBlank() || instruction.isBlank()) {
       Log.d(TAG, "Original or instruction is blank, skipping edit")
-      return@withContext LlmProcessResult(true, text = original, usedAi = false)
+      return@withContext LlmProcessResult(true, text = original, usedAi = false, attempted = false, llmMs = 0)
     }
 
     val config = getActiveConfig(prefs)
@@ -907,19 +923,31 @@ class LlmPostProcessor(private val client: OkHttpClient? = null) {
       })
     }
 
+    val t0 = System.nanoTime()
     val result = performChatWithRetry(config, messages)
+    val dt = TimeUnit.NANOSECONDS
+      .toMillis((System.nanoTime() - t0).coerceAtLeast(0L))
+      .coerceAtLeast(0L)
     if (!result.ok) {
       if (result.httpCode != null) {
         Log.w(TAG, "LLM editText() failed: HTTP ${result.httpCode}, ${result.error}")
       } else {
         Log.w(TAG, "LLM editText() failed: ${result.error}")
       }
-      return@withContext LlmProcessResult(false, text = original, errorMessage = result.error, httpCode = result.httpCode, usedAi = false)
+      return@withContext LlmProcessResult(
+        false,
+        text = original,
+        errorMessage = result.error,
+        httpCode = result.httpCode,
+        usedAi = false,
+        attempted = true,
+        llmMs = dt
+      )
     }
 
     val out = result.text ?: original
 
     Log.d(TAG, "Text editing completed, output length: ${out.length}")
-    return@withContext LlmProcessResult(true, text = out, usedAi = true)
+    return@withContext LlmProcessResult(true, text = out, usedAi = true, attempted = true, llmMs = dt)
   }
 }

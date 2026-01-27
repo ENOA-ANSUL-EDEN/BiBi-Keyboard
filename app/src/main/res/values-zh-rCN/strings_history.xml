@@ -21,10 +21,13 @@
     <string name="label_chars_count">字数:%1$d</string>
     <string name="label_audio_duration_s">用时:%1$.1f 秒</string>
     <!-- 历史列表：总用时与处理耗时（非流式） -->
-    <string name="meta_total_seconds">总用时%1$.1fs</string>
-    <string name="meta_proc_seconds">处理耗时%1$.1fs</string>
+    <string name="meta_total_seconds">音频时长%1$.1fs</string>
+    <string name="meta_total_elapsed_seconds">总耗时%1$.1fs</string>
+    <string name="meta_proc_seconds">识别耗时%1$.1fs</string>
+    <string name="meta_ai_postproc_seconds">后处理用时%1$.1fs</string>
     <string name="ai_processed_yes">已后处理</string>
     <string name="ai_processed_no">未后处理</string>
+    <string name="ai_processed_failed">后处理失败</string>
     <string name="label_timestamp">时间</string>
     <string name="label_time">时间范围</string>
     <string name="filter_time_all">不限</string>

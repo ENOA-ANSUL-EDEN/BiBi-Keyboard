@@ -22,10 +22,13 @@
     <string name="label_chars_count">テキスト：%1$d</string>
     <string name="label_audio_duration_s">時間：%1$.1f秒</string>
     <!-- 履歴リスト：総時間と処理時間（非ストリーミング） -->
-    <string name="meta_total_seconds">合計%1$.1f秒</string>
-    <string name="meta_proc_seconds">処理時間%1$.1f秒</string>
+    <string name="meta_total_seconds">音声時長%1$.1f秒</string>
+    <string name="meta_total_elapsed_seconds">総所要%1$.1f秒</string>
+    <string name="meta_proc_seconds">認識時間%1$.1f秒</string>
+    <string name="meta_ai_postproc_seconds">後処理時間%1$.1f秒</string>
     <string name="ai_processed_yes">後処理済み</string>
     <string name="ai_processed_no">未処理</string>
+    <string name="ai_processed_failed">後処理失敗</string>
     <string name="label_timestamp">時間</string>
     <string name="label_time">時間範囲</string>
     <string name="filter_time_all">すべて</string>

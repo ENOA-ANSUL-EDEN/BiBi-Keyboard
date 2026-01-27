@@ -509,14 +509,22 @@ class FloatingAsrService : Service(),
             if (success) {
                 viewManager.showCompletionTick()
                 try {
-                    val audioMs = asrSessionManager.popLastAudioMsForStats()
-                    val procMs = asrSessionManager.getLastRequestDuration() ?: 0L
-                    val chars = com.brycewg.asrkb.util.TextSanitizer.countEffectiveChars(text)
-                    val ai = try { asrSessionManager.wasLastAiUsed() } catch (_: Throwable) { false }
-                    val vendorForRecord = try {
-                        asrSessionManager.peekLastFinalVendorForStats()
-                    } catch (t: Throwable) {
-                        Log.w(TAG, "Failed to get final vendor for stats", t)
+	                    val audioMs = asrSessionManager.popLastAudioMsForStats()
+	                    val totalElapsedMs = asrSessionManager.popLastTotalElapsedMsForStats()
+	                    val procMs = asrSessionManager.getLastRequestDuration() ?: 0L
+	                    val chars = com.brycewg.asrkb.util.TextSanitizer.countEffectiveChars(text)
+	                    val ai = try { asrSessionManager.wasLastAiUsed() } catch (_: Throwable) { false }
+	                    val aiPostMs = try { asrSessionManager.getLastAiPostMs() } catch (_: Throwable) { 0L }
+	                    val aiPostStatus = try {
+	                        asrSessionManager.getLastAiPostStatus()
+	                    } catch (_: Throwable) {
+	                        if (ai) com.brycewg.asrkb.store.AsrHistoryStore.AiPostStatus.SUCCESS
+	                        else com.brycewg.asrkb.store.AsrHistoryStore.AiPostStatus.NONE
+	                    }
+	                    val vendorForRecord = try {
+	                        asrSessionManager.peekLastFinalVendorForStats()
+	                    } catch (t: Throwable) {
+	                        Log.w(TAG, "Failed to get final vendor for stats", t)
                         prefs.asrVendor
                     }
                     AnalyticsManager.recordAsrEvent(
@@ -541,20 +549,23 @@ class FloatingAsrService : Service(),
                     if (!prefs.disableAsrHistory) {
                         try {
                             val store = com.brycewg.asrkb.store.AsrHistoryStore(this@FloatingAsrService)
-                            store.add(
-                                com.brycewg.asrkb.store.AsrHistoryStore.AsrHistoryRecord(
-                                    timestamp = System.currentTimeMillis(),
-                                    text = text,
-                                    vendorId = vendorForRecord.id,
-                                    audioMs = audioMs,
-                                    procMs = procMs,
-                                    source = "floating",
-                                    aiProcessed = ai,
-                                    charCount = chars
-                                )
-                            )
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Failed to add ASR history (floating)", e)
+	                            store.add(
+	                                com.brycewg.asrkb.store.AsrHistoryStore.AsrHistoryRecord(
+	                                    timestamp = System.currentTimeMillis(),
+	                                    text = text,
+	                                    vendorId = vendorForRecord.id,
+	                                    audioMs = audioMs,
+	                                    totalElapsedMs = totalElapsedMs,
+	                                    procMs = procMs,
+	                                    source = "floating",
+	                                    aiProcessed = ai,
+	                                    aiPostMs = aiPostMs,
+	                                    aiPostStatus = aiPostStatus,
+	                                    charCount = chars
+	                                )
+	                            )
+	                        } catch (e: Exception) {
+	                            Log.e(TAG, "Failed to add ASR history (floating)", e)
                         }
                     }
                 } catch (t: Throwable) {

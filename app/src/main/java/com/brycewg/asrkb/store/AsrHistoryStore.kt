@@ -31,16 +31,30 @@ class AsrHistoryStore(context: Context) {
   }
 
   @Serializable
+  enum class AiPostStatus {
+    NONE,
+    SUCCESS,
+    FAILED
+  }
+
+  @Serializable
   data class AsrHistoryRecord(
     val id: String = UUID.randomUUID().toString(),
     val timestamp: Long,
     val text: String,
     val vendorId: String,
     val audioMs: Long,
+    // 端到端总耗时（毫秒）：从开始录音到最终提交完成（含识别/后处理/打字机动画等待等）。
+    // 旧记录无该字段时视为 0。
+    val totalElapsedMs: Long = 0,
     // 供应商处理耗时（非流式文件识别时有效，毫秒）。OSS 旧记录无该字段时视为 0。
     val procMs: Long = 0,
     val source: String, // "ime" | "floating"
     val aiProcessed: Boolean,
+    // AI 后处理耗时（毫秒）。未尝试或旧记录无该字段时视为 0。
+    val aiPostMs: Long = 0,
+    // AI 后处理状态。旧记录无该字段时视为 NONE。
+    val aiPostStatus: AiPostStatus = AiPostStatus.NONE,
     val charCount: Int
   )
 

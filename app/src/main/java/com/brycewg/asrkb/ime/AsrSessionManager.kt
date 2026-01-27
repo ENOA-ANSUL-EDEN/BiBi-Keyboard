@@ -108,6 +108,8 @@ class AsrSessionManager(
     // 会话录音时长统计（毫秒）
     private var sessionStartUptimeMs: Long = 0L
     private var lastAudioMsForStats: Long = 0L
+    // 统计/历史：端到端耗时起点（从开始录音到最终提交完成）
+    private var sessionStartTotalUptimeMs: Long = 0L
 
     private fun snapshotAudioDurationIfPossible() {
         if (sessionStartUptimeMs == 0L || lastAudioMsForStats != 0L) return
@@ -376,6 +378,8 @@ class AsrSessionManager(
             Log.w(TAG, "Failed to get uptime for session start", t)
             sessionStartUptimeMs = 0L
         }
+        // 端到端耗时使用独立的起点，避免在 onStopped/onFinal 中被清零影响后续统计
+        sessionStartTotalUptimeMs = sessionStartUptimeMs
         lastAudioMsForStats = 0L
         // 新会话开始时重置上次请求耗时，避免串台（流式模式不会更新此值）
         lastRequestDurationMs = null
@@ -518,6 +522,27 @@ class AsrSessionManager(
     }
 
     /**
+     * 读取并清空最近一次会话的端到端总耗时（毫秒）。
+     * 口径：从开始录音到最终提交完成（含识别/后处理/打字机动画等待等）。
+     */
+    fun popLastTotalElapsedMsForStats(): Long {
+        val start = sessionStartTotalUptimeMs
+        if (start <= 0L) return 0L
+        val now = try {
+            SystemClock.uptimeMillis()
+        } catch (t: Throwable) {
+            Log.w(TAG, "Failed to get uptime for total elapsed ms", t)
+            // 无法读取时间时，避免串台，直接清零
+            sessionStartTotalUptimeMs = 0L
+            return 0L
+        }
+        val elapsed = if (now >= start) (now - start).coerceAtLeast(0L) else 0L
+        // 若仍在录音（分段/连续识别），将下一段的起点更新为当前时间；否则清零
+        sessionStartTotalUptimeMs = if (isRunning()) now else 0L
+        return elapsed
+    }
+
+    /**
      * 读取最近一次会话的录音时长（毫秒），不清空。
      * 用于在 onStopped 等场景下进行早停判断，避免影响后续统计/历史写入。
      */
@@ -543,6 +568,7 @@ class AsrSessionManager(
             Log.w(TAG, "Cancel local model wait job failed on cleanup", t)
         }
         localModelReadyWaitJob = null
+        sessionStartTotalUptimeMs = 0L
         listener = null
     }
 

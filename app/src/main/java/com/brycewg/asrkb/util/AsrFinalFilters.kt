@@ -50,6 +50,17 @@ object AsrFinalFilters {
     forceAi: Boolean = false,
     onStreamingUpdate: ((String) -> Unit)? = null
   ): LlmPostProcessor.LlmProcessResult {
+    if (input.isBlank()) {
+      return LlmPostProcessor.LlmProcessResult(
+        ok = true,
+        text = input,
+        errorMessage = null,
+        httpCode = null,
+        usedAi = false,
+        attempted = false,
+        llmMs = 0
+      )
+    }
     // 预修剪
     val base = try {
       if (prefs.trimFinalTrailingPunct) TextSanitizer.trimTrailingPunctAndEmoji(input) else input
@@ -67,11 +78,25 @@ object AsrFinalFilters {
           text = rep,
           errorMessage = null,
           httpCode = null,
-          usedAi = false
+          usedAi = false,
+          attempted = false,
+          llmMs = 0
         )
       }
     } catch (t: Throwable) {
       Log.w(TAG, "speech preset replacement failed (ai branch)", t)
+    }
+
+    if (base.isBlank()) {
+      return LlmPostProcessor.LlmProcessResult(
+        ok = true,
+        text = base,
+        errorMessage = null,
+        httpCode = null,
+        usedAi = false,
+        attempted = false,
+        llmMs = 0
+      )
     }
 
     var processed = base
@@ -79,6 +104,7 @@ object AsrFinalFilters {
     var http: Int? = null
     var err: String? = null
     var aiAttempted = false
+    var aiMs: Long = 0
 
     // 少于阈值时自动跳过 AI 后处理（forceAi 时不跳过）
     val skipForShort = try {
@@ -93,6 +119,8 @@ object AsrFinalFilters {
     }
 
     if (!skipForShort && (forceAi || prefs.postProcessEnabled) && prefs.hasLlmKeys()) {
+      aiAttempted = true
+      val t0 = System.nanoTime()
       try {
         val res = postProcessor.processWithStatus(
           base,
@@ -104,13 +132,13 @@ object AsrFinalFilters {
         processed = res.text
         http = res.httpCode
         err = res.errorMessage
-        aiAttempted = true
+        aiMs = if (res.llmMs > 0) res.llmMs else ((System.nanoTime() - t0) / 1_000_000L).coerceAtLeast(0L)
       } catch (t: Throwable) {
         Log.e(TAG, "LLM post-processing threw", t)
         ok = false
         processed = base
         err = t.message
-        aiAttempted = true
+        aiMs = ((System.nanoTime() - t0) / 1_000_000L).coerceAtLeast(0L)
       }
     }
 
@@ -122,13 +150,21 @@ object AsrFinalFilters {
       processed
     }
 
-    val usedAi = aiAttempted && ok
+    // AI 返回空：视为失败（由上层决定是否回退到 applySimple）
+    if (aiAttempted && ok && processed.isBlank()) {
+      ok = false
+      err = err ?: "Empty AI output"
+    }
+
+    val usedAi = aiAttempted && ok && processed.isNotBlank()
     return LlmPostProcessor.LlmProcessResult(
       ok = ok,
       text = processed,
       errorMessage = err,
       httpCode = http,
-      usedAi = usedAi
+      usedAi = usedAi,
+      attempted = aiAttempted,
+      llmMs = if (aiAttempted) aiMs.coerceAtLeast(0L) else 0
     )
   }
 }

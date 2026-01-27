@@ -605,12 +605,30 @@ class AsrHistoryActivity : BaseActivity() {
         tvText.text = r.text
         val vendor = mapVendorName(r.vendorId)
         val source = mapSourceFullName(r.source)
-        val ai = if (r.aiProcessed) itemView.context.getString(R.string.ai_processed_yes) else itemView.context.getString(R.string.ai_processed_no)
+        val aiStatus = when (r.aiPostStatus) {
+          AsrHistoryStore.AiPostStatus.SUCCESS -> itemView.context.getString(R.string.ai_processed_yes)
+          AsrHistoryStore.AiPostStatus.FAILED -> itemView.context.getString(R.string.ai_processed_failed)
+          AsrHistoryStore.AiPostStatus.NONE ->
+            if (r.aiProcessed) itemView.context.getString(R.string.ai_processed_yes)
+            else itemView.context.getString(R.string.ai_processed_no)
+        }
         val charsPart = "${r.charCount}${itemView.context.getString(R.string.unit_chars)}"
-        val totalPart = itemView.context.getString(R.string.meta_total_seconds, r.audioMs / 1000.0)
-        val parts = mutableListOf(vendor, source, ai, charsPart, totalPart)
+        val totalElapsedPart = if (r.totalElapsedMs > 0) {
+          itemView.context.getString(R.string.meta_total_elapsed_seconds, r.totalElapsedMs / 1000.0)
+        } else {
+          null
+        }
+        val audioPart = itemView.context.getString(R.string.meta_total_seconds, r.audioMs / 1000.0)
+        val parts = mutableListOf(vendor, source, aiStatus, charsPart)
+        if (totalElapsedPart != null) {
+          parts.add(totalElapsedPart)
+        }
+        parts.add(audioPart)
         if (r.procMs > 0) {
           parts.add(itemView.context.getString(R.string.meta_proc_seconds, r.procMs / 1000.0))
+        }
+        if (r.aiPostStatus != AsrHistoryStore.AiPostStatus.NONE || r.aiPostMs > 0) {
+          parts.add(itemView.context.getString(R.string.meta_ai_postproc_seconds, r.aiPostMs / 1000.0))
         }
         tvMeta.text = parts.joinToString("·")
 

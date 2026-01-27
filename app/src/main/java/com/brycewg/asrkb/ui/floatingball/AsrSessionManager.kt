@@ -11,6 +11,7 @@ import android.media.AudioAttributes
 import com.brycewg.asrkb.asr.*
 import com.brycewg.asrkb.asr.BluetoothRouteManager
 import com.brycewg.asrkb.asr.AsrTimeoutCalculator
+import com.brycewg.asrkb.store.AsrHistoryStore
 import com.brycewg.asrkb.store.Prefs
 import com.brycewg.asrkb.ui.AsrAccessibilityService.FocusContext
 import com.brycewg.asrkb.util.TextSanitizer
@@ -59,12 +60,17 @@ class AsrSessionManager(
     // 统计：录音时长
     private var sessionStartUptimeMs: Long = 0L
     private var lastAudioMsForStats: Long = 0L
+    // 统计/历史：端到端耗时起点（从开始录音到最终提交完成）
+    private var sessionStartTotalUptimeMs: Long = 0L
     // 统计：非流式请求处理耗时（毫秒）
     private var lastRequestDurationMs: Long? = null
     // 本地模型：Processing 阶段等待“模型就绪”的耗时（用于将处理耗时统计从模型就绪开始）
     private val localModelReadyWaitMs = AtomicLong(0L)
     // 标记：最近一次提交是否实际使用了 AI 输出
     private var lastAiUsed: Boolean = false
+    // 统计/历史：最近一次 AI 后处理耗时与状态
+    private var lastAiPostMs: Long = 0L
+    private var lastAiPostStatus: AsrHistoryStore.AiPostStatus = AsrHistoryStore.AiPostStatus.NONE
     // 统计/历史：最近一次最终结果的实际供应商（备用引擎场景下不再固定记录 prefs.asrVendor）
     private var sessionPrimaryVendor: AsrVendor = try { prefs.asrVendor } catch (_: Throwable) { AsrVendor.Volc }
     private var lastFinalVendorForStats: AsrVendor? = null
@@ -97,10 +103,14 @@ class AsrSessionManager(
             Log.w(TAG, "Failed to read uptime for session start", t)
             sessionStartUptimeMs = 0L
         }
+        sessionStartTotalUptimeMs = sessionStartUptimeMs
         lastAudioMsForStats = 0L
         // 新会话开始：重置请求耗时，避免上一轮的值串台
         lastRequestDurationMs = null
         localModelReadyWaitMs.set(0L)
+        lastAiUsed = false
+        lastAiPostMs = 0L
+        lastAiPostStatus = AsrHistoryStore.AiPostStatus.NONE
         // 开始录音前根据设置决定是否请求短时独占音频焦点（音频避让）
         if (prefs.duckMediaOnRecordEnabled) {
             requestTransientAudioFocus()
@@ -186,6 +196,28 @@ class AsrSessionManager(
     /** 最近一次提交是否实际使用了 AI 输出 */
     fun wasLastAiUsed(): Boolean = lastAiUsed
 
+    /** 读取并清空最近一次会话的端到端总耗时（毫秒）。 */
+    fun popLastTotalElapsedMsForStats(): Long {
+        val start = sessionStartTotalUptimeMs
+        if (start <= 0L) return 0L
+        val now = try {
+            SystemClock.uptimeMillis()
+        } catch (t: Throwable) {
+            Log.w(TAG, "Failed to read uptime for total elapsed ms", t)
+            sessionStartTotalUptimeMs = 0L
+            return 0L
+        }
+        val elapsed = if (now >= start) (now - start).coerceAtLeast(0L) else 0L
+        sessionStartTotalUptimeMs = if (asrEngine?.isRunning == true) now else 0L
+        return elapsed
+    }
+
+    /** 最近一次 AI 后处理耗时（毫秒）；未尝试时为 0 */
+    fun getLastAiPostMs(): Long = lastAiPostMs
+
+    /** 最近一次 AI 后处理状态 */
+    fun getLastAiPostStatus(): AsrHistoryStore.AiPostStatus = lastAiPostStatus
+
     fun peekLastFinalVendorForStats(): AsrVendor {
         return lastFinalVendorForStats ?: sessionPrimaryVendor
     }
@@ -197,6 +229,7 @@ class AsrSessionManager(
         } catch (e: Throwable) {
             Log.e(TAG, "Failed to stop ASR engine", e)
         }
+        sessionStartTotalUptimeMs = 0L
         try {
             processingTimeoutJob?.cancel()
         } catch (e: Throwable) {
@@ -231,9 +264,11 @@ class AsrSessionManager(
                 return@launch
             }
 
-            var finalText = text
-            lastAiUsed = false
-            val stillRecording = (asrEngine?.isRunning == true)
+	            var finalText = text
+	            lastAiUsed = false
+	            lastAiPostMs = 0L
+	            lastAiPostStatus = AsrHistoryStore.AiPostStatus.NONE
+	            val stillRecording = (asrEngine?.isRunning == true)
             // 若未收到 onStopped，则在此近似计算录音时长
             if (lastAudioMsForStats == 0L && sessionStartUptimeMs > 0L) {
                 try {
@@ -291,13 +326,27 @@ class AsrSessionManager(
                         postproc,
                         onStreamingUpdate = onStreamingUpdate
                     )
-                } catch (t: Throwable) {
-                    Log.e(TAG, "applyWithAi failed", t)
-                    com.brycewg.asrkb.asr.LlmPostProcessor.LlmProcessResult(false, text)
-                }
-                if (!res.ok) Log.w(TAG, "Post-processing failed; using processed text anyway")
-                val aiUsed = (res.usedAi && res.ok)
-                finalText = res.text.ifBlank { text }
+	                } catch (t: Throwable) {
+	                    Log.e(TAG, "applyWithAi failed", t)
+	                    com.brycewg.asrkb.asr.LlmPostProcessor.LlmProcessResult(
+	                        ok = false,
+	                        text = text,
+	                        errorMessage = t.message,
+	                        httpCode = null,
+	                        usedAi = false,
+	                        attempted = true,
+	                        llmMs = 0
+	                    )
+	                }
+	                if (!res.ok) Log.w(TAG, "Post-processing failed; using processed text anyway")
+	                val aiUsed = (res.usedAi && res.ok)
+	                lastAiPostMs = if (res.attempted) res.llmMs else 0L
+	                lastAiPostStatus = when {
+	                    res.attempted && aiUsed -> AsrHistoryStore.AiPostStatus.SUCCESS
+	                    res.attempted -> AsrHistoryStore.AiPostStatus.FAILED
+	                    else -> AsrHistoryStore.AiPostStatus.NONE
+	                }
+	                finalText = res.text.ifBlank { text }
                 if (typewriter != null && aiUsed && finalText.isNotEmpty() && focusContext != null) {
                     // 最终结果到达后：让打字机以最快速度追到最终文本，再进行最终提交
                     typewriter.submit(finalText, rush = true)
@@ -310,14 +359,16 @@ class AsrSessionManager(
                         delay(20)
                     }
                 }
-                postprocCommitted = true
-                typewriter?.cancel()
-                lastAiUsed = aiUsed
-                Log.d(TAG, "Post-processing completed: $finalText")
-            } else {
-                finalText = com.brycewg.asrkb.util.AsrFinalFilters.applySimple(context, prefs, text)
-                lastAiUsed = false
-            }
+	                postprocCommitted = true
+	                typewriter?.cancel()
+	                lastAiUsed = aiUsed
+	                Log.d(TAG, "Post-processing completed: $finalText")
+	            } else {
+	                finalText = com.brycewg.asrkb.util.AsrFinalFilters.applySimple(context, prefs, text)
+	                lastAiUsed = false
+	                lastAiPostMs = 0L
+	                lastAiPostStatus = AsrHistoryStore.AiPostStatus.NONE
+	            }
 
             // 更新状态
             if (asrEngine?.isRunning == true) {
@@ -675,20 +726,31 @@ class AsrSessionManager(
             return
         }
 
-        val textOut = if (prefs.postProcessEnabled && prefs.hasLlmKeys()) {
-            try {
-                val res = com.brycewg.asrkb.util.AsrFinalFilters.applyWithAi(context, prefs, candidate, postproc)
-                lastAiUsed = (res.usedAi && res.ok)
-                res.text
-            } catch (t: Throwable) {
-                Log.e(TAG, "applyWithAi failed in timeout fallback", t)
-                lastAiUsed = false
-                com.brycewg.asrkb.util.AsrFinalFilters.applySimple(context, prefs, candidate)
-            }
-        } else {
-            lastAiUsed = false
-            com.brycewg.asrkb.util.AsrFinalFilters.applySimple(context, prefs, candidate)
-        }
+	        val textOut = if (prefs.postProcessEnabled && prefs.hasLlmKeys()) {
+	            try {
+	                val res = com.brycewg.asrkb.util.AsrFinalFilters.applyWithAi(context, prefs, candidate, postproc)
+	                val aiUsed = (res.usedAi && res.ok)
+	                lastAiUsed = aiUsed
+	                lastAiPostMs = if (res.attempted) res.llmMs else 0L
+	                lastAiPostStatus = when {
+	                    res.attempted && aiUsed -> AsrHistoryStore.AiPostStatus.SUCCESS
+	                    res.attempted -> AsrHistoryStore.AiPostStatus.FAILED
+	                    else -> AsrHistoryStore.AiPostStatus.NONE
+	                }
+	                res.text.ifBlank { com.brycewg.asrkb.util.AsrFinalFilters.applySimple(context, prefs, candidate) }
+	            } catch (t: Throwable) {
+	                Log.e(TAG, "applyWithAi failed in timeout fallback", t)
+	                lastAiUsed = false
+	                lastAiPostMs = 0L
+	                lastAiPostStatus = AsrHistoryStore.AiPostStatus.FAILED
+	                com.brycewg.asrkb.util.AsrFinalFilters.applySimple(context, prefs, candidate)
+	            }
+	        } else {
+	            lastAiUsed = false
+	            lastAiPostMs = 0L
+	            lastAiPostStatus = AsrHistoryStore.AiPostStatus.NONE
+	            com.brycewg.asrkb.util.AsrFinalFilters.applySimple(context, prefs, candidate)
+	        }
 
         val success = insertTextToFocus(textOut)
         Log.d(TAG, "Fallback inserted=$success text='$textOut'")
