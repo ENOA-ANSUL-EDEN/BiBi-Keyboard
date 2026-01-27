@@ -1253,7 +1253,7 @@ class KeyboardActionHandler(
             Log.e(TAG, "applyWithAi failed", t)
             // 统一回退到 applySimple，确保语音预设仍然生效
             val fallback = try { com.brycewg.asrkb.util.AsrFinalFilters.applySimple(context, prefs, text) } catch (_: Throwable) { preTrimRaw }
-            com.brycewg.asrkb.asr.LlmPostProcessor.LlmProcessResult(false, fallback)
+            com.brycewg.asrkb.asr.LlmPostProcessor.LlmProcessResult(ok = false, text = fallback, attempted = true, llmMs = 0L)
         }
         val postprocFailed = !res.ok
         if (postprocFailed) {
