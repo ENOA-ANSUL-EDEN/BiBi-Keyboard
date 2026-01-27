@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
-    <!-- 使用主题容器色，支持浅色/深色模式与 Monet 动态取色 -->
-    <solid android:color="?attr/colorSurface" />
-    <corners android:radius="14dp" />
-    <size android:width="28dp" android:height="28dp" />
-</shape>

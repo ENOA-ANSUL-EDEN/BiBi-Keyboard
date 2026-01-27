@@ -4,6 +4,7 @@ import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
 import android.animation.ValueAnimator
 import android.content.Context
+import android.graphics.Outline
 import android.graphics.PixelFormat
 import android.os.Build
 import android.util.Log
@@ -12,6 +13,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.WindowManager
 import android.view.WindowInsets
+import android.view.ViewOutlineProvider
 import android.view.animation.DecelerateInterpolator
 import android.widget.ImageView
 import androidx.core.graphics.toColorInt
@@ -21,6 +23,7 @@ import com.brycewg.asrkb.UiColors
 import com.brycewg.asrkb.store.Prefs
 import com.brycewg.asrkb.ui.widgets.ProcessingSpinnerView
 import com.google.android.material.color.DynamicColors
+import kotlin.math.sqrt
 
 /**
  * 悬浮球视图管理器
@@ -33,11 +36,18 @@ class FloatingBallViewManager(
 ) {
     companion object {
         private const val TAG = "FloatingBallViewManager"
+
+        private const val RIPPLE_ORIGIN_X_FRACTION = 0.55f
+        private const val RIPPLE_ORIGIN_Y_FRACTION = 0.45f
+        private const val RIPPLE_CLIP_INSET_FRACTION = 0.06f
+        private const val RIPPLE_START_SCALE = 0.10f
+        private const val RIPPLE_MAX_SCALE_EXTRA = 0.02f
     }
 
     private var ballView: View? = null
     private var ballIcon: ImageView? = null
     private var processingSpinner: ProcessingSpinnerView? = null
+    private var rippleClip: View? = null
     private var ripple1: View? = null
     private var ripple2: View? = null
     private var ripple3: View? = null
@@ -80,6 +90,7 @@ class FloatingBallViewManager(
 
             val view = LayoutInflater.from(dynCtx).inflate(R.layout.floating_asr_ball, null, false)
             ballIcon = view.findViewById(R.id.ballIcon)
+            rippleClip = view.findViewById(R.id.rippleClip)
             ripple1 = view.findViewById(R.id.ripple1)
             ripple2 = view.findViewById(R.id.ripple2)
             ripple3 = view.findViewById(R.id.ripple3)
@@ -163,6 +174,7 @@ class FloatingBallViewManager(
         ripple1 = null
         ripple2 = null
         ripple3 = null
+        rippleClip = null
         lp = null
     }
 
@@ -201,6 +213,11 @@ class FloatingBallViewManager(
         } catch (e: Throwable) {
             Log.w(TAG, "Failed to update ball icon size", e)
         }
+
+        v.post {
+            applyRippleClipOutline()
+            applyRippleOriginOffset()
+        }
     }
 
     /** 根据悬浮球窗口大小按比例调整麦克风图标尺寸 */
@@ -208,7 +225,7 @@ class FloatingBallViewManager(
         val icon = ballIcon ?: return
         val p = lp ?: return
         val ballSidePx = listOf(p.width, p.height).filter { it > 0 }.minOrNull() ?: return
-        val target = (ballSidePx * 0.75f).toInt().coerceAtLeast(dp(20))
+        val target = ballSidePx
         val lpIcon = icon.layoutParams ?: return
         if (lpIcon.width != target || lpIcon.height != target) {
             lpIcon.width = target
@@ -225,13 +242,13 @@ class FloatingBallViewManager(
 
         when (state) {
             is FloatingBallState.Recording -> {
-                try { ballIcon?.setImageResource(R.drawable.microphone_fill) } catch (e: Throwable) { Log.w(TAG, "Failed to set ball icon (recording)", e) }
+                try { ballIcon?.setImageResource(R.drawable.microphone_floatingball) } catch (e: Throwable) { Log.w(TAG, "Failed to set ball icon (recording)", e) }
                 processingSpinner?.visibility = View.GONE
                 stopProcessingSpinner()
                 startRippleAnimation()
             }
             is FloatingBallState.Processing -> {
-                try { ballIcon?.setImageResource(R.drawable.microphone) } catch (e: Throwable) { Log.w(TAG, "Failed to set ball icon (processing)", e) }
+                try { ballIcon?.setImageResource(R.drawable.microphone_floatingball) } catch (e: Throwable) { Log.w(TAG, "Failed to set ball icon (processing)", e) }
                 stopRippleAnimation()
                 processingSpinner?.visibility = View.VISIBLE
                 startProcessingSpinner()
@@ -244,7 +261,7 @@ class FloatingBallViewManager(
             }
             else -> {
                 // Idle, MoveMode
-                try { ballIcon?.setImageResource(R.drawable.microphone) } catch (e: Throwable) { Log.w(TAG, "Failed to set ball icon (idle/move)", e) }
+                try { ballIcon?.setImageResource(R.drawable.microphone_floatingball) } catch (e: Throwable) { Log.w(TAG, "Failed to set ball icon (idle/move)", e) }
                 stopRippleAnimation()
                 processingSpinner?.visibility = View.GONE
                 stopProcessingSpinner()
@@ -351,7 +368,7 @@ class FloatingBallViewManager(
             completionResetPosted = true
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                 try {
-                    ballIcon?.setImageResource(R.drawable.microphone)
+                    ballIcon?.setImageResource(R.drawable.microphone_floatingball)
                 } catch (e: Throwable) {
                     Log.e(TAG, "Failed to reset icon", e)
                 }
@@ -489,6 +506,51 @@ class FloatingBallViewManager(
                     Log.w(TAG, "Failed to set ripple background", e)
                 }
             }
+        }
+        applyRippleClipOutline()
+        applyRippleOriginOffset()
+    }
+
+    private fun applyRippleClipOutline() {
+        val clip = rippleClip ?: return
+        clip.outlineProvider = object : ViewOutlineProvider() {
+            override fun getOutline(view: View, outline: Outline) {
+                val w = view.width
+                val h = view.height
+                val side = minOf(w, h)
+                if (side <= 0) {
+                    outline.setEmpty()
+                    return
+                }
+                val inset = (side * RIPPLE_CLIP_INSET_FRACTION).toInt()
+                val left = (w - side) / 2 + inset
+                val top = (h - side) / 2 + inset
+                val right = (w + side) / 2 - inset
+                val bottom = (h + side) / 2 - inset
+                if (right <= left || bottom <= top) {
+                    outline.setEmpty()
+                    return
+                }
+                outline.setOval(left, top, right, bottom)
+            }
+        }
+        clip.clipToOutline = true
+        clip.invalidateOutline()
+    }
+
+    private fun applyRippleOriginOffset() {
+        listOf(ripple1, ripple2, ripple3).forEach { ripple ->
+            ripple ?: return@forEach
+            val w = ripple.width.toFloat()
+            val h = ripple.height.toFloat()
+            if (w <= 0f || h <= 0f) return@forEach
+
+            val centerX = w / 2f
+            val centerY = h / 2f
+            ripple.pivotX = centerX
+            ripple.pivotY = centerY
+            ripple.translationX = w * RIPPLE_ORIGIN_X_FRACTION - centerX
+            ripple.translationY = h * RIPPLE_ORIGIN_Y_FRACTION - centerY
         }
     }
 
@@ -962,6 +1024,12 @@ class FloatingBallViewManager(
     private fun startRippleAnimation() {
         stopRippleAnimation()
 
+        val dx = RIPPLE_ORIGIN_X_FRACTION - 0.5f
+        val dy = RIPPLE_ORIGIN_Y_FRACTION - 0.5f
+        val offset = sqrt((dx * dx + dy * dy).toDouble()).toFloat()
+        val clipRadiusFraction = (1f - 2f * RIPPLE_CLIP_INSET_FRACTION).coerceIn(0.1f, 1f)
+        val maxScale = (clipRadiusFraction + 2f * offset + RIPPLE_MAX_SCALE_EXTRA).coerceAtLeast(clipRadiusFraction)
+
         val ripples = listOf(ripple1, ripple2, ripple3)
         ripples.forEachIndexed { index, ripple ->
             ripple ?: return@forEachIndexed
@@ -976,18 +1044,18 @@ class FloatingBallViewManager(
 
                 addUpdateListener { anim ->
                     val progress = anim.animatedValue as Float
-                    val scale = 0.10f + progress * 0.90f
+                    val scale = RIPPLE_START_SCALE + progress * (maxScale - RIPPLE_START_SCALE)
                     ripple.scaleX = scale
                     ripple.scaleY = scale
-                    val alpha = (1f - progress)
+                    val alpha = sqrt((1f - progress).coerceIn(0f, 1f).toDouble()).toFloat()
                     ripple.alpha = alpha
                     ripple.visibility = if (alpha > 0.01f) View.VISIBLE else View.INVISIBLE
                 }
 
                 addListener(object : AnimatorListenerAdapter() {
                     override fun onAnimationRepeat(animation: Animator) {
-                        ripple.scaleX = 0.10f
-                        ripple.scaleY = 0.10f
+                        ripple.scaleX = RIPPLE_START_SCALE
+                        ripple.scaleY = RIPPLE_START_SCALE
                     }
                 })
 

@@ -7,28 +7,35 @@
         android:id="@+id/ballContainer"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="@drawable/bg_floating_ball"
+        android:background="@drawable/bg_floating_ball_clip"
         android:clipToOutline="true">
 
-        <View
-            android:id="@+id/ripple1"
-            style="@style/FloatingBallRipple" />
+        <FrameLayout
+            android:id="@+id/rippleClip"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToOutline="true">
 
-        <View
-            android:id="@+id/ripple2"
-            style="@style/FloatingBallRipple" />
+            <View
+                android:id="@+id/ripple1"
+                style="@style/FloatingBallRipple" />
 
-        <View
-            android:id="@+id/ripple3"
-            style="@style/FloatingBallRipple" />
+            <View
+                android:id="@+id/ripple2"
+                style="@style/FloatingBallRipple" />
+
+            <View
+                android:id="@+id/ripple3"
+                style="@style/FloatingBallRipple" />
+        </FrameLayout>
 
         <!-- 图标置于最上层，保证点击与可见性 -->
         <ImageView
             android:id="@+id/ballIcon"
-            android:layout_width="30dp"
-            android:layout_height="30dp"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
             android:layout_gravity="center"
-            android:src="@drawable/microphone"
+            android:src="@drawable/microphone_floatingball"
             android:scaleType="fitCenter"
             android:tint="?attr/colorSecondary"
             android:contentDescription="@string/cd_floating_asr" />
