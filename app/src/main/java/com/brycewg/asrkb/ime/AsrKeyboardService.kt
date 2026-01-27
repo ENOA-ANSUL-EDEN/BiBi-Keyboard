@@ -329,6 +329,8 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
         // 每次键盘视图启动时应用一次高度/底部间距等缩放
         applyKeyboardHeightScale(rootView)
         rootView?.requestLayout()
+        // 冷启动首帧偶现 system insets 迟到/不稳定：主动触发一次重新分发，降低高度异常概率
+        rootView?.let { androidx.core.view.ViewCompat.requestApplyInsets(it) }
         DebugLogManager.log(
             category = "ime",
             event = "start_input_view",
@@ -451,6 +453,76 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
     override fun onEvaluateFullscreenMode(): Boolean {
         // 避免全屏候选，保持紧凑的麦克风键盘
         return false
+    }
+
+    override fun onComputeInsets(outInsets: InputMethodService.Insets) {
+        super.onComputeInsets(outInsets)
+        // 冷启动偶现：系统拿到错误的 Insets（contentTopInsets=0），导致宿主被过度 adjustResize，
+        // 表现为输入框被顶到接近屏幕顶端、键盘仍在底部、两者之间出现大块空白区域（IME 背景色）。
+        // 这里按实际输入视图高度/位置兜底修正，避免首次 insets 失真后卡住直到下一次收起/唤出。
+        fixImeInsetsIfNeeded(outInsets)
+    }
+
+    private fun fixImeInsetsIfNeeded(outInsets: InputMethodService.Insets) {
+        if (!imeViewVisible) return
+        val input = rootView ?: return
+        val decor = window?.window?.decorView ?: return
+
+        val decorH = decor.height
+        val decorW = decor.width
+        if (decorH <= 0 || decorW <= 0) return
+
+        var inputH = input.height
+        if (inputH <= 0) {
+            // 视图尚未 layout 时，使用一次 measure 获取 wrap_content 目标高度
+            try {
+                val wSpec = View.MeasureSpec.makeMeasureSpec(decorW, View.MeasureSpec.EXACTLY)
+                val hSpec = View.MeasureSpec.makeMeasureSpec(decorH, View.MeasureSpec.AT_MOST)
+                input.measure(wSpec, hSpec)
+                inputH = input.measuredHeight
+            } catch (_: Throwable) {
+                return
+            }
+        }
+        if (inputH <= 0) return
+
+        val beforeContentTop = outInsets.contentTopInsets
+        val beforeVisibleTop = outInsets.visibleTopInsets
+        if (beforeContentTop > 0) return
+
+        var top = 0
+        run {
+            try {
+                val loc = IntArray(2)
+                input.getLocationInWindow(loc)
+                if (loc[1] > 0) top = loc[1]
+            } catch (_: Throwable) { }
+        }
+        if (top <= 0) top = decorH - inputH
+        top = top.coerceIn(0, decorH)
+
+        // window 明显高于 inputView，但系统仍认为 contentTopInsets=0 -> 典型异常场景
+        val needsFix = top > 0 && decorH > inputH
+        if (!needsFix) return
+
+        outInsets.contentTopInsets = top
+        outInsets.visibleTopInsets = top
+        outInsets.touchableInsets = InputMethodService.Insets.TOUCHABLE_INSETS_REGION
+        // 触摸区域限定为键盘区域，避免空白区域吞触摸
+        outInsets.touchableRegion.set(0, top, decorW, decorH)
+
+        DebugLogManager.log(
+            category = "ime",
+            event = "compute_insets_fix",
+            data = mapOf(
+                "decorH" to decorH,
+                "decorW" to decorW,
+                "inputH" to inputH,
+                "beforeContentTop" to beforeContentTop,
+                "beforeVisibleTop" to beforeVisibleTop,
+                "afterTop" to top
+            )
+        )
     }
 
     // ========== KeyboardActionHandler.UiListener 实现 ==========
