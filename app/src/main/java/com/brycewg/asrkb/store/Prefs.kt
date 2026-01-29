@@ -1,32 +1,19 @@
 package com.brycewg.asrkb.store
 
 import android.content.Context
-import android.content.SharedPreferences
 import android.util.Log
 import androidx.core.content.edit
 import com.brycewg.asrkb.asr.AsrVendor
 import com.brycewg.asrkb.asr.LlmVendor
-import com.brycewg.asrkb.asr.ReasoningMode
-import com.brycewg.asrkb.store.debug.DebugLogManager
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlin.reflect.KProperty
-import java.io.File
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 
 class Prefs(context: Context) {
     private val appContext = context.applicationContext
     private val sp = appContext.getSharedPreferences("asr_prefs", Context.MODE_PRIVATE)
     init {
-        registerGlobalToggleListenerIfNeeded()
-        migrateFunAsrFromSenseVoiceIfNeeded()
-        normalizeFunAsrVariantIfNeeded()
-        cleanupLegacyFunAsrModelsIfNeeded()
+        PrefsInitTasks.run(appContext, sp)
     }
 
     // --- JSON 配置：宽松模式（容忍未知键，优雅处理格式错误）---
@@ -49,94 +36,11 @@ class Prefs(context: Context) {
     }
 
     // 直接从 SP 读取字符串，供通用导入/导出和校验使用
-    private fun getPrefString(key: String, default: String = ""): String =
+    internal fun getPrefString(key: String, default: String = ""): String =
         sp.getString(key, default) ?: default
 
-    private fun setPrefString(key: String, value: String) {
+    internal fun setPrefString(key: String, value: String) {
         sp.edit { putString(key, value.trim()) }
-    }
-
-    private fun registerGlobalToggleListenerIfNeeded() {
-        if (!TOGGLE_LISTENER_REGISTERED) {
-            try {
-                sp.registerOnSharedPreferenceChangeListener(globalToggleListener)
-                TOGGLE_LISTENER_REGISTERED = true
-            } catch (t: Throwable) {
-                Log.w(TAG, "Failed to register global toggle listener", t)
-            }
-        }
-    }
-
-    private fun migrateFunAsrFromSenseVoiceIfNeeded() {
-        try {
-            if (sp.contains(KEY_FN_MODEL_VARIANT)) return
-            val svVariant = sp.getString(KEY_SV_MODEL_VARIANT, "") ?: ""
-            if (!svVariant.startsWith("nano-")) return
-
-            sp.edit {
-                putString(KEY_FN_MODEL_VARIANT, svVariant)
-                putInt(KEY_FN_NUM_THREADS, sp.getInt(KEY_SV_NUM_THREADS, 4).coerceIn(1, 8))
-                // FunASR Nano：ITN 由 LLM 输出承担即可，默认关闭；仅在用户曾显式开启 SenseVoice ITN 时继承为 true
-                putBoolean(KEY_FN_USE_ITN, sp.getBoolean(KEY_SV_USE_ITN, false))
-                putBoolean(KEY_FN_PRELOAD_ENABLED, sp.getBoolean(KEY_SV_PRELOAD_ENABLED, true))
-                putInt(KEY_FN_KEEP_ALIVE_MINUTES, sp.getInt(KEY_SV_KEEP_ALIVE_MINUTES, -1))
-                // 若当前选择为 SenseVoice 且使用 nano 变体，自动迁移到 FunASR Nano
-                val currentVendor = sp.getString(KEY_ASR_VENDOR, AsrVendor.SiliconFlow.id) ?: AsrVendor.SiliconFlow.id
-                if (currentVendor == AsrVendor.SenseVoice.id) {
-                    putString(KEY_ASR_VENDOR, AsrVendor.FunAsrNano.id)
-                    putString(KEY_SV_MODEL_VARIANT, "small-int8")
-                }
-            }
-        } catch (t: Throwable) {
-            Log.w(TAG, "Failed to migrate FunASR Nano prefs from SenseVoice", t)
-        }
-    }
-
-    private fun normalizeFunAsrVariantIfNeeded() {
-        try {
-            if (!sp.contains(KEY_FN_MODEL_VARIANT)) return
-            val variant = sp.getString(KEY_FN_MODEL_VARIANT, "nano-int8") ?: "nano-int8"
-            if (variant == "nano-int8") return
-            sp.edit { putString(KEY_FN_MODEL_VARIANT, "nano-int8") }
-        } catch (t: Throwable) {
-            Log.w(TAG, "Failed to normalize FunASR Nano variant", t)
-        }
-    }
-
-    private fun cleanupLegacyFunAsrModelsIfNeeded() {
-        try {
-            if (sp.getBoolean(KEY_FN_LEGACY_MODEL_CLEANED, false)) return
-            if (FN_LEGACY_CLEANUP_STARTED) return
-            FN_LEGACY_CLEANUP_STARTED = true
-            sp.edit { putBoolean(KEY_FN_LEGACY_MODEL_CLEANED, true) }
-            val base = try {
-                appContext.getExternalFilesDir(null)
-            } catch (t: Throwable) {
-                Log.w(TAG, "Failed to get external files dir for FunASR cleanup", t)
-                null
-            } ?: appContext.filesDir
-
-            val legacyTargets = listOf(
-                File(File(base, "sensevoice"), "nano-int8"),
-                File(File(base, "sensevoice"), "nano-full")
-            )
-
-            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-                legacyTargets.forEach { dir ->
-                    if (!dir.exists()) return@forEach
-                    try {
-                        if (!dir.deleteRecursively()) {
-                            Log.w(TAG, "Failed to delete legacy FunASR dir: ${dir.path}")
-                        }
-                    } catch (t: Throwable) {
-                        Log.w(TAG, "Error deleting legacy FunASR dir: ${dir.path}", t)
-                    }
-                }
-                FN_LEGACY_CLEANUP_STARTED = false
-            }
-        } catch (t: Throwable) {
-            Log.w(TAG, "Failed to cleanup legacy FunASR models", t)
-        }
     }
 
     // 火山引擎凭证
@@ -433,44 +337,11 @@ class Prefs(context: Context) {
         val reasoningParamsOffJson: String = ""
     )
 
-    fun getLlmProviders(): List<LlmProvider> {
-        // 首次使用：若未初始化，迁移旧字段为一个默认配置
-        if (llmProvidersJson.isBlank()) {
-            val migrated = LlmProvider(
-                id = "default",
-                name = "默认",
-                endpoint = llmEndpoint.ifBlank { DEFAULT_LLM_ENDPOINT },
-                apiKey = llmApiKey,
-                model = llmModel.ifBlank { DEFAULT_LLM_MODEL },
-                temperature = llmTemperature
-            )
-            setLlmProviders(listOf(migrated))
-            if (activeLlmId.isBlank()) activeLlmId = migrated.id
-        }
-        return try {
-            json.decodeFromString<List<LlmProvider>>(llmProvidersJson)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to parse LlmProviders JSON", e)
-            emptyList()
-        }
-    }
+    fun getLlmProviders(): List<LlmProvider> = PrefsLlmProviderStore.getLlmProviders(this, json)
 
-    fun setLlmProviders(list: List<LlmProvider>) {
-        try {
-            llmProvidersJson = json.encodeToString(list)
-            if (list.none { it.id == activeLlmId }) {
-                activeLlmId = list.firstOrNull()?.id ?: ""
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to serialize LlmProviders", e)
-        }
-    }
+    fun setLlmProviders(list: List<LlmProvider>) = PrefsLlmProviderStore.setLlmProviders(this, json, list)
 
-    fun getActiveLlmProvider(): LlmProvider? {
-        val id = activeLlmId
-        val list = getLlmProviders()
-        return list.firstOrNull { it.id == id } ?: list.firstOrNull()
-    }
+    fun getActiveLlmProvider(): LlmProvider? = PrefsLlmProviderStore.getActiveLlmProvider(this, json)
 
     // 已弃用：单一提示词。保留用于向后兼容/迁移。
     var llmPrompt: String
@@ -496,7 +367,7 @@ class Prefs(context: Context) {
             setPromptPresets(defaults)
             // 将第一个设为活动状态
             if (activePromptId.isBlank()) activePromptId = defaults.firstOrNull()?.id ?: ""
-            return migrateLegacyPromptIfNeeded(defaults, legacyPrompt, initializedFromDefaults)
+            return PromptPresetMigrations.migrateLegacyPromptIfNeeded(this, defaults, legacyPrompt, initializedFromDefaults)
         }
         val parsed = try {
             val list = json.decodeFromString<List<PromptPreset>>(promptPresetsJson)
@@ -505,7 +376,7 @@ class Prefs(context: Context) {
             Log.e(TAG, "Failed to parse PromptPresets JSON", e)
             buildDefaultPromptPresets()
         }
-        return migrateLegacyPromptIfNeeded(parsed, legacyPrompt, initializedFromDefaults)
+        return PromptPresetMigrations.migrateLegacyPromptIfNeeded(this, parsed, legacyPrompt, initializedFromDefaults)
     }
 
     fun setPromptPresets(list: List<PromptPreset>) {
@@ -518,37 +389,6 @@ class Prefs(context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "Failed to serialize PromptPresets", e)
         }
-    }
-
-    private fun migrateLegacyPromptIfNeeded(
-        current: List<PromptPreset>,
-        legacyPrompt: String,
-        initializedFromDefaults: Boolean
-    ): List<PromptPreset> {
-        if (legacyPrompt.isBlank()) return current
-        if (current.any { it.content == legacyPrompt }) return current
-
-        val migratedPreset = PromptPreset(
-            id = java.util.UUID.randomUUID().toString(),
-            title = "我的提示词",
-            content = legacyPrompt
-        )
-        val updated = current + migratedPreset
-        val shouldActivate = initializedFromDefaults ||
-            activePromptId.isBlank() ||
-            current.none { it.id == activePromptId } ||
-            matchesDefaultPromptPresets(current)
-        if (shouldActivate) {
-            activePromptId = migratedPreset.id
-        }
-        setPromptPresets(updated)
-        return updated
-    }
-
-    private fun matchesDefaultPromptPresets(presets: List<PromptPreset>): Boolean {
-        val defaults = buildDefaultPromptPresets()
-        if (presets.size != defaults.size) return false
-        return presets.map { it.title to it.content } == defaults.map { it.title to it.content }
     }
 
     /**
@@ -575,44 +415,12 @@ class Prefs(context: Context) {
         get() = sp.getString(KEY_SPEECH_PRESET_ACTIVE_ID, "") ?: ""
         set(value) = sp.edit { putString(KEY_SPEECH_PRESET_ACTIVE_ID, value) }
 
-    fun getSpeechPresets(): List<SpeechPreset> {
-        if (speechPresetsJson.isBlank()) return emptyList()
-        return try {
-            json.decodeFromString<List<SpeechPreset>>(speechPresetsJson)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to parse SpeechPresets JSON", e)
-            emptyList()
-        }
-    }
+    fun getSpeechPresets(): List<SpeechPreset> = SpeechPresetStore.getSpeechPresets(this, json)
 
-    fun setSpeechPresets(list: List<SpeechPreset>) {
-        val sanitized = list.mapNotNull { p ->
-            val name = p.name.trim()
-            if (name.isEmpty()) {
-                null
-            } else {
-                val id = p.id.ifBlank { java.util.UUID.randomUUID().toString() }
-                SpeechPreset(id, name, p.content)
-            }
-        }
-        try {
-            speechPresetsJson = json.encodeToString(sanitized)
-            if (sanitized.none { it.id == activeSpeechPresetId }) {
-                activeSpeechPresetId = sanitized.firstOrNull()?.id ?: ""
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to serialize SpeechPresets", e)
-        }
-    }
+    fun setSpeechPresets(list: List<SpeechPreset>) = SpeechPresetStore.setSpeechPresets(this, json, list)
 
-    fun findSpeechPresetReplacement(original: String): String? {
-        val normalized = original.trim()
-        if (normalized.isEmpty()) return null
-        val presets = getSpeechPresets()
-        val strict = presets.firstOrNull { it.name.trim() == normalized }
-        val match = strict ?: presets.firstOrNull { it.name.trim().equals(normalized, ignoreCase = true) }
-        return match?.content
-    }
+    fun findSpeechPresetReplacement(original: String): String? =
+        SpeechPresetStore.findSpeechPresetReplacement(this, json, original)
 
     // SiliconFlow凭证
     var sfApiKey: String by stringPref(KEY_SF_API_KEY, "")
@@ -677,223 +485,57 @@ class Prefs(context: Context) {
         set(value) = sp.edit { putString(KEY_LLM_VENDOR, value.id) }
 
     // 内置供应商 API Key 存储（按供应商 ID 分别存储）
-    fun getLlmVendorApiKey(vendor: LlmVendor): String {
-        val key = "llm_vendor_${vendor.id}_api_key"
-        return sp.getString(key, "") ?: ""
-    }
+    fun getLlmVendorApiKey(vendor: LlmVendor): String =
+        PrefsLlmVendorStore.getLlmVendorApiKey(sp, vendor)
 
-    fun setLlmVendorApiKey(vendor: LlmVendor, apiKey: String) {
-        val key = "llm_vendor_${vendor.id}_api_key"
-        sp.edit { putString(key, apiKey.trim()) }
-    }
+    fun setLlmVendorApiKey(vendor: LlmVendor, apiKey: String) =
+        PrefsLlmVendorStore.setLlmVendorApiKey(sp, vendor, apiKey)
 
-    // 内置供应商模型选择（按供应商 ID 分别存储）
-    fun getLlmVendorModel(vendor: LlmVendor): String {
-        val key = "llm_vendor_${vendor.id}_model"
-        val stored = sp.getString(key, null)
-        // 如果未设置，返回供应商默认模型
-        return stored ?: vendor.defaultModel
-    }
+    fun getLlmVendorModel(vendor: LlmVendor): String =
+        PrefsLlmVendorStore.getLlmVendorModel(sp, vendor)
 
-    fun setLlmVendorModel(vendor: LlmVendor, model: String) {
-        val key = "llm_vendor_${vendor.id}_model"
-        sp.edit { putString(key, model.trim()) }
-    }
+    fun setLlmVendorModel(vendor: LlmVendor, model: String) =
+        PrefsLlmVendorStore.setLlmVendorModel(sp, vendor, model)
 
-    // 内置供应商 Temperature（按供应商 ID 分别存储）
-    fun getLlmVendorTemperature(vendor: LlmVendor): Float {
-        val key = "llm_vendor_${vendor.id}_temperature"
-        return sp.getFloat(key, DEFAULT_LLM_TEMPERATURE)
-    }
+    fun getLlmVendorTemperature(vendor: LlmVendor): Float =
+        PrefsLlmVendorStore.getLlmVendorTemperature(sp, vendor)
 
-    fun setLlmVendorTemperature(vendor: LlmVendor, temperature: Float) {
-        val key = "llm_vendor_${vendor.id}_temperature"
-        sp.edit { putFloat(key, temperature.coerceIn(vendor.temperatureMin, vendor.temperatureMax)) }
-    }
+    fun setLlmVendorTemperature(vendor: LlmVendor, temperature: Float) =
+        PrefsLlmVendorStore.setLlmVendorTemperature(sp, vendor, temperature)
 
-    // 内置供应商推理模式开关（按供应商 ID 分别存储，默认关闭）
-    fun getLlmVendorReasoningEnabled(vendor: LlmVendor): Boolean {
-        val key = "llm_vendor_${vendor.id}_reasoning_enabled"
-        return sp.getBoolean(key, false)
-    }
+    fun getLlmVendorReasoningEnabled(vendor: LlmVendor): Boolean =
+        PrefsLlmVendorStore.getLlmVendorReasoningEnabled(sp, vendor)
 
-    fun setLlmVendorReasoningEnabled(vendor: LlmVendor, enabled: Boolean) {
-        val key = "llm_vendor_${vendor.id}_reasoning_enabled"
-        sp.edit { putBoolean(key, enabled) }
-    }
+    fun setLlmVendorReasoningEnabled(vendor: LlmVendor, enabled: Boolean) =
+        PrefsLlmVendorStore.setLlmVendorReasoningEnabled(sp, vendor, enabled)
 
-    fun getLlmVendorModels(vendor: LlmVendor): List<String> {
-        val key = "llm_vendor_${vendor.id}_models_json"
-        if (vendor == LlmVendor.SF_FREE && !sfFreeLlmUsePaidKey) {
-            return SF_FREE_LLM_MODELS
-        }
-        val fallback = vendor.models
-        val raw = sp.getString(key, "") ?: ""
-        if (raw.isBlank()) return fallback
-        return try {
-            val parsed = json.decodeFromString<List<String>>(raw)
-            val cleaned = parsed.map { it.trim() }.filter { it.isNotBlank() }.distinct()
-            if (cleaned.isEmpty()) fallback else cleaned
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to parse LLM vendor models JSON", e)
-            fallback
-        }
-    }
+    fun getLlmVendorModels(vendor: LlmVendor): List<String> =
+        PrefsLlmVendorStore.getLlmVendorModels(sp, json, vendor, sfFreeLlmUsePaidKey)
 
-    fun setLlmVendorModels(vendor: LlmVendor, models: List<String>) {
-        val key = "llm_vendor_${vendor.id}_models_json"
-        val cleaned = models.map { it.trim() }.filter { it.isNotBlank() }.distinct()
-        try {
-            val raw = json.encodeToString(cleaned)
-            sp.edit { putString(key, raw) }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to serialize LLM vendor models", e)
-        }
-    }
+    fun setLlmVendorModels(vendor: LlmVendor, models: List<String>) =
+        PrefsLlmVendorStore.setLlmVendorModels(sp, json, vendor, models)
 
-    fun setLlmVendorModelsJson(vendor: LlmVendor, raw: String) {
-        val key = "llm_vendor_${vendor.id}_models_json"
-        sp.edit { putString(key, raw.trim()) }
-    }
+    fun setLlmVendorModelsJson(vendor: LlmVendor, raw: String) =
+        PrefsLlmVendorStore.setLlmVendorModelsJson(sp, vendor, raw)
 
-    fun getLlmVendorReasoningParamsOnJson(vendor: LlmVendor): String {
-        val key = "llm_vendor_${vendor.id}_reasoning_on_json"
-        val stored = sp.getString(key, "") ?: ""
-        return stored.ifBlank { defaultReasoningParamsOnJson(vendor) }
-    }
+    fun getLlmVendorReasoningParamsOnJson(vendor: LlmVendor): String =
+        PrefsLlmVendorStore.getLlmVendorReasoningParamsOnJson(sp, vendor)
 
-    fun setLlmVendorReasoningParamsOnJson(vendor: LlmVendor, json: String) {
-        val key = "llm_vendor_${vendor.id}_reasoning_on_json"
-        sp.edit { putString(key, json.trim()) }
-    }
+    fun setLlmVendorReasoningParamsOnJson(vendor: LlmVendor, json: String) =
+        PrefsLlmVendorStore.setLlmVendorReasoningParamsOnJson(sp, vendor, json)
 
-    fun getLlmVendorReasoningParamsOffJson(vendor: LlmVendor): String {
-        val key = "llm_vendor_${vendor.id}_reasoning_off_json"
-        val stored = sp.getString(key, "") ?: ""
-        return stored.ifBlank { defaultReasoningParamsOffJson(vendor) }
-    }
+    fun getLlmVendorReasoningParamsOffJson(vendor: LlmVendor): String =
+        PrefsLlmVendorStore.getLlmVendorReasoningParamsOffJson(sp, vendor)
 
-    fun setLlmVendorReasoningParamsOffJson(vendor: LlmVendor, json: String) {
-        val key = "llm_vendor_${vendor.id}_reasoning_off_json"
-        sp.edit { putString(key, json.trim()) }
-    }
-
-    private fun defaultReasoningParamsOnJson(vendor: LlmVendor): String {
-        return when (vendor.reasoningMode) {
-            ReasoningMode.ENABLE_THINKING -> """{"enable_thinking":true}"""
-            ReasoningMode.THINKING_TYPE -> """{"thinking":{"type":"enabled"}}"""
-            ReasoningMode.REASONING_EFFORT -> """{"reasoning_effort":"medium"}"""
-            ReasoningMode.MODEL_SELECTION,
-            ReasoningMode.NONE -> DEFAULT_CUSTOM_REASONING_PARAMS_ON_JSON
-        }
-    }
-
-    private fun defaultReasoningParamsOffJson(vendor: LlmVendor): String {
-        return when (vendor) {
-            LlmVendor.CEREBRAS -> """{"reasoning_effort":"low"}"""
-            else -> when (vendor.reasoningMode) {
-                ReasoningMode.ENABLE_THINKING -> """{"enable_thinking":false}"""
-                ReasoningMode.THINKING_TYPE -> """{"thinking":{"type":"disabled"}}"""
-                ReasoningMode.REASONING_EFFORT -> """{"reasoning_effort":"none"}"""
-                ReasoningMode.MODEL_SELECTION,
-                ReasoningMode.NONE -> DEFAULT_CUSTOM_REASONING_PARAMS_OFF_JSON
-            }
-        }
-    }
-
-    private fun isBuiltinLlmPresetModel(vendor: LlmVendor, model: String): Boolean {
-        if (model.isBlank()) return false
-        if (vendor == LlmVendor.SF_FREE && !sfFreeLlmUsePaidKey) {
-            return SF_FREE_LLM_MODELS.contains(model)
-        }
-        return vendor.models.contains(model)
-    }
+    fun setLlmVendorReasoningParamsOffJson(vendor: LlmVendor, json: String) =
+        PrefsLlmVendorStore.setLlmVendorReasoningParamsOffJson(sp, vendor, json)
 
     /**
      * 获取当前有效的 LLM 配置（根据选择的供应商）
      * @return EffectiveLlmConfig 或 null（如果配置无效）
      */
-    fun getEffectiveLlmConfig(): EffectiveLlmConfig? {
-        return when (val vendor = llmVendor) {
-            LlmVendor.SF_FREE -> {
-                val model = if (sfFreeLlmUsePaidKey) {
-                    getLlmVendorModel(LlmVendor.SF_FREE).ifBlank { sfFreeLlmModel }
-                } else {
-                    sfFreeLlmModel
-                }
-                if (sfFreeLlmUsePaidKey) {
-                    // 使用用户自己的付费 API Key
-                    val apiKey = getLlmVendorApiKey(LlmVendor.SF_FREE)
-                    if (apiKey.isBlank()) {
-                        null // 需要 API Key 但未配置
-                    } else {
-                        EffectiveLlmConfig(
-                            endpoint = vendor.endpoint,
-                            apiKey = apiKey,
-                            model = model,
-                            temperature = getLlmVendorTemperature(LlmVendor.SF_FREE),
-                            vendor = vendor,
-                            enableReasoning = getLlmVendorReasoningEnabled(vendor),
-                            useCustomReasoningParams = !isBuiltinLlmPresetModel(vendor, model),
-                            reasoningParamsOnJson = getLlmVendorReasoningParamsOnJson(vendor),
-                            reasoningParamsOffJson = getLlmVendorReasoningParamsOffJson(vendor)
-                        )
-                    }
-                } else {
-                    // SiliconFlow 免费服务：使用内置端点和模型，无需 API Key
-                    // 实际 API Key 在 LlmPostProcessor 中注入
-                    EffectiveLlmConfig(
-                        endpoint = vendor.endpoint,
-                        apiKey = "", // 免费服务在调用层注入内置 Key
-                        model = model,
-                        temperature = DEFAULT_LLM_TEMPERATURE,
-                        vendor = vendor,
-                        enableReasoning = getLlmVendorReasoningEnabled(vendor),
-                        useCustomReasoningParams = !isBuiltinLlmPresetModel(vendor, model),
-                        reasoningParamsOnJson = getLlmVendorReasoningParamsOnJson(vendor),
-                        reasoningParamsOffJson = getLlmVendorReasoningParamsOffJson(vendor)
-                    )
-                }
-            }
-            LlmVendor.CUSTOM -> {
-                // 自定义供应商：使用用户配置的 LlmProvider
-                val provider = getActiveLlmProvider()
-                if (provider != null && provider.endpoint.isNotBlank()) {
-                    EffectiveLlmConfig(
-                        endpoint = provider.endpoint,
-                        apiKey = provider.apiKey,
-                        model = provider.model,
-                        temperature = provider.temperature,
-                        vendor = vendor,
-                        enableReasoning = provider.enableReasoning,
-                        useCustomReasoningParams = true,
-                        reasoningParamsOnJson = provider.reasoningParamsOnJson,
-                        reasoningParamsOffJson = provider.reasoningParamsOffJson
-                    )
-                } else null
-            }
-            else -> {
-                // 内置供应商：使用预设端点 + 用户 API Key + 用户选择的模型
-                val apiKey = getLlmVendorApiKey(vendor)
-                val model = getLlmVendorModel(vendor).ifBlank { vendor.defaultModel }
-                if (vendor.requiresApiKey && apiKey.isBlank()) {
-                    null // 需要 API Key 但未配置
-                } else {
-                    EffectiveLlmConfig(
-                        endpoint = vendor.endpoint,
-                        apiKey = apiKey,
-                        model = model,
-                        temperature = getLlmVendorTemperature(vendor),
-                        vendor = vendor,
-                        enableReasoning = getLlmVendorReasoningEnabled(vendor),
-                        useCustomReasoningParams = !isBuiltinLlmPresetModel(vendor, model),
-                        reasoningParamsOnJson = getLlmVendorReasoningParamsOnJson(vendor),
-                        reasoningParamsOffJson = getLlmVendorReasoningParamsOffJson(vendor)
-                    )
-                }
-            }
-        }
-    }
+    fun getEffectiveLlmConfig(): EffectiveLlmConfig? =
+        PrefsLlmVendorStore.getEffectiveLlmConfig(this, sp)
 
     /** 有效的 LLM 配置数据类 */
     data class EffectiveLlmConfig(
@@ -923,10 +565,7 @@ class Prefs(context: Context) {
     // DashScope：地域（cn=中国大陆，intl=新加坡/国际）。默认 cn
     var dashRegion: String by stringPref(KEY_DASH_REGION, "cn")
 
-    fun getDashHttpBaseUrl(): String {
-        return if (dashRegion.equals("intl", ignoreCase = true))
-            "https://dashscope-intl.aliyuncs.com/api/v1" else "https://dashscope.aliyuncs.com/api/v1"
-    }
+    fun getDashHttpBaseUrl(): String = DashScopePrefsCompat.getDashHttpBaseUrl(dashRegion)
 
     // DashScope：ASR 模型选择（用于替代“流式开关 + Fun-ASR 开关”的组合）
     // - qwen3-asr-flash：非流式
@@ -937,7 +576,7 @@ class Prefs(context: Context) {
             val v = (sp.getString(KEY_DASH_ASR_MODEL, "") ?: "").trim()
             if (v.isNotBlank()) return v
 
-            val derived = deriveDashAsrModelFromLegacyFlags()
+            val derived = DashScopePrefsCompat.deriveDashAsrModelFromLegacyFlags(sp)
             // 迁移：写回新 key，后续直接读取
             try {
                 sp.edit { putString(KEY_DASH_ASR_MODEL, derived) }
@@ -962,13 +601,6 @@ class Prefs(context: Context) {
 
     fun isDashPromptSupportedByModel(): Boolean {
         return !dashAsrModel.startsWith("fun-asr", ignoreCase = true)
-    }
-
-    private fun deriveDashAsrModelFromLegacyFlags(): String {
-        val streaming = sp.getBoolean(KEY_DASH_STREAMING_ENABLED, false)
-        if (!streaming) return DEFAULT_DASH_MODEL
-        val funAsr = sp.getBoolean(KEY_DASH_FUNASR_ENABLED, false)
-        return if (funAsr) DASH_MODEL_FUN_ASR_REALTIME else DASH_MODEL_QWEN3_REALTIME
     }
 
     // DashScope: streaming toggle（legacy，已由 dashAsrModel 替代）
@@ -1065,32 +697,9 @@ class Prefs(context: Context) {
     // 智谱 GLM：上下文提示（prompt），用于长文本场景的前文上下文，建议小于8000字
     var zhipuPrompt: String by stringPref(KEY_ZHIPU_PROMPT, "")
 
-    fun getSonioxLanguages(): List<String> {
-        val raw = sonioxLanguagesJson.trim()
-        if (raw.isBlank()) {
-            val single = sonioxLanguage.trim()
-            return if (single.isNotEmpty()) listOf(single) else emptyList()
-        }
-        return try {
-            json.decodeFromString<List<String>>(raw).filter { it.isNotBlank() }.distinct()
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to parse Soniox languages JSON, falling back to single value", e)
-            // 回退到旧的单一字段
-            val single = sonioxLanguage.trim()
-            if (single.isNotEmpty()) listOf(single) else emptyList()
-        }
-    }
+    fun getSonioxLanguages(): List<String> = SonioxLanguagesStore.getSonioxLanguages(this, json)
 
-    fun setSonioxLanguages(list: List<String>) {
-        val distinct = list.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
-        try {
-            sonioxLanguagesJson = json.encodeToString(distinct)
-            // 兼容旧字段：保留第一个；为空则清空
-            sonioxLanguage = distinct.firstOrNull() ?: ""
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to serialize Soniox languages", e)
-        }
-    }
+    fun setSonioxLanguages(list: List<String>) = SonioxLanguagesStore.setSonioxLanguages(this, json, list)
 
     // 火山引擎：流式识别开关（与文件模式共享凭证）
     var volcStreamingEnabled: Boolean
@@ -1278,57 +887,7 @@ class Prefs(context: Context) {
         get() = sp.getBoolean(KEY_ZIPFORMER_CLEANUP_DONE, false)
         set(value) = sp.edit { putBoolean(KEY_ZIPFORMER_CLEANUP_DONE, value) }
     // --- 供应商配置通用化 ---
-    private data class VendorField(val key: String, val required: Boolean = false, val default: String = "")
-
-    private val vendorFields: Map<AsrVendor, List<VendorField>> = mapOf(
-        AsrVendor.Volc to listOf(
-            VendorField(KEY_APP_KEY, required = true),
-            VendorField(KEY_ACCESS_KEY, required = true)
-        ),
-        // SiliconFlow：免费服务启用时无需 API Key
-        AsrVendor.SiliconFlow to listOf(
-            VendorField(KEY_SF_API_KEY, required = false),  // 免费服务时无需 API Key
-            VendorField(KEY_SF_MODEL, default = DEFAULT_SF_MODEL)
-        ),
-        AsrVendor.ElevenLabs to listOf(
-            VendorField(KEY_ELEVEN_API_KEY, required = true),
-            VendorField(KEY_ELEVEN_LANGUAGE_CODE)
-        ),
-        AsrVendor.OpenAI to listOf(
-            VendorField(KEY_OA_ASR_ENDPOINT, required = true, default = DEFAULT_OA_ASR_ENDPOINT),
-            VendorField(KEY_OA_ASR_API_KEY, required = false),
-            VendorField(KEY_OA_ASR_MODEL, required = true, default = DEFAULT_OA_ASR_MODEL),
-            // 可选 Prompt 字段（字符串）；开关为布尔，单独在导入/导出处理
-            VendorField(KEY_OA_ASR_PROMPT, required = false, default = ""),
-            // 可选语言字段（字符串）
-            VendorField(KEY_OA_ASR_LANGUAGE, required = false, default = "")
-        ),
-        AsrVendor.DashScope to listOf(
-            VendorField(KEY_DASH_API_KEY, required = true),
-            VendorField(KEY_DASH_PROMPT, default = ""),
-            VendorField(KEY_DASH_LANGUAGE, default = "")
-        ),
-        AsrVendor.Gemini to listOf(
-            VendorField(KEY_GEM_ENDPOINT, required = true, default = DEFAULT_GEM_ENDPOINT),
-            VendorField(KEY_GEM_API_KEY, required = true),
-            VendorField(KEY_GEM_MODEL, required = true, default = DEFAULT_GEM_MODEL),
-            VendorField(KEY_GEM_PROMPT, default = DEFAULT_GEM_PROMPT)
-        ),
-        AsrVendor.Soniox to listOf(
-            VendorField(KEY_SONIOX_API_KEY, required = true)
-        ),
-        AsrVendor.Zhipu to listOf(
-            VendorField(KEY_ZHIPU_API_KEY, required = true)
-        ),
-        // 本地 SenseVoice（sherpa-onnx）无需鉴权
-        AsrVendor.SenseVoice to emptyList(),
-        // 本地 FunASR Nano（sherpa-onnx）无需鉴权
-        AsrVendor.FunAsrNano to emptyList(),
-        // 本地 TeleSpeech（sherpa-onnx）无需鉴权
-        AsrVendor.Telespeech to emptyList(),
-        // 本地 Paraformer（sherpa-onnx）无需鉴权
-        AsrVendor.Paraformer to emptyList()
-    )
+    internal val vendorFields: Map<AsrVendor, List<VendorField>> = PrefsAsrVendorFields.vendorFields
 
     fun hasVendorKeys(v: AsrVendor): Boolean {
         val fields = vendorFields[v] ?: return false
@@ -1498,155 +1057,17 @@ class Prefs(context: Context) {
 
     // ===== 使用统计（聚合） =====
 
-    @Serializable
-    data class VendorAgg(
-        var sessions: Long = 0,
-        var chars: Long = 0,
-        var audioMs: Long = 0,
-        // 非流式请求的供应商处理耗时聚合（毫秒）
-        var procMs: Long = 0
-    )
-
-    @Serializable
-    data class DayAgg(
-        var sessions: Long = 0,
-        var chars: Long = 0,
-        var audioMs: Long = 0,
-        var procMs: Long = 0
-    )
-
-    @Serializable
-    data class UsageStats(
-        var totalSessions: Long = 0,
-        var totalChars: Long = 0,
-        var totalAudioMs: Long = 0,
-        var totalProcMs: Long = 0,
-        var perVendor: MutableMap<String, VendorAgg> = mutableMapOf(),
-        var daily: MutableMap<String, DayAgg> = mutableMapOf(),
-        var firstUseDate: String = ""
-    )
-
-    private var usageStatsJson: String by stringPref(KEY_USAGE_STATS_JSON, "")
-
     // 首次使用日期（yyyyMMdd）。若为空将在首次读取 UsageStats 时写入今天。
     var firstUseDate: String by stringPref(KEY_FIRST_USE_DATE, "")
 
-    fun getUsageStats(): UsageStats {
-        if (usageStatsJson.isBlank()) {
-            val today = LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE)
-            if (firstUseDate.isBlank()) firstUseDate = today
-            return UsageStats(firstUseDate = firstUseDate)
-        }
-        return try {
-            val stats = json.decodeFromString<UsageStats>(usageStatsJson)
-            // 兼容老数据：填充 firstUseDate
-            if (stats.firstUseDate.isBlank()) {
-                val fud = firstUseDate.ifBlank { LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE) }
-                stats.firstUseDate = fud
-                setUsageStats(stats)
-            }
-            stats
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to parse UsageStats JSON", e)
-            val today = LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE)
-            if (firstUseDate.isBlank()) firstUseDate = today
-            UsageStats(firstUseDate = firstUseDate)
-        }
-    }
+    fun getUsageStats(): UsageStats = UsageStatsStore.getUsageStats(this, json)
 
-    private fun setUsageStats(stats: UsageStats) {
-        try {
-            usageStatsJson = json.encodeToString(stats)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to serialize UsageStats", e)
-        }
-    }
+    fun resetUsageStats() = UsageStatsStore.resetUsageStats(this)
 
-    /**
-     * 清空使用统计聚合与总字数。
-     * 注：firstUseDate 不清空，以保持“陪伴天数”展示的连续性。
-     */
-    fun resetUsageStats() {
-        try {
-            usageStatsJson = ""
-        } catch (t: Throwable) {
-            Log.w(TAG, "Failed to reset usageStatsJson", t)
-        }
-        try {
-            totalAsrChars = 0
-        } catch (t: Throwable) {
-            Log.w(TAG, "Failed to reset totalAsrChars", t)
-        }
-    }
+    fun recordUsageCommit(source: String, vendor: AsrVendor, audioMs: Long, chars: Int, procMs: Long = 0L) =
+        UsageStatsStore.recordUsageCommit(this, json, source, vendor, audioMs, chars, procMs)
 
-    /**
-     * 记录一次“最终提交”的使用统计（仅在有最终文本提交时调用）。
-     * @param source 用途来源："ime" / "floating" / "aiEdit"（当前仅 ime 与 floating 计入平均值）
-     * @param vendor 供应商（用于 perVendor 聚合）
-     * @param audioMs 本次会话的录音时长（毫秒）
-     * @param chars 提交的字符数
-     */
-    fun recordUsageCommit(source: String, vendor: AsrVendor, audioMs: Long, chars: Int, procMs: Long = 0L) {
-        if (chars <= 0 && audioMs <= 0) return
-        val today = LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE)
-        val stats = getUsageStats()
-
-        stats.totalSessions += 1
-        stats.totalChars += chars.coerceAtLeast(0)
-        stats.totalAudioMs += audioMs.coerceAtLeast(0L)
-        stats.totalProcMs += procMs.coerceAtLeast(0L)
-
-        val key = vendor.id
-        val va = stats.perVendor[key] ?: VendorAgg()
-        va.sessions += 1
-        va.chars += chars.coerceAtLeast(0)
-        va.audioMs += audioMs.coerceAtLeast(0L)
-        va.procMs += procMs.coerceAtLeast(0L)
-        stats.perVendor[key] = va
-
-        val da = stats.daily[today] ?: DayAgg()
-        da.sessions += 1
-        da.chars += chars.coerceAtLeast(0)
-        da.audioMs += audioMs.coerceAtLeast(0L)
-        da.procMs += procMs.coerceAtLeast(0L)
-        stats.daily[today] = da
-
-        // 裁剪 daily 至最近 400 天（防止无限增长）
-        try {
-            if (stats.daily.size > 400) {
-                val keys = stats.daily.keys.sorted()
-                val toDrop = keys.size - 400
-                keys.take(toDrop).forEach { stats.daily.remove(it) }
-            }
-        } catch (t: Throwable) {
-            Log.w(TAG, "Failed to prune daily stats", t)
-        }
-
-        setUsageStats(stats)
-        val syncedTotalChars = stats.totalChars.coerceAtLeast(0)
-        if (syncedTotalChars > totalAsrChars) {
-            totalAsrChars = syncedTotalChars
-        }
-    }
-
-    /**
-     * 计算“陪伴天数”。若缺少 firstUseDate，以今天为首次使用（=1天）。
-     */
-    fun getDaysSinceFirstUse(): Long {
-        val fud = firstUseDate.ifBlank {
-            val today = LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE)
-            firstUseDate = today
-            today
-        }
-        return try {
-            val start = LocalDate.parse(fud, DateTimeFormatter.BASIC_ISO_DATE)
-            val now = LocalDate.now()
-            java.time.temporal.ChronoUnit.DAYS.between(start, now) + 1 // 含当天
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to parse firstUseDate '$fud'", e)
-            1
-        }
-    }
+    fun getDaysSinceFirstUse(): Long = UsageStatsStore.getDaysSinceFirstUse(this)
 
     // ---- SyncClipboard 偏好项 ----
     var syncClipboardEnabled: Boolean
@@ -1703,25 +1124,8 @@ class Prefs(context: Context) {
 
     companion object {
         private const val TAG = "Prefs"
-        @Volatile private var TOGGLE_LISTENER_REGISTERED: Boolean = false
-        @Volatile private var FN_LEGACY_CLEANUP_STARTED: Boolean = false
-        private val globalToggleListener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
-            try {
-                val v = prefs.all[key]
-                if (v is Boolean) {
-                    DebugLogManager.log("prefs", "toggle", mapOf("key" to key, "value" to v))
-                }
-            } catch (t: Throwable) {
-                Log.w(TAG, "Failed to log pref toggle", t)
-            }
-        }
 
-        private const val KEY_APP_KEY = "app_key"
-        private const val KEY_ACCESS_KEY = "access_key"
-        private const val KEY_TRIM_FINAL_TRAILING_PUNCT = "trim_final_trailing_punct"
-        private const val KEY_HAPTIC_FEEDBACK_LEVEL = "haptic_feedback_level"
-        private const val KEY_MIC_HAPTIC_ENABLED = "mic_haptic_enabled"
-        private const val KEY_MIC_TAP_TOGGLE_ENABLED = "mic_tap_toggle_enabled"
+        // 输入/点击触觉反馈等级（兼容旧开关）
         const val HAPTIC_FEEDBACK_LEVEL_OFF = 0
         const val HAPTIC_FEEDBACK_LEVEL_SYSTEM = 1
         const val HAPTIC_FEEDBACK_LEVEL_WEAK = 2
@@ -1730,191 +1134,7 @@ class Prefs(context: Context) {
         const val HAPTIC_FEEDBACK_LEVEL_STRONG = 5
         const val HAPTIC_FEEDBACK_LEVEL_HEAVY = 6
         const val DEFAULT_HAPTIC_FEEDBACK_LEVEL = HAPTIC_FEEDBACK_LEVEL_SYSTEM
-        private const val KEY_AUTO_START_RECORDING_ON_SHOW = "auto_start_recording_on_show"
-        private const val KEY_DUCK_MEDIA_ON_RECORD = "duck_media_on_record"
-        private const val KEY_OFFLINE_DENOISE_ENABLED = "offline_denoise_enabled"
-        private const val KEY_AUTO_STOP_ON_SILENCE_ENABLED = "auto_stop_on_silence_enabled"
-        private const val KEY_AUTO_STOP_SILENCE_WINDOW_MS = "auto_stop_silence_window_ms"
-        private const val KEY_AUTO_STOP_SILENCE_SENSITIVITY = "auto_stop_silence_sensitivity"
-        private const val KEY_KEYBOARD_HEIGHT_TIER = "keyboard_height_tier"
-        private const val KEY_KEYBOARD_BOTTOM_PADDING_DP = "keyboard_bottom_padding_dp"
-        private const val KEY_WAVEFORM_SENSITIVITY = "waveform_sensitivity"
-        private const val KEY_FLOATING_SWITCHER_ENABLED = "floating_switcher_enabled"
-        private const val KEY_FLOATING_SWITCHER_ALPHA = "floating_switcher_alpha"
-        private const val KEY_FLOATING_BALL_SIZE_DP = "floating_ball_size_dp"
-        private const val KEY_FLOATING_POS_X = "floating_ball_pos_x"
-        private const val KEY_FLOATING_POS_Y = "floating_ball_pos_y"
-        private const val KEY_FLOATING_DOCK_SIDE = "floating_ball_dock_side"
-        private const val KEY_FLOATING_DOCK_FRACTION = "floating_ball_dock_fraction"
-        private const val KEY_FLOATING_DOCK_HIDDEN = "floating_ball_dock_hidden"
-        private const val KEY_FLOATING_DIRECT_DRAG_ENABLED = "floating_ball_direct_drag_enabled"
-        private const val KEY_SWAP_AI_EDIT_IME_SWITCHER = "swap_ai_edit_ime_switcher"
-        private const val KEY_FCITX5_RETURN_ON_SWITCHER = "fcitx5_return_on_switcher"
-        private const val KEY_RETURN_PREV_IME_ON_HIDE = "return_prev_ime_on_hide"
-        private const val KEY_IME_SWITCH_TARGET_ID = "ime_switch_target_id"
-        private const val KEY_HIDE_RECENT_TASK_CARD = "hide_recent_task_card"
-        private const val KEY_FLOATING_WRITE_COMPAT_ENABLED = "floating_write_compat_enabled"
-        private const val KEY_FLOATING_WRITE_PASTE_ENABLED = "floating_write_paste_enabled"
-        private const val KEY_FLOATING_ASR_ENABLED = "floating_asr_enabled"
-        private const val KEY_FLOATING_ONLY_WHEN_IME_VISIBLE = "floating_only_when_ime_visible"
-        private const val KEY_FLOATING_KEEP_ALIVE_ENABLED = "floating_keep_alive_enabled"
-        
-        private const val KEY_FLOATING_WRITE_COMPAT_PACKAGES = "floating_write_compat_packages"
-        private const val KEY_FLOATING_WRITE_PASTE_PACKAGES = "floating_write_paste_packages"
-        private const val KEY_POSTPROC_ENABLED = "postproc_enabled"
-        private const val KEY_POSTPROC_TYPEWRITER_ENABLED = "postproc_typewriter_enabled"
-        private const val KEY_APP_LANGUAGE_TAG = "app_language_tag"
-        private const val KEY_AUTO_UPDATE_CHECK_ENABLED = "auto_update_check_enabled"
-        private const val KEY_LAST_UPDATE_CHECK_DATE = "last_update_check_date"
-        private const val KEY_LLM_ENDPOINT = "llm_endpoint"
-        private const val KEY_LLM_API_KEY = "llm_api_key"
-        private const val KEY_LLM_MODEL = "llm_model"
-        private const val KEY_LLM_TEMPERATURE = "llm_temperature"
-        private const val KEY_LLM_PROVIDERS = "llm_providers"
-        private const val KEY_LLM_ACTIVE_ID = "llm_active_id"
-        private const val KEY_LLM_VENDOR = "llm_vendor"
-        private const val KEY_LLM_PROMPT = "llm_prompt"
-        private const val KEY_LLM_PROMPT_PRESETS = "llm_prompt_presets"
-        private const val KEY_LLM_PROMPT_ACTIVE_ID = "llm_prompt_active_id"
-        private const val KEY_SPEECH_PRESETS = "speech_presets"
-        private const val KEY_SPEECH_PRESET_ACTIVE_ID = "speech_preset_active_id"
-        private const val KEY_ASR_VENDOR = "asr_vendor"
-        private const val KEY_BACKUP_ASR_ENABLED = "backup_asr_enabled"
-        private const val KEY_BACKUP_ASR_VENDOR = "backup_asr_vendor"
-        private const val KEY_SF_API_KEY = "sf_api_key"
-        private const val KEY_SF_MODEL = "sf_model"
-        private const val KEY_SF_USE_OMNI = "sf_use_omni"
-        private const val KEY_SF_OMNI_PROMPT = "sf_omni_prompt"
-        // SiliconFlow 免费服务
-        private const val KEY_SF_FREE_ASR_ENABLED = "sf_free_asr_enabled"
-        private const val KEY_SF_FREE_ASR_MODEL = "sf_free_asr_model"
-        private const val KEY_SF_FREE_LLM_ENABLED = "sf_free_llm_enabled"
-        private const val KEY_SF_FREE_LLM_MODEL = "sf_free_llm_model"
-        private const val KEY_SF_FREE_LLM_USE_PAID_KEY = "sf_free_llm_use_paid_key"
-        private const val KEY_ELEVEN_API_KEY = "eleven_api_key"
-        private const val KEY_ELEVEN_STREAMING_ENABLED = "eleven_streaming_enabled"
-        private const val KEY_ELEVEN_LANGUAGE_CODE = "eleven_language_code"
-        private const val KEY_OA_ASR_ENDPOINT = "oa_asr_endpoint"
-        private const val KEY_OA_ASR_API_KEY = "oa_asr_api_key"
-        private const val KEY_OA_ASR_MODEL = "oa_asr_model"
-        private const val KEY_OA_ASR_USE_PROMPT = "oa_asr_use_prompt"
-        private const val KEY_OA_ASR_PROMPT = "oa_asr_prompt"
-        private const val KEY_OA_ASR_LANGUAGE = "oa_asr_language"
-        private const val KEY_NUMPAD_CN_PUNCT = "numpad_cn_punct"
-        private const val KEY_GEM_ENDPOINT = "gem_endpoint"
-        private const val KEY_GEM_API_KEY = "gem_api_key"
-        private const val KEY_GEM_MODEL = "gem_model"
-        private const val KEY_GEM_PROMPT = "gem_prompt"
-        private const val KEY_GEMINI_DISABLE_THINKING = "gemini_disable_thinking"
-        // Zhipu GLM ASR
-        private const val KEY_ZHIPU_API_KEY = "zhipu_api_key"
-        private const val KEY_ZHIPU_TEMPERATURE = "zhipu_temperature"
-        private const val KEY_ZHIPU_PROMPT = "zhipu_prompt"
-        private const val KEY_VOLC_STREAMING_ENABLED = "volc_streaming_enabled"
-        private const val KEY_VOLC_BIDI_STREAMING_ENABLED = "volc_bidi_streaming_enabled"
-        private const val KEY_DASH_STREAMING_ENABLED = "dash_streaming_enabled"
-        private const val KEY_DASH_FUNASR_ENABLED = "dash_funasr_enabled"
-        private const val KEY_DASH_ASR_MODEL = "dash_asr_model"
-        private const val KEY_DASH_FUNASR_SEMANTIC_PUNCT_ENABLED = "dash_funasr_semantic_punct_enabled"
-        private const val KEY_VOLC_DDC_ENABLED = "volc_ddc_enabled"
-        private const val KEY_VOLC_VAD_ENABLED = "volc_vad_enabled"
-        private const val KEY_VOLC_NONSTREAM_ENABLED = "volc_nonstream_enabled"
-        private const val KEY_VOLC_LANGUAGE = "volc_language"
-        private const val KEY_VOLC_FIRST_CHAR_ACCEL_ENABLED = "volc_first_char_accel_enabled"
-        private const val KEY_VOLC_FILE_STANDARD_ENABLED = "volc_file_standard_enabled"
-        private const val KEY_VOLC_MODEL_V2_ENABLED = "volc_model_v2_enabled"
-        private const val KEY_DASH_API_KEY = "dash_api_key"
-        private const val KEY_DASH_PROMPT = "dash_prompt"
-        private const val KEY_DASH_LANGUAGE = "dash_language"
-        private const val KEY_DASH_REGION = "dash_region"
-        private const val KEY_SONIOX_API_KEY = "soniox_api_key"
-        private const val KEY_SONIOX_STREAMING_ENABLED = "soniox_streaming_enabled"
-        private const val KEY_SONIOX_LANGUAGE = "soniox_language"
-        private const val KEY_SONIOX_LANGUAGES = "soniox_languages"
-        private const val KEY_SONIOX_LANGUAGE_HINTS_STRICT = "soniox_language_hints_strict"
-        private const val KEY_PUNCT_1 = "punct_1"
-        private const val KEY_PUNCT_2 = "punct_2"
-        private const val KEY_PUNCT_3 = "punct_3"
-        private const val KEY_PUNCT_4 = "punct_4"
-        private const val KEY_EXT_BTN_1 = "ext_btn_1"
-        private const val KEY_EXT_BTN_2 = "ext_btn_2"
-        private const val KEY_EXT_BTN_3 = "ext_btn_3"
-        private const val KEY_EXT_BTN_4 = "ext_btn_4"
-        private const val KEY_TOTAL_ASR_CHARS = "total_asr_chars"
-        // SenseVoice（本地 ASR）
-        private const val KEY_SV_MODEL_DIR = "sv_model_dir"
-        private const val KEY_SV_MODEL_VARIANT = "sv_model_variant"
-        private const val KEY_SV_NUM_THREADS = "sv_num_threads"
-        private const val KEY_SV_LANGUAGE = "sv_language"
-        private const val KEY_SV_USE_ITN = "sv_use_itn"
-        private const val KEY_SV_PRELOAD_ENABLED = "sv_preload_enabled"
-        private const val KEY_SV_KEEP_ALIVE_MINUTES = "sv_keep_alive_minutes"
-        private const val KEY_SV_PSEUDO_STREAM_ENABLED = "sv_pseudo_stream_enabled"
-        private const val KEY_FN_MODEL_VARIANT = "fn_model_variant"
-        private const val KEY_FN_NUM_THREADS = "fn_num_threads"
-        private const val KEY_FN_USE_ITN = "fn_use_itn"
-        private const val KEY_FN_USER_PROMPT = "fn_user_prompt"
-        private const val KEY_FN_PRELOAD_ENABLED = "fn_preload_enabled"
-        private const val KEY_FN_KEEP_ALIVE_MINUTES = "fn_keep_alive_minutes"
-        private const val KEY_FN_LEGACY_MODEL_CLEANED = "fn_legacy_model_cleaned"
-        // TeleSpeech（本地 ASR）
-        private const val KEY_TS_MODEL_VARIANT = "ts_model_variant"
-        private const val KEY_TS_NUM_THREADS = "ts_num_threads"
-        private const val KEY_TS_KEEP_ALIVE_MINUTES = "ts_keep_alive_minutes"
-        private const val KEY_TS_PRELOAD_ENABLED = "ts_preload_enabled"
-        private const val KEY_TS_USE_ITN = "ts_use_itn"
-        private const val KEY_TS_PSEUDO_STREAM_ENABLED = "ts_pseudo_stream_enabled"
-        // Paraformer（本地 ASR）
-        private const val KEY_PF_MODEL_VARIANT = "pf_model_variant"
-        private const val KEY_PF_NUM_THREADS = "pf_num_threads"
-        private const val KEY_PF_KEEP_ALIVE_MINUTES = "pf_keep_alive_minutes"
-        private const val KEY_PF_PRELOAD_ENABLED = "pf_preload_enabled"
-        private const val KEY_PF_USE_ITN = "pf_use_itn"
-        private const val KEY_ZIPFORMER_CLEANUP_DONE = "zipformer_cleanup_done"
-        private const val KEY_AI_EDIT_DEFAULT_TO_LAST_ASR = "ai_edit_default_to_last_asr"
-        private const val KEY_POSTPROC_SKIP_UNDER_CHARS = "postproc_skip_under_chars"
-        private const val KEY_HEADSET_MIC_PRIORITY_ENABLED = "headset_mic_priority_enabled"
-        // 允许外部输入法联动（AIDL）
-        const val KEY_EXTERNAL_AIDL_ENABLED = "external_aidl_enabled"
-        private const val KEY_USAGE_STATS_JSON = "usage_stats"
-        // ASR 历史（JSON 数组字符串），用于备份/恢复
-        private const val KEY_ASR_HISTORY_JSON = "asr_history"
-        // 剪贴板历史：非固定与固定分开存储；仅固定参与备份
-        private const val KEY_CLIP_HISTORY_JSON = "clip_history"
-        private const val KEY_CLIP_PINNED_JSON = "clip_pinned"
-        private const val KEY_FIRST_USE_DATE = "first_use_date"
-        private const val KEY_SHOWN_QUICK_GUIDE_ONCE = "shown_quick_guide_once"
-        private const val KEY_SHOWN_MODEL_GUIDE_ONCE = "shown_model_guide_once"
-        private const val KEY_PRO_PROMO_SHOWN = "pro_promo_shown"
-
-        // 隐私：关闭识别历史与使用统计记录
-        private const val KEY_DISABLE_ASR_HISTORY = "disable_asr_history"
-        private const val KEY_DISABLE_USAGE_STATS = "disable_usage_stats"
-        private const val KEY_DATA_COLLECTION_ENABLED = "data_collection_enabled"
-        private const val KEY_DATA_COLLECTION_CONSENT_SHOWN = "data_collection_consent_shown"
-        private const val KEY_ANALYTICS_USER_ID = "analytics_user_id"
-        private const val KEY_ANALYTICS_REPORT_MINUTE = "analytics_report_minute"
-        private const val KEY_ANALYTICS_LAST_UPLOAD_EPOCH_DAY = "analytics_last_upload_epoch_day"
-        private const val KEY_ANALYTICS_LAST_ATTEMPT_EPOCH_DAY = "analytics_last_attempt_epoch_day"
-        private const val KEY_ANALYTICS_LAST_ATTEMPT_EPOCH_MS = "analytics_last_attempt_epoch_ms"
-        private const val KEY_ANALYTICS_RETRY_USED_EPOCH_DAY = "analytics_retry_used_epoch_day"
-        private const val KEY_ANALYTICS_CONSENT_RESET_V1_DONE = "analytics_consent_reset_v1_done"
-
-        // SyncClipboard keys
-        private const val KEY_SC_ENABLED = "syncclip_enabled"
-        private const val KEY_SC_SERVER_BASE = "syncclip_server_base"
-        private const val KEY_SC_USERNAME = "syncclip_username"
-        private const val KEY_SC_PASSWORD = "syncclip_password"
-        private const val KEY_SC_AUTO_PULL = "syncclip_auto_pull"
-        private const val KEY_SC_PULL_INTERVAL_SEC = "syncclip_pull_interval_sec"
-        private const val KEY_SC_LAST_UP_HASH = "syncclip_last_uploaded_hash"
-        private const val KEY_SC_LAST_FILE_NAME = "syncclip_last_file_name"
-
-        // WebDAV 备份
-        private const val KEY_WD_URL = "wd_url"
-        private const val KEY_WD_USERNAME = "wd_username"
-        private const val KEY_WD_PASSWORD = "wd_password"
-        private const val KEY_PENDING_APK_PATH = "pending_apk_path"
+        // SharedPreferences keys 见 PrefsKeys.kt
 
         const val DEFAULT_ENDPOINT = "https://openspeech.bytedance.com/api/v3/auc/bigmodel/recognize/flash"
         const val SF_ENDPOINT = "https://api.siliconflow.cn/v1/audio/transcriptions"
@@ -1927,15 +1147,9 @@ class Prefs(context: Context) {
         const val DEFAULT_SF_FREE_ASR_MODEL = "FunAudioLLM/SenseVoiceSmall"  // 免费 ASR 默认模型
         const val DEFAULT_SF_FREE_LLM_MODEL = "Qwen/Qwen3-8B"  // 免费 LLM 默认模型
         // 免费 ASR 可选模型列表
-        val SF_FREE_ASR_MODELS = listOf(
-            "FunAudioLLM/SenseVoiceSmall",
-            "TeleAI/TeleSpeechASR"
-        )
+        val SF_FREE_ASR_MODELS: List<String> = PrefsOptionLists.SF_FREE_ASR_MODELS
         // 免费 LLM 可选模型列表
-        val SF_FREE_LLM_MODELS = listOf(
-            "Qwen/Qwen3-8B",
-            "THUDM/GLM-4-9B-0414"
-        )
+        val SF_FREE_LLM_MODELS: List<String> = PrefsOptionLists.SF_FREE_LLM_MODELS
 
         // OpenAI Audio Transcriptions 默认值
         const val DEFAULT_OA_ASR_ENDPOINT = "https://api.openai.com/v1/audio/transcriptions"
@@ -1982,593 +1196,18 @@ class Prefs(context: Context) {
         const val SONIOX_TRANSCRIPTIONS_ENDPOINT = "$SONIOX_API_BASE_URL/v1/transcriptions"
         const val SONIOX_WS_URL = "wss://stt-rt.soniox.com/transcribe-websocket"
 
-        private fun buildDefaultPromptPresets(): List<PromptPreset> {
-            // p0: 通用后处理（默认预设）
-            val p0 = PromptPreset(
-                id = java.util.UUID.randomUUID().toString(),
-                title = "通用后处理",
-                content = """# 角色
-
-你是一个顶级的 ASR（自动语音识别）后处理专家。
-
-# 任务
-
-用户会向你发送一段由 ASR 系统转录的原始文本。你的任务是将其处理一遍。
-
-# 规则
-
-1.  **去除无关填充词**: 彻底删除所有无意义的语气词、犹豫词和口头禅。
-    - **示例**: "嗯"、"啊"、"呃"、"那个"、"然后"、"就是说"等。
-2.  **合并重复与修正口误**: 当说话者重复单词、短语或进行自我纠正时，整合这些内容，只保留其最终的、最清晰的意图。
-    - **重复示例**: 将"我想...我想去..."修正为"我想去..."。
-    - **口误修正示例**: 将"我们明天去上海，哦不对，去苏州开会"修正为"我们明天去苏州开会"。
-3.  **修正识别错误**: 根据上下文语境，纠正明显不符合逻辑的同音、近音词汇。
-    - **同音词示例**: 将"请大家准时参加明天的『会意』"修正为"请大家准时参加明天的『会议』"
-4.  **保持语义完整性**: 确保修正后的文本忠实于说话者的原始意图，不要进行主观臆断或添加额外信息。保留用户语气，无需进行书面化等风格化处理。
-5.  输入格式提示：用户输入会以“待处理文本:”开头，该标签仅用于标记，请忽略标签本身，只处理其后的正文。
-
-# 输出要求
-
-- 只输出修正后的最终文本
-- 不要输出任何解释、前后缀、引号或 Markdown 格式
-- 如果输入文本已经足够规范，直接原样输出
-
-# 示例
-
-**输入**: "嗯...那个...我想确认一下，我们明天，我们明天的那个会意，啊不对，会议，时间是不是...是不是上午九点？"
-**输出**: 我想确认一下，我们明天的会议时间是不是上午九点？"""
-            )
-            val p1 = PromptPreset(
-                id = java.util.UUID.randomUUID().toString(),
-                title = "基础文本润色",
-                content = """# 角色
-
-你是一个专业的中文文本编辑器。
-
-# 任务
-
-用户会向你发送一段由语音识别（ASR）系统生成的原始文本。你的任务是对其进行润色和修正。
-
-# 规则
-
-1. 修正所有错别字和语法错误
-2. 添加正确、自然的标点符号
-3. 删除口语化的词语、重复和无意义的填充词（例如嗯、啊、那个）
-4. 在保持原意不变的前提下，让句子表达更流畅、更书面化
-5. 不要添加任何原始文本中没有的信息
-6. 忽略用户输入开头的“待处理文本:”标签，只处理标签后的正文
-
-# 输出要求
-
-- 只输出润色后的文本
-- 不要输出任何解释、前后缀、引号或 Markdown 格式
-
-# 示例
-
-**输入**: "那个我觉得这个方案还是有点问题，嗯，主要是成本太高了，然后时间也不够"
-**输出**: 我觉得这个方案存在一些问题，主要是成本过高，而且时间也不充裕。"""
-            )
-            val p2 = PromptPreset(
-                id = java.util.UUID.randomUUID().toString(),
-                title = "翻译为英文",
-                content = """# 角色
-
-你是一个专业的翻译助手。
-
-# 任务
-
-用户会向你发送一段文本。你的任务是将其翻译为英语。
-
-# 规则
-
-1. 准确传达原文的核心意思
-2. 保持原文的语气（例如，正式、非正式、紧急等）
-3. 译文流畅、符合目标语言的表达习惯
-4. 忽略输入开头用于标记的“待处理文本:”标签，只翻译其后的正文
-
-# 输出要求
-
-- 只输出翻译后的英文文本
-- 不要输出任何解释、前后缀、引号或 Markdown 格式
-
-# 示例
-
-**输入**: "请在下周五之前提交季度报告"
-**输出**: Please submit the quarterly report by next Friday."""
-            )
-            val p3 = PromptPreset(
-                id = java.util.UUID.randomUUID().toString(),
-                title = "提取关键要点",
-                content = """# 角色
-
-你是一个专业的信息提取助手。
-
-# 任务
-
-用户会向你发送一段文本。你的任务是从中提取核心要点。
-
-# 规则
-
-1. 识别并提取文本中的核心信息和关键要点
-2. 每个要点应简洁明了
-3. 使用无序列表（bullet points）格式呈现
-4. 忽略输入开头用于标记的“待处理文本:”标签，只处理标签后的正文
-
-# 输出要求
-
-- 输出格式为无序列表
-- 不要添加额外的解释或前后缀
-
-# 示例
-
-**输入**: "今天的会议主要讨论了三件事，第一是下个月的产品发布时间定在15号，第二是需要增加两名测试人员，第三是市场部提出要加大社交媒体的推广力度"
-**输出**:
-- 产品发布时间定于下月15号
-- 需增加两名测试人员
-- 市场部建议加强社交媒体推广"""
-            )
-            val p4 = PromptPreset(
-                id = java.util.UUID.randomUUID().toString(),
-                title = "提取待办事项",
-                content = """# 角色
-
-你是一个专业的任务提取助手。
-
-# 任务
-
-用户会向你发送一段文本。你的任务是从中识别并提取所有待办事项（Action Items）。
-
-# 规则
-
-1. 识别文本中提到的任务、行动项目或需要完成的事项
-2. 如果文本中提到了负责人和截止日期，一并提取
-3. 如果信息不完整，则省略相应部分
-4. 忽略输入开头用于标记的“待处理文本:”标签，只处理标签后的正文
-
-# 输出要求
-
-使用以下格式输出：
-- [ ] [任务内容1]
-- [ ] [任务内容2]
-
-如果没有找到任何待办事项，输出"未找到待办事项"。
-
-# 示例
-
-**输入**: "小王你记一下，这周五之前把测试报告发给我，还有让小李下周一之前完成UI设计稿"
-**输出**:
-- [ ] 小王：本周五前提交测试报告
-- [ ] 小李：下周一前完成UI设计稿"""
-            )
-            return listOf(p0, p1, p2, p3, p4)
-        }
     }
 
     // 导出全部设置为 JSON 字符串（包含密钥，仅用于本地备份/迁移）
-    fun exportJsonString(): String {
-        val o = org.json.JSONObject()
-        o.put("_version", 1)
-        o.put(KEY_APP_KEY, appKey)
-        o.put(KEY_ACCESS_KEY, accessKey)
-        o.put(KEY_TRIM_FINAL_TRAILING_PUNCT, trimFinalTrailingPunct)
-        o.put(KEY_HAPTIC_FEEDBACK_LEVEL, hapticFeedbackLevel)
-        o.put(KEY_MIC_HAPTIC_ENABLED, micHapticEnabled)
-        o.put(KEY_MIC_TAP_TOGGLE_ENABLED, micTapToggleEnabled)
-        o.put(KEY_AUTO_START_RECORDING_ON_SHOW, autoStartRecordingOnShow)
-        o.put(KEY_DUCK_MEDIA_ON_RECORD, duckMediaOnRecordEnabled)
-        o.put(KEY_OFFLINE_DENOISE_ENABLED, offlineDenoiseEnabled)
-        o.put(KEY_AUTO_STOP_ON_SILENCE_ENABLED, autoStopOnSilenceEnabled)
-        o.put(KEY_AUTO_STOP_SILENCE_WINDOW_MS, autoStopSilenceWindowMs)
-        o.put(KEY_AUTO_STOP_SILENCE_SENSITIVITY, autoStopSilenceSensitivity)
-        o.put(KEY_KEYBOARD_HEIGHT_TIER, keyboardHeightTier)
-        o.put(KEY_KEYBOARD_BOTTOM_PADDING_DP, keyboardBottomPaddingDp)
-        o.put(KEY_WAVEFORM_SENSITIVITY, waveformSensitivity)
-        o.put(KEY_SWAP_AI_EDIT_IME_SWITCHER, swapAiEditWithImeSwitcher)
-        o.put(KEY_FCITX5_RETURN_ON_SWITCHER, fcitx5ReturnOnImeSwitch)
-        o.put(KEY_RETURN_PREV_IME_ON_HIDE, returnPrevImeOnHide)
-        o.put(KEY_IME_SWITCH_TARGET_ID, imeSwitchTargetId)
-        o.put(KEY_HIDE_RECENT_TASK_CARD, hideRecentTaskCard)
-        o.put(KEY_APP_LANGUAGE_TAG, appLanguageTag)
-        o.put(KEY_AUTO_UPDATE_CHECK_ENABLED, autoUpdateCheckEnabled)
-        o.put(KEY_FLOATING_SWITCHER_ENABLED, floatingSwitcherEnabled)
-        o.put(KEY_FLOATING_SWITCHER_ALPHA, floatingSwitcherAlpha)
-        o.put(KEY_FLOATING_BALL_SIZE_DP, floatingBallSizeDp)
-        o.put(KEY_FLOATING_POS_X, floatingBallPosX)
-        o.put(KEY_FLOATING_POS_Y, floatingBallPosY)
-        o.put(KEY_FLOATING_DOCK_SIDE, floatingBallDockSide)
-        o.put(KEY_FLOATING_DOCK_FRACTION, floatingBallDockFraction.toDouble())
-        o.put(KEY_FLOATING_DOCK_HIDDEN, floatingBallDockHidden)
-        o.put(KEY_FLOATING_DIRECT_DRAG_ENABLED, floatingBallDirectDragEnabled)
-        o.put(KEY_FLOATING_ASR_ENABLED, floatingAsrEnabled)
-        o.put(KEY_FLOATING_ONLY_WHEN_IME_VISIBLE, floatingSwitcherOnlyWhenImeVisible)
-        o.put(KEY_FLOATING_KEEP_ALIVE_ENABLED, floatingKeepAliveEnabled)
-        
-        o.put(KEY_POSTPROC_ENABLED, postProcessEnabled)
-        o.put(KEY_POSTPROC_TYPEWRITER_ENABLED, postprocTypewriterEnabled)
-        o.put(KEY_AI_EDIT_DEFAULT_TO_LAST_ASR, aiEditDefaultToLastAsr)
-        o.put(KEY_HEADSET_MIC_PRIORITY_ENABLED, headsetMicPriorityEnabled)
-        o.put(KEY_LLM_ENDPOINT, llmEndpoint)
-        o.put(KEY_LLM_API_KEY, llmApiKey)
-        o.put(KEY_LLM_MODEL, llmModel)
-        o.put(KEY_LLM_TEMPERATURE, llmTemperature.toDouble())
-        // SiliconFlow 免费/付费 LLM 配置
-        o.put(KEY_SF_FREE_LLM_ENABLED, sfFreeLlmEnabled)
-        o.put(KEY_SF_FREE_LLM_MODEL, sfFreeLlmModel)
-        o.put(KEY_SF_FREE_LLM_USE_PAID_KEY, sfFreeLlmUsePaidKey)
-        // SiliconFlow ASR 配置
-        o.put(KEY_SF_FREE_ASR_ENABLED, sfFreeAsrEnabled)
-        o.put(KEY_SF_FREE_ASR_MODEL, sfFreeAsrModel)
-        o.put(KEY_SF_USE_OMNI, sfUseOmni)
-        o.put(KEY_SF_OMNI_PROMPT, sfOmniPrompt)
-        // OpenAI ASR：Prompt 开关（布尔）
-        o.put(KEY_OA_ASR_USE_PROMPT, oaAsrUsePrompt)
-        // Volcano streaming toggle
-        o.put(KEY_VOLC_STREAMING_ENABLED, volcStreamingEnabled)
-        o.put(KEY_VOLC_BIDI_STREAMING_ENABLED, volcBidiStreamingEnabled)
-        // DashScope streaming toggle
-        o.put(KEY_DASH_STREAMING_ENABLED, dashStreamingEnabled)
-        o.put(KEY_DASH_REGION, dashRegion)
-        o.put(KEY_DASH_FUNASR_ENABLED, dashFunAsrEnabled)
-        o.put(KEY_DASH_ASR_MODEL, dashAsrModel)
-        o.put(KEY_DASH_FUNASR_SEMANTIC_PUNCT_ENABLED, dashFunAsrSemanticPunctEnabled)
-        // Volcano extras
-        o.put(KEY_VOLC_DDC_ENABLED, volcDdcEnabled)
-        o.put(KEY_VOLC_VAD_ENABLED, volcVadEnabled)
-        o.put(KEY_VOLC_NONSTREAM_ENABLED, volcNonstreamEnabled)
-        o.put(KEY_VOLC_LANGUAGE, volcLanguage)
-        o.put(KEY_VOLC_FILE_STANDARD_ENABLED, volcFileStandardEnabled)
-        o.put(KEY_VOLC_MODEL_V2_ENABLED, volcModelV2Enabled)
-        // Soniox（同时导出单值与数组，便于兼容）
-        o.put(KEY_SONIOX_LANGUAGE, sonioxLanguage)
-        o.put(KEY_SONIOX_LANGUAGES, sonioxLanguagesJson)
-        o.put(KEY_SONIOX_STREAMING_ENABLED, sonioxStreamingEnabled)
-        // Gemini 设置
-        o.put(KEY_GEMINI_DISABLE_THINKING, geminiDisableThinking)
-        // ElevenLabs streaming toggle
-        o.put(KEY_ELEVEN_STREAMING_ENABLED, elevenStreamingEnabled)
-        o.put(KEY_VOLC_FIRST_CHAR_ACCEL_ENABLED, volcFirstCharAccelEnabled)
-        // 多 LLM 配置
-        o.put(KEY_LLM_PROVIDERS, llmProvidersJson)
-        o.put(KEY_LLM_ACTIVE_ID, activeLlmId)
-        // 兼容旧字段
-        o.put(KEY_LLM_PROMPT, llmPrompt)
-        o.put(KEY_LLM_PROMPT_PRESETS, promptPresetsJson)
-        o.put(KEY_LLM_PROMPT_ACTIVE_ID, activePromptId)
-        // 语音预设
-        o.put(KEY_SPEECH_PRESETS, speechPresetsJson)
-        o.put(KEY_SPEECH_PRESET_ACTIVE_ID, activeSpeechPresetId)
-        // 供应商设置（通用导出）
-        o.put(KEY_ASR_VENDOR, asrVendor.id)
-        o.put(KEY_BACKUP_ASR_ENABLED, backupAsrEnabled)
-        o.put(KEY_BACKUP_ASR_VENDOR, backupAsrVendor.id)
-        // 遍历所有供应商字段，统一导出，避免逐个硬编码
-        vendorFields.values.flatten().forEach { f ->
-            o.put(f.key, getPrefString(f.key, f.default))
-        }
-        // 自定义标点
-        o.put(KEY_PUNCT_1, punct1)
-        o.put(KEY_PUNCT_2, punct2)
-        o.put(KEY_PUNCT_3, punct3)
-        o.put(KEY_PUNCT_4, punct4)
-        // 自定义扩展按钮
-        o.put(KEY_EXT_BTN_1, extBtn1.id)
-        o.put(KEY_EXT_BTN_2, extBtn2.id)
-        o.put(KEY_EXT_BTN_3, extBtn3.id)
-        o.put(KEY_EXT_BTN_4, extBtn4.id)
-        // 统计信息
-        o.put(KEY_TOTAL_ASR_CHARS, totalAsrChars)
-        // 使用统计（聚合）与首次使用日期
-        try { o.put(KEY_USAGE_STATS_JSON, usageStatsJson) } catch (t: Throwable) { Log.w(TAG, "Failed to export usage stats", t) }
-        // 历史记录纳入备份范围
-        try { o.put(KEY_ASR_HISTORY_JSON, getPrefString(KEY_ASR_HISTORY_JSON, "")) } catch (t: Throwable) { Log.w(TAG, "Failed to export ASR history", t) }
-        try { o.put(KEY_FIRST_USE_DATE, firstUseDate) } catch (t: Throwable) { Log.w(TAG, "Failed to export first use date", t) }
-        // 写入兼容/粘贴方案
-        o.put(KEY_FLOATING_WRITE_COMPAT_ENABLED, floatingWriteTextCompatEnabled)
-        o.put(KEY_FLOATING_WRITE_COMPAT_PACKAGES, floatingWriteCompatPackages)
-        o.put(KEY_FLOATING_WRITE_PASTE_ENABLED, floatingWriteTextPasteEnabled)
-        o.put(KEY_FLOATING_WRITE_PASTE_PACKAGES, floatingWritePastePackages)
-        // 允许外部输入法联动（AIDL）
-        o.put(KEY_EXTERNAL_AIDL_ENABLED, externalAidlEnabled)
-        // SenseVoice（本地 ASR）
-        o.put(KEY_SV_MODEL_DIR, svModelDir)
-        o.put(KEY_SV_MODEL_VARIANT, svModelVariant)
-        o.put(KEY_SV_NUM_THREADS, svNumThreads)
-        o.put(KEY_SV_LANGUAGE, svLanguage)
-        o.put(KEY_SV_USE_ITN, svUseItn)
-        o.put(KEY_SV_PRELOAD_ENABLED, svPreloadEnabled)
-        o.put(KEY_SV_KEEP_ALIVE_MINUTES, svKeepAliveMinutes)
-        o.put(KEY_SV_PSEUDO_STREAM_ENABLED, svPseudoStreamEnabled)
-        // FunASR Nano（本地 ASR）
-        o.put(KEY_FN_MODEL_VARIANT, fnModelVariant)
-        o.put(KEY_FN_NUM_THREADS, fnNumThreads)
-        o.put(KEY_FN_USE_ITN, fnUseItn)
-        o.put(KEY_FN_USER_PROMPT, fnUserPrompt)
-        o.put(KEY_FN_PRELOAD_ENABLED, fnPreloadEnabled)
-        o.put(KEY_FN_KEEP_ALIVE_MINUTES, fnKeepAliveMinutes)
-        // TeleSpeech（本地 ASR）
-        o.put(KEY_TS_MODEL_VARIANT, tsModelVariant)
-        o.put(KEY_TS_NUM_THREADS, tsNumThreads)
-        o.put(KEY_TS_KEEP_ALIVE_MINUTES, tsKeepAliveMinutes)
-        o.put(KEY_TS_PRELOAD_ENABLED, tsPreloadEnabled)
-        o.put(KEY_TS_USE_ITN, tsUseItn)
-        o.put(KEY_TS_PSEUDO_STREAM_ENABLED, tsPseudoStreamEnabled)
-        // Paraformer（本地 ASR）
-        o.put(KEY_PF_MODEL_VARIANT, pfModelVariant)
-        o.put(KEY_PF_NUM_THREADS, pfNumThreads)
-        o.put(KEY_PF_KEEP_ALIVE_MINUTES, pfKeepAliveMinutes)
-        o.put(KEY_PF_PRELOAD_ENABLED, pfPreloadEnabled)
-        o.put(KEY_PF_USE_ITN, pfUseItn)
-        // SyncClipboard 配置
-        o.put(KEY_SC_ENABLED, syncClipboardEnabled)
-        o.put(KEY_SC_SERVER_BASE, syncClipboardServerBase)
-        o.put(KEY_SC_USERNAME, syncClipboardUsername)
-        o.put(KEY_SC_PASSWORD, syncClipboardPassword)
-        o.put(KEY_SC_AUTO_PULL, syncClipboardAutoPullEnabled)
-        o.put(KEY_SC_PULL_INTERVAL_SEC, syncClipboardPullIntervalSec)
-        // WebDAV（可选）
-        o.put(KEY_WD_URL, webdavUrl)
-        o.put(KEY_WD_USERNAME, webdavUsername)
-        o.put(KEY_WD_PASSWORD, webdavPassword)
-        // 仅导出固定的剪贴板记录
-        try { o.put(KEY_CLIP_PINNED_JSON, getPrefString(KEY_CLIP_PINNED_JSON, "")) } catch (t: Throwable) { Log.w(TAG, "Failed to export pinned clip", t) }
-        // 隐私开关
-        try { o.put(KEY_DISABLE_ASR_HISTORY, disableAsrHistory) } catch (_: Throwable) {}
-        try { o.put(KEY_DISABLE_USAGE_STATS, disableUsageStats) } catch (_: Throwable) {}
-        try { o.put(KEY_DATA_COLLECTION_ENABLED, dataCollectionEnabled) } catch (t: Throwable) { Log.w(TAG, "Failed to export data collection enabled", t) }
-        // AI 后处理：少于字数跳过
-        try { o.put(KEY_POSTPROC_SKIP_UNDER_CHARS, postprocSkipUnderChars) } catch (_: Throwable) {}
-        // LLM 供应商选择（新架构）
-        try { o.put(KEY_LLM_VENDOR, llmVendor.id) } catch (_: Throwable) {}
-        // 内置供应商配置（遍历所有内置供应商）
-        for (vendor in LlmVendor.builtinVendors()) {
-            val keyPrefix = "llm_vendor_${vendor.id}"
-            try { o.put("${keyPrefix}_api_key", getLlmVendorApiKey(vendor)) } catch (_: Throwable) {}
-            try {
-                val model = if (vendor == LlmVendor.SF_FREE && !sfFreeLlmUsePaidKey) {
-                    sfFreeLlmModel
-                } else {
-                    getLlmVendorModel(vendor)
-                }
-                o.put("${keyPrefix}_model", model)
-            } catch (_: Throwable) {}
-            try { o.put("${keyPrefix}_temperature", getLlmVendorTemperature(vendor).toDouble()) } catch (_: Throwable) {}
-            try { o.put("${keyPrefix}_reasoning_enabled", getLlmVendorReasoningEnabled(vendor)) } catch (_: Throwable) {}
-            try { o.put("${keyPrefix}_reasoning_on_json", getLlmVendorReasoningParamsOnJson(vendor)) } catch (_: Throwable) {}
-            try { o.put("${keyPrefix}_reasoning_off_json", getLlmVendorReasoningParamsOffJson(vendor)) } catch (_: Throwable) {}
-            try { o.put("${keyPrefix}_models_json", getPrefString("${keyPrefix}_models_json", "")) } catch (t: Throwable) {
-                Log.w(TAG, "Failed to export LLM vendor models", t)
-            }
-        }
-        return o.toString()
-    }
+    fun exportJsonString(): String = PrefsBackup.exportJsonString(this)
 
     // 从 JSON 字符串导入。仅覆盖提供的键；解析失败返回 false。
     fun importJsonString(json: String): Boolean {
-        return try {
-            val o = org.json.JSONObject(json)
-            Log.i(TAG, "Starting import of settings from JSON")
-            fun optBool(key: String, default: Boolean? = null): Boolean? =
-                if (o.has(key)) o.optBoolean(key) else default
-            fun optString(key: String, default: String? = null): String? =
-                if (o.has(key)) o.optString(key) else default
-            fun optFloat(key: String, default: Float? = null): Float? =
-                if (o.has(key)) o.optDouble(key).toFloat() else default
-            fun optInt(key: String, default: Int? = null): Int? =
-                if (o.has(key)) o.optInt(key) else default
-
-            optString(KEY_APP_KEY)?.let { appKey = it }
-            optString(KEY_ACCESS_KEY)?.let { accessKey = it }
-            optBool(KEY_TRIM_FINAL_TRAILING_PUNCT)?.let { trimFinalTrailingPunct = it }
-            val importedHapticLevel = optInt(KEY_HAPTIC_FEEDBACK_LEVEL)
-            if (importedHapticLevel != null) {
-                hapticFeedbackLevel = importedHapticLevel
-            } else {
-                optBool(KEY_MIC_HAPTIC_ENABLED)?.let { micHapticEnabled = it }
-            }
-            optBool(KEY_MIC_TAP_TOGGLE_ENABLED)?.let { micTapToggleEnabled = it }
-            optBool(KEY_AUTO_START_RECORDING_ON_SHOW)?.let { autoStartRecordingOnShow = it }
-            optBool(KEY_DUCK_MEDIA_ON_RECORD)?.let { duckMediaOnRecordEnabled = it }
-            optBool(KEY_OFFLINE_DENOISE_ENABLED)?.let { offlineDenoiseEnabled = it }
-            optBool(KEY_AUTO_STOP_ON_SILENCE_ENABLED)?.let { autoStopOnSilenceEnabled = it }
-            optInt(KEY_AUTO_STOP_SILENCE_WINDOW_MS)?.let { autoStopSilenceWindowMs = it }
-            optInt(KEY_AUTO_STOP_SILENCE_SENSITIVITY)?.let { autoStopSilenceSensitivity = it }
-            optInt(KEY_KEYBOARD_HEIGHT_TIER)?.let { keyboardHeightTier = it }
-            optInt(KEY_KEYBOARD_BOTTOM_PADDING_DP)?.let { keyboardBottomPaddingDp = it }
-            optInt(KEY_WAVEFORM_SENSITIVITY)?.let { waveformSensitivity = it }
-            optBool(KEY_SWAP_AI_EDIT_IME_SWITCHER)?.let { swapAiEditWithImeSwitcher = it }
-            optBool(KEY_FCITX5_RETURN_ON_SWITCHER)?.let { fcitx5ReturnOnImeSwitch = it }
-            optBool(KEY_HIDE_RECENT_TASK_CARD)?.let { hideRecentTaskCard = it }
-            optString(KEY_APP_LANGUAGE_TAG)?.let { appLanguageTag = it }
-            optBool(KEY_AUTO_UPDATE_CHECK_ENABLED)?.let { autoUpdateCheckEnabled = it }
-            optBool(KEY_POSTPROC_ENABLED)?.let { postProcessEnabled = it }
-            optBool(KEY_POSTPROC_TYPEWRITER_ENABLED)?.let { postprocTypewriterEnabled = it }
-            optBool(KEY_HEADSET_MIC_PRIORITY_ENABLED)?.let { headsetMicPriorityEnabled = it }
-            // SiliconFlow 免费/付费 LLM 配置
-            optBool(KEY_SF_FREE_LLM_ENABLED)?.let { sfFreeLlmEnabled = it }
-            optString(KEY_SF_FREE_LLM_MODEL)?.let { sfFreeLlmModel = it }
-            optBool(KEY_SF_FREE_LLM_USE_PAID_KEY)?.let { sfFreeLlmUsePaidKey = it }
-            // SiliconFlow ASR 配置
-            optBool(KEY_SF_FREE_ASR_ENABLED)?.let { sfFreeAsrEnabled = it }
-            optString(KEY_SF_FREE_ASR_MODEL)?.let { sfFreeAsrModel = it }
-            optBool(KEY_SF_USE_OMNI)?.let { sfUseOmni = it }
-            optString(KEY_SF_OMNI_PROMPT)?.let { sfOmniPrompt = it }
-            // 外部输入法联动（AIDL）
-            optBool(KEY_EXTERNAL_AIDL_ENABLED)?.let { externalAidlEnabled = it }
-            optBool(KEY_FLOATING_SWITCHER_ENABLED)?.let { floatingSwitcherEnabled = it }
-            optFloat(KEY_FLOATING_SWITCHER_ALPHA)?.let { floatingSwitcherAlpha = it.coerceIn(0.2f, 1.0f) }
-            optInt(KEY_FLOATING_BALL_SIZE_DP)?.let { floatingBallSizeDp = it.coerceIn(28, 96) }
-            optInt(KEY_FLOATING_POS_X)?.let { floatingBallPosX = it }
-            optInt(KEY_FLOATING_POS_Y)?.let { floatingBallPosY = it }
-            optInt(KEY_FLOATING_DOCK_SIDE)?.let { floatingBallDockSide = it }
-            optFloat(KEY_FLOATING_DOCK_FRACTION)?.let { floatingBallDockFraction = it }
-            optBool(KEY_FLOATING_DOCK_HIDDEN)?.let { floatingBallDockHidden = it }
-            optBool(KEY_FLOATING_DIRECT_DRAG_ENABLED)?.let { floatingBallDirectDragEnabled = it }
-            optBool(KEY_FLOATING_ASR_ENABLED)?.let { floatingAsrEnabled = it }
-            optBool(KEY_FLOATING_ONLY_WHEN_IME_VISIBLE)?.let { floatingSwitcherOnlyWhenImeVisible = it }
-            optBool(KEY_FLOATING_KEEP_ALIVE_ENABLED)?.let { floatingKeepAliveEnabled = it }
-            
-            optBool(KEY_FLOATING_WRITE_COMPAT_ENABLED)?.let { floatingWriteTextCompatEnabled = it }
-            optString(KEY_FLOATING_WRITE_COMPAT_PACKAGES)?.let { floatingWriteCompatPackages = it }
-            optBool(KEY_FLOATING_WRITE_PASTE_ENABLED)?.let { floatingWriteTextPasteEnabled = it }
-            optString(KEY_FLOATING_WRITE_PASTE_PACKAGES)?.let { floatingWritePastePackages = it }
-
-            optString(KEY_LLM_ENDPOINT)?.let { llmEndpoint = it.ifBlank { DEFAULT_LLM_ENDPOINT } }
-            optString(KEY_LLM_API_KEY)?.let { llmApiKey = it }
-            optString(KEY_LLM_MODEL)?.let { llmModel = it.ifBlank { DEFAULT_LLM_MODEL } }
-            optFloat(KEY_LLM_TEMPERATURE)?.let { llmTemperature = it.coerceIn(0f, 2f) }
-            optBool(KEY_AI_EDIT_DEFAULT_TO_LAST_ASR)?.let { aiEditDefaultToLastAsr = it }
-            optInt(KEY_POSTPROC_SKIP_UNDER_CHARS)?.let { postprocSkipUnderChars = it }
-            // OpenAI ASR：Prompt 开关
-            optBool(KEY_OA_ASR_USE_PROMPT)?.let { oaAsrUsePrompt = it }
-            optBool(KEY_VOLC_STREAMING_ENABLED)?.let { volcStreamingEnabled = it }
-            optBool(KEY_VOLC_BIDI_STREAMING_ENABLED)?.let { volcBidiStreamingEnabled = it }
-            // DashScope：优先读取新模型字段；否则回退旧开关并迁移
-            val importedDashModel = optString(KEY_DASH_ASR_MODEL)
-            if (importedDashModel != null) {
-                dashAsrModel = importedDashModel
-            } else {
-                val importedDashStreaming = optBool(KEY_DASH_STREAMING_ENABLED)
-                val importedDashFunAsr = optBool(KEY_DASH_FUNASR_ENABLED)
-                importedDashStreaming?.let { dashStreamingEnabled = it }
-                importedDashFunAsr?.let { dashFunAsrEnabled = it }
-                if (importedDashStreaming != null || importedDashFunAsr != null) {
-                    dashAsrModel = deriveDashAsrModelFromLegacyFlags()
-                }
-            }
-            optString(KEY_DASH_REGION)?.let { dashRegion = it }
-            optBool(KEY_DASH_FUNASR_SEMANTIC_PUNCT_ENABLED)?.let { dashFunAsrSemanticPunctEnabled = it }
-            optBool(KEY_VOLC_DDC_ENABLED)?.let { volcDdcEnabled = it }
-            optBool(KEY_VOLC_VAD_ENABLED)?.let { volcVadEnabled = it }
-            optBool(KEY_VOLC_NONSTREAM_ENABLED)?.let { volcNonstreamEnabled = it }
-            optString(KEY_VOLC_LANGUAGE)?.let { volcLanguage = it }
-            optBool(KEY_RETURN_PREV_IME_ON_HIDE)?.let { returnPrevImeOnHide = it }
-            optString(KEY_IME_SWITCH_TARGET_ID)?.let { imeSwitchTargetId = it }
-            optBool(KEY_VOLC_FIRST_CHAR_ACCEL_ENABLED)?.let { volcFirstCharAccelEnabled = it }
-            optBool(KEY_VOLC_FILE_STANDARD_ENABLED)?.let { volcFileStandardEnabled = it }
-            optBool(KEY_VOLC_MODEL_V2_ENABLED)?.let { volcModelV2Enabled = it }
-            // Soniox（若提供数组则优先；否则回退单值）
-            if (o.has(KEY_SONIOX_LANGUAGES)) {
-                optString(KEY_SONIOX_LANGUAGES)?.let { sonioxLanguagesJson = it }
-            } else {
-                optString(KEY_SONIOX_LANGUAGE)?.let { sonioxLanguage = it }
-            }
-            optBool(KEY_SONIOX_STREAMING_ENABLED)?.let { sonioxStreamingEnabled = it }
-            // ElevenLabs streaming toggle
-            optBool(KEY_ELEVEN_STREAMING_ENABLED)?.let { elevenStreamingEnabled = it }
-            // Gemini 设置
-            optBool(KEY_GEMINI_DISABLE_THINKING)?.let { geminiDisableThinking = it }
-            // 多 LLM 配置（优先于旧字段，仅当存在时覆盖）
-            optString(KEY_LLM_PROVIDERS)?.let { llmProvidersJson = it }
-            optString(KEY_LLM_ACTIVE_ID)?.let { activeLlmId = it }
-            // 兼容：先读新预设；若“未提供”或“提供但为空字符串”，则回退旧单一 Prompt
-            val importedPresets = optString(KEY_LLM_PROMPT_PRESETS)
-            if (importedPresets != null) {
-                promptPresetsJson = importedPresets
-            }
-            optString(KEY_LLM_PROMPT_ACTIVE_ID)?.let { activePromptId = it }
-            if (importedPresets.isNullOrBlank()) {
-                optString(KEY_LLM_PROMPT)?.let { llmPrompt = it }
-            }
-            // 语音预设
-            optString(KEY_SPEECH_PRESETS)?.let { speechPresetsJson = it }
-            optString(KEY_SPEECH_PRESET_ACTIVE_ID)?.let { activeSpeechPresetId = it }
-
-            optString(KEY_ASR_VENDOR)?.let { asrVendor = AsrVendor.fromId(it) }
-            optBool(KEY_BACKUP_ASR_ENABLED)?.let { backupAsrEnabled = it }
-            optString(KEY_BACKUP_ASR_VENDOR)?.let { backupAsrVendor = AsrVendor.fromId(it) }
-            // 供应商设置（通用导入）
-            vendorFields.values.flatten().forEach { f ->
-                optString(f.key)?.let { v ->
-                    val final = v.ifBlank { f.default }
-                    setPrefString(f.key, final)
-                }
-            }
-            optString(KEY_PUNCT_1)?.let { punct1 = it }
-            optString(KEY_PUNCT_2)?.let { punct2 = it }
-            optString(KEY_PUNCT_3)?.let { punct3 = it }
-            optString(KEY_PUNCT_4)?.let { punct4 = it }
-            // 自定义扩展按钮（可选）
-            optString(KEY_EXT_BTN_1)?.let { extBtn1 = com.brycewg.asrkb.ime.ExtensionButtonAction.fromId(it) }
-            optString(KEY_EXT_BTN_2)?.let { extBtn2 = com.brycewg.asrkb.ime.ExtensionButtonAction.fromId(it) }
-            optString(KEY_EXT_BTN_3)?.let { extBtn3 = com.brycewg.asrkb.ime.ExtensionButtonAction.fromId(it) }
-            optString(KEY_EXT_BTN_4)?.let { extBtn4 = com.brycewg.asrkb.ime.ExtensionButtonAction.fromId(it) }
-            // 统计信息（可选）
-            if (o.has(KEY_TOTAL_ASR_CHARS)) {
-                // 使用 optLong，若类型为字符串/浮点将尽力转换
-                val v = try { o.optLong(KEY_TOTAL_ASR_CHARS) } catch (_: Throwable) { 0L }
-                if (v >= 0L) totalAsrChars = v
-            }
-            // 使用统计（可选）
-            optString(KEY_USAGE_STATS_JSON)?.let { usageStatsJson = it }
-            // 历史记录纳入恢复范围
-            optString(KEY_ASR_HISTORY_JSON)?.let { setPrefString(KEY_ASR_HISTORY_JSON, it) }
-            optString(KEY_FIRST_USE_DATE)?.let { firstUseDate = it }
-            // SenseVoice（本地 ASR）
-            optString(KEY_SV_MODEL_DIR)?.let { svModelDir = it }
-            optString(KEY_SV_MODEL_VARIANT)?.let { svModelVariant = it }
-            optInt(KEY_SV_NUM_THREADS)?.let { svNumThreads = it.coerceIn(1, 8) }
-            optString(KEY_SV_LANGUAGE)?.let { svLanguage = it }
-            optBool(KEY_SV_USE_ITN)?.let { svUseItn = it }
-            optBool(KEY_SV_PRELOAD_ENABLED)?.let { svPreloadEnabled = it }
-            optInt(KEY_SV_KEEP_ALIVE_MINUTES)?.let { svKeepAliveMinutes = it }
-            optBool(KEY_SV_PSEUDO_STREAM_ENABLED)?.let { svPseudoStreamEnabled = it }
-            // FunASR Nano（本地 ASR）
-            optString(KEY_FN_MODEL_VARIANT)?.let { fnModelVariant = it }
-            optInt(KEY_FN_NUM_THREADS)?.let { fnNumThreads = it.coerceIn(1, 8) }
-            optBool(KEY_FN_USE_ITN)?.let { fnUseItn = it }
-            optString(KEY_FN_USER_PROMPT)?.let { fnUserPrompt = it }
-            optBool(KEY_FN_PRELOAD_ENABLED)?.let { fnPreloadEnabled = it }
-            optInt(KEY_FN_KEEP_ALIVE_MINUTES)?.let { fnKeepAliveMinutes = it }
-            // TeleSpeech（本地 ASR）
-            optString(KEY_TS_MODEL_VARIANT)?.let { tsModelVariant = it }
-            optInt(KEY_TS_NUM_THREADS)?.let { tsNumThreads = it.coerceIn(1, 8) }
-            optInt(KEY_TS_KEEP_ALIVE_MINUTES)?.let { tsKeepAliveMinutes = it }
-            optBool(KEY_TS_PRELOAD_ENABLED)?.let { tsPreloadEnabled = it }
-            optBool(KEY_TS_USE_ITN)?.let { tsUseItn = it }
-            optBool(KEY_TS_PSEUDO_STREAM_ENABLED)?.let { tsPseudoStreamEnabled = it }
-            // Paraformer（本地 ASR）
-            optString(KEY_PF_MODEL_VARIANT)?.let { pfModelVariant = it }
-            optInt(KEY_PF_NUM_THREADS)?.let { pfNumThreads = it.coerceIn(1, 8) }
-            optInt(KEY_PF_KEEP_ALIVE_MINUTES)?.let { pfKeepAliveMinutes = it }
-            optBool(KEY_PF_PRELOAD_ENABLED)?.let { pfPreloadEnabled = it }
-            optBool(KEY_PF_USE_ITN)?.let { pfUseItn = it }
-            // SyncClipboard 配置
-            optBool(KEY_SC_ENABLED)?.let { syncClipboardEnabled = it }
-            optString(KEY_SC_SERVER_BASE)?.let { syncClipboardServerBase = it }
-            optString(KEY_SC_USERNAME)?.let { syncClipboardUsername = it }
-            optString(KEY_SC_PASSWORD)?.let { syncClipboardPassword = it }
-            optBool(KEY_SC_AUTO_PULL)?.let { syncClipboardAutoPullEnabled = it }
-            optInt(KEY_SC_PULL_INTERVAL_SEC)?.let { syncClipboardPullIntervalSec = it }
-            // 隐私开关
-            optBool(KEY_DISABLE_ASR_HISTORY)?.let { disableAsrHistory = it }
-            optBool(KEY_DISABLE_USAGE_STATS)?.let { disableUsageStats = it }
-            optBool(KEY_DATA_COLLECTION_ENABLED)?.let { dataCollectionEnabled = it }
-            // WebDAV 备份
-            optString(KEY_WD_URL)?.let { webdavUrl = it }
-            optString(KEY_WD_USERNAME)?.let { webdavUsername = it }
-            optString(KEY_WD_PASSWORD)?.let { webdavPassword = it }
-            // 剪贴板固定记录（仅覆盖固定集合；非固定不导入）
-            optString(KEY_CLIP_PINNED_JSON)?.let { setPrefString(KEY_CLIP_PINNED_JSON, it) }
-            // LLM 供应商选择（新架构）
-            optString(KEY_LLM_VENDOR)?.let { llmVendor = LlmVendor.fromId(it) }
-            // 内置供应商配置（遍历所有内置供应商）
-            for (vendor in LlmVendor.builtinVendors()) {
-                val keyPrefix = "llm_vendor_${vendor.id}"
-                optString("${keyPrefix}_api_key")?.let { setLlmVendorApiKey(vendor, it) }
-                optString("${keyPrefix}_model")?.let { setLlmVendorModel(vendor, it) }
-                optFloat("${keyPrefix}_temperature")?.let { setLlmVendorTemperature(vendor, it) }
-                optBool("${keyPrefix}_reasoning_enabled")?.let { setLlmVendorReasoningEnabled(vendor, it) }
-                optString("${keyPrefix}_reasoning_on_json")?.let { setLlmVendorReasoningParamsOnJson(vendor, it) }
-                optString("${keyPrefix}_reasoning_off_json")?.let { setLlmVendorReasoningParamsOffJson(vendor, it) }
-                optString("${keyPrefix}_models_json")?.let { setLlmVendorModelsJson(vendor, it) }
-            }
-            migrateFunAsrFromSenseVoiceIfNeeded()
-            Log.i(TAG, "Successfully imported settings from JSON")
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to import settings from JSON", e)
-            false
-        }
+        val ok = PrefsBackup.importJsonString(this, json)
+        if (!ok) return false
+        PrefsInitTasks.migrateFunAsrFromSenseVoiceIfNeeded(sp)
+        Log.i(TAG, "Successfully imported settings from JSON")
+        return true
     }
 
 }

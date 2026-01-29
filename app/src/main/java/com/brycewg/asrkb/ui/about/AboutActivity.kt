@@ -18,6 +18,7 @@ import com.brycewg.asrkb.UiColors
 import com.brycewg.asrkb.UiColorTokens
 import com.brycewg.asrkb.asr.AsrVendor
 import com.brycewg.asrkb.store.Prefs
+import com.brycewg.asrkb.store.UsageStats
 import com.brycewg.asrkb.util.HapticFeedbackHelper
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.progressindicator.LinearProgressIndicator
@@ -322,12 +323,12 @@ class AboutActivity : BaseActivity() {
     container.addView(p, lp)
   }
 
-  private fun sumDaily(stats: Prefs.UsageStats, days: Int): Pair<Long, Long> {
+  private fun sumDaily(stats: UsageStats, days: Int): Pair<Long, Long> {
     val (audioMs, chars) = daily(stats, days)
     return audioMs to chars
   }
 
-  private fun daily(stats: Prefs.UsageStats, days: Int): Pair<Long, Long> {
+  private fun daily(stats: UsageStats, days: Int): Pair<Long, Long> {
     val fmt = DateTimeFormatter.BASIC_ISO_DATE
     var sumAudio = 0L
     var sumChars = 0L
@@ -344,7 +345,7 @@ class AboutActivity : BaseActivity() {
     return sumAudio to sumChars
   }
 
-  private fun renderDailyBars(container: android.widget.LinearLayout, stats: Prefs.UsageStats, days: Int) {
+  private fun renderDailyBars(container: android.widget.LinearLayout, stats: UsageStats, days: Int) {
     container.removeAllViews()
     val fmt = DateTimeFormatter.BASIC_ISO_DATE
     val labelFmt = DateTimeFormatter.ofPattern("MM-dd")
