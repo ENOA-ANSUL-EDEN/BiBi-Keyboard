@@ -108,7 +108,7 @@ class SonioxFileAsrEngine(
     private fun createTranscription(apiKey: String, fileId: String): String {
         val cfg = JSONObject().apply {
             put("file_id", fileId)
-            put("model", "stt-async-v3")
+            put("model", "stt-async-v4")
             put("enable_language_identification", true)
             val langs = prefs.getSonioxLanguages()
             if (langs.isNotEmpty()) {
