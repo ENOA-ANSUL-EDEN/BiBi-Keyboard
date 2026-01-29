@@ -88,6 +88,9 @@ object UiColorTokens {
     /** 波纹/高亮效果色 */
     val ripple = android.R.attr.colorControlHighlight
 
+    /** 遮罩色（用于暗化/系统栏对齐等） */
+    val scrim = R.attr.asrScrimColor
+
 
     // ==================== 边框与分割线 ====================
 

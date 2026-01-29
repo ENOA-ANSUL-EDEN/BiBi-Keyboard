@@ -82,6 +82,7 @@ object UiColors {
             UiColorTokens.selectedBg, UiColorTokens.secondaryContainer -> 0xFFE8DEF8.toInt()
             UiColorTokens.outline -> 0xFF79747E.toInt()
             UiColorTokens.outlineVariant -> 0xFFCAC4D0.toInt()
+            UiColorTokens.scrim -> 0xFF000000.toInt()
             else -> 0xFF000000.toInt() // 黑色作为最终回退
         }
     }
