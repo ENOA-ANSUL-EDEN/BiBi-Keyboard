@@ -62,8 +62,11 @@ internal class ImeViewRefs private constructor(
     val groupMicStatus: View?,
 
     // AI edit panel
+    val aiEditInfoBar: View?,
+    val txtAiEditInfo: TextView?,
     val btnAiEditPanelBack: ImageButton?,
     val btnAiPanelApplyPreset: ImageButton?,
+    val btnAiPanelSpace: Button?,
     val btnAiPanelCursorLeft: ImageButton?,
     val btnAiPanelCursorRight: ImageButton?,
     val btnAiPanelMoveStart: ImageButton?,
@@ -132,8 +135,12 @@ internal class ImeViewRefs private constructor(
                 txtStatus = rootView.findViewById(R.id.txtStatus),
                 groupMicStatus = rootView.findViewById(R.id.groupMicStatus),
 
+                aiEditInfoBar = rootView.findViewById(R.id.aiEditInfoBar),
+                txtAiEditInfo = rootView.findViewById(R.id.txtAiEditInfo),
+
                 btnAiEditPanelBack = rootView.findViewById(R.id.btnAiPanelBack),
                 btnAiPanelApplyPreset = rootView.findViewById(R.id.btnAiPanelApplyPreset),
+                btnAiPanelSpace = rootView.findViewById(R.id.btnAiPanelSpace),
                 btnAiPanelCursorLeft = rootView.findViewById(R.id.btnAiPanelCursorLeft),
                 btnAiPanelCursorRight = rootView.findViewById(R.id.btnAiPanelCursorRight),
                 btnAiPanelMoveStart = rootView.findViewById(R.id.btnAiPanelMoveStart),
@@ -158,4 +165,3 @@ internal class ImeViewRefs private constructor(
         }
     }
 }
-

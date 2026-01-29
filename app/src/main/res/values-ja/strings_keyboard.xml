@@ -43,6 +43,10 @@
     <string name="cd_move_end">末尾に移動</string>
     <string name="cd_undo">元に戻す</string>
 
+    <!-- AI編集パネル操作ガイド -->
+    <string name="ime_ai_edit_guide_tap">マイクをタップして編集指示を録音し、もう一度タップして停止します</string>
+    <string name="ime_ai_edit_guide_hold">マイクを長押しして編集指示を話し、離すと停止します</string>
+
     <!-- Keyboard height -->
     <string name="label_keyboard_height">キーボードスケール</string>
     <string name="keyboard_height_small">小</string>

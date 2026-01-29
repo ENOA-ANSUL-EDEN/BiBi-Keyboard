@@ -152,6 +152,8 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
 
     private val txtStatusText: TextView?
         get() = viewRefs?.txtStatusText
+    private val txtAiEditInfo: TextView?
+        get() = viewRefs?.txtAiEditInfo
     private val waveformView: com.brycewg.asrkb.ui.widgets.WaveformView?
         get() = viewRefs?.waveformView
     private val groupMicStatus: View?
@@ -535,6 +537,8 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
                 inputHelper.setComposingText(ic, state.partialText)
             }
         }
+
+        updateAiEditInfoBar(state)
     }
 
     override fun onStatusMessage(message: String) {
@@ -559,6 +563,21 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
                 Toast.makeText(this, getString(R.string.error_auto_copied), Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
                 android.util.Log.e("AsrKeyboardService", "Failed to copy error message", e)
+            }
+        }
+
+        if (isAiEditPanelVisible) {
+            val tv = txtAiEditInfo
+            if (tv != null) {
+                val state = actionHandler.getCurrentState()
+                val allowOverride = when (state) {
+                    is KeyboardState.AiEditListening -> state.instruction.isNullOrBlank() || isError
+                    else -> true
+                }
+                if (allowOverride) {
+                    applyInfoBarMarquee(tv, enabled = true)
+                    tv.text = message
+                }
             }
         }
     }
@@ -884,6 +903,7 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
         hideClipboardPanel()
         hideNumpadPanel()
         aiEditPanelController?.show()
+        render(actionHandler.getCurrentState())
     }
 
     private fun showNumpadPanel(returnToAiPanel: Boolean = false) {
@@ -912,6 +932,7 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
         clipboardPanelController?.hide()
         numpadPanelController?.hide()
         aiEditPanelController?.hide()
+        aiEditPanelController?.resetSelectionState()
 
         layoutClipboardPanel?.visibility = View.GONE
         layoutNumpadPanel?.visibility = View.GONE
@@ -1093,6 +1114,35 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
         val tv = txtStatusText ?: return
         tv.ellipsize = TextUtils.TruncateAt.END
         tv.isSelected = false
+    }
+
+    private fun applyInfoBarMarquee(tv: TextView?, enabled: Boolean) {
+        if (tv == null) return
+        if (enabled) {
+            tv.ellipsize = TextUtils.TruncateAt.MARQUEE
+            tv.marqueeRepeatLimit = -1
+            tv.isSelected = true
+        } else {
+            tv.ellipsize = TextUtils.TruncateAt.END
+            tv.isSelected = false
+        }
+    }
+
+    private fun getAiEditGuideText(): String {
+        return getString(if (prefs.micTapToggleEnabled) R.string.ime_ai_edit_guide_tap else R.string.ime_ai_edit_guide_hold)
+    }
+
+    private fun updateAiEditInfoBar(state: KeyboardState) {
+        if (!isAiEditPanelVisible) return
+        val tv = txtAiEditInfo ?: return
+        applyInfoBarMarquee(tv, enabled = true)
+        tv.text = when (state) {
+            is KeyboardState.AiEditListening -> state.instruction?.takeIf { it.isNotBlank() }
+                ?: getString(R.string.status_ai_edit_listening)
+
+            is KeyboardState.AiEditProcessing -> getString(R.string.status_ai_editing)
+            else -> getAiEditGuideText()
+        }
     }
 
     // ========== AI 编辑面板：协调入口 ==========
@@ -1957,6 +2007,64 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
 
         // 数字/标点小键盘的方形按键（通过 tag="key40" 统一缩放高度）
         scaleChildrenByTag(layoutNumpadPanel, "key40")
+
+        // AI 编辑面板：按主键盘按钮行对齐（避免切换时按钮上下跳变）
+        run {
+            fun updateTopMargin(id: Int, topPx: Int) {
+                val v = view.findViewById<View>(id) ?: return
+                val lp = v.layoutParams as? androidx.constraintlayout.widget.ConstraintLayout.LayoutParams ?: return
+                if (lp.topMargin == topPx) return
+                lp.topMargin = topPx
+                v.layoutParams = lp
+            }
+
+            val infoTop = dp(5f * scale)
+            val row1Top = dp(50f * scale)
+            val row2Top = dp(90f * scale + 6f)
+            val row3Top = dp(130f * scale + 12f)
+
+            // 信息栏：与主键盘第一行按钮对齐，且高度随缩放同步
+            val info = view.findViewById<View>(R.id.aiEditInfoBar)
+            val infoLp = info?.layoutParams as? androidx.constraintlayout.widget.ConstraintLayout.LayoutParams
+            if (info != null && infoLp != null) {
+                val h = dp(40f * scale)
+                var changed = false
+                if (infoLp.topMargin != infoTop) {
+                    infoLp.topMargin = infoTop
+                    changed = true
+                }
+                if (infoLp.height != h) {
+                    infoLp.height = h
+                    changed = true
+                }
+                if (changed) info.layoutParams = infoLp
+            }
+
+            // 空格键：与 AI 编辑面板第三行按钮对齐（对应主键盘第四行），且高度随缩放同步
+            val space = view.findViewById<View>(R.id.btnAiPanelSpace)
+            val spaceLp = space?.layoutParams as? androidx.constraintlayout.widget.ConstraintLayout.LayoutParams
+            if (space != null && spaceLp != null) {
+                val h = dp(40f * scale)
+                var changed = false
+                if (spaceLp.topMargin != row3Top) {
+                    spaceLp.topMargin = row3Top
+                    changed = true
+                }
+                if (spaceLp.height != h) {
+                    spaceLp.height = h
+                    changed = true
+                }
+                if (changed) space.layoutParams = spaceLp
+            }
+
+            // 三行按钮：分别与主键盘第 2/3/4 行按钮对齐
+            updateTopMargin(R.id.aiEditRow1Left, row1Top)
+            updateTopMargin(R.id.aiEditRow1Right, row1Top)
+            updateTopMargin(R.id.aiEditRow2Left, row2Top)
+            updateTopMargin(R.id.aiEditRow2Right, row2Top)
+            updateTopMargin(R.id.aiEditRow3Left, row3Top)
+            updateTopMargin(R.id.aiEditRow3Right, row3Top)
+        }
 
         btnMic?.customSize = dp(72f * scale)
 

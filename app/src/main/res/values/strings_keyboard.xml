@@ -42,6 +42,10 @@
     <string name="cd_move_end">Move to end</string>
     <string name="cd_undo">Undo</string>
 
+    <!-- AI edit panel guide -->
+    <string name="ime_ai_edit_guide_tap">Tap the mic to record an edit instruction; tap again to stop</string>
+    <string name="ime_ai_edit_guide_hold">Hold the mic to speak an edit instruction; release to stop</string>
+
     <!-- Keyboard height -->
     <string name="label_keyboard_height">Keyboard scale</string>
     <string name="keyboard_height_small">Small</string>

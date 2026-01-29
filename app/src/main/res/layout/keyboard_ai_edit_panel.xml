@@ -5,6 +5,30 @@
     android:layout_height="wrap_content"
     android:layout_gravity="center_vertical">
 
+    <FrameLayout
+        android:id="@+id/aiEditInfoBar"
+        style="@style/KeyboardRectContainer"
+        android:layout_width="0dp"
+        android:layout_marginTop="5dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <TextView
+            android:id="@+id/txtAiEditInfo"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:textSize="14sp"
+            android:textColor="?attr/colorOnSurface"
+            android:singleLine="true"
+            android:ellipsize="marquee"
+            android:marqueeRepeatLimit="marquee_forever"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:includeFontPadding="false" />
+    </FrameLayout>
+
     <androidx.constraintlayout.widget.Guideline
         android:id="@+id/guidelineCenter"
         android:layout_width="wrap_content"
@@ -13,155 +37,177 @@
         app:layout_constraintGuide_percent="0.5" />
 
     <LinearLayout
-        android:id="@+id/groupAiEditLeft"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:gravity="start|center_vertical"
-        android:orientation="vertical"
+        android:orientation="horizontal"
         app:layout_constraintEnd_toStartOf="@id/guidelineCenter"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
+        app:layout_constraintTop_toTopOf="parent"
+        android:layout_marginTop="50dp"
+        android:id="@+id/aiEditRow1Left">
 
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:layout_marginBottom="6dp">
+        <ImageButton
+            android:id="@+id/btnAiPanelBack"
+            style="@style/KeyboardImageButton"
+            android:layout_marginEnd="6dp"
+            android:contentDescription="@string/cd_return_main"
+            android:src="@drawable/arrow_u_up_left_toggle" />
 
-            <ImageButton
-                android:id="@+id/btnAiPanelBack"
-                style="@style/KeyboardImageButton"
-                android:layout_marginEnd="6dp"
-                android:contentDescription="@string/cd_return_main"
-                android:src="@drawable/arrow_u_up_left_toggle" />
+        <ImageButton
+            android:id="@+id/btnAiPanelApplyPreset"
+            style="@style/KeyboardImageButton"
+            android:layout_marginStart="0dp"
+            android:contentDescription="@string/cd_apply_preset_prompt"
+            android:src="@drawable/lightning_toggle" />
 
-            <ImageButton
-                android:id="@+id/btnAiPanelApplyPreset"
-                style="@style/KeyboardImageButton"
-                android:layout_marginStart="0dp"
-                android:contentDescription="@string/cd_apply_preset_prompt"
-                android:src="@drawable/magic_wand_toggle" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:layout_marginBottom="6dp">
-
-            <ImageButton
-                android:id="@+id/btnAiPanelCursorLeft"
-                style="@style/KeyboardImageButton"
-                android:layout_marginEnd="6dp"
-                android:contentDescription="@string/cd_cursor_left"
-                android:src="@drawable/arrow_left_toggle" />
-
-            <ImageButton
-                android:id="@+id/btnAiPanelCursorRight"
-                style="@style/KeyboardImageButton"
-                android:layout_marginStart="0dp"
-                android:contentDescription="@string/cd_cursor_right"
-                android:src="@drawable/arrow_right_toggle" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <ImageButton
-                android:id="@+id/btnAiPanelNumpad"
-                style="@style/KeyboardImageButton"
-                android:layout_marginEnd="6dp"
-                android:contentDescription="@string/cd_numpad"
-                android:src="@drawable/numpad_toggle" />
-
-            <ImageButton
-                android:id="@+id/btnAiPanelSelect"
-                style="@style/KeyboardImageButton"
-                android:layout_marginStart="0dp"
-                android:contentDescription="@string/cd_select_toggle"
-                android:src="@drawable/selection_toggle" />
-        </LinearLayout>
     </LinearLayout>
 
     <LinearLayout
-        android:id="@+id/groupAiEditRight"
+        android:id="@+id/aiEditRow1Right"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:gravity="end|center_vertical"
-        android:orientation="vertical"
+        android:orientation="horizontal"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@id/guidelineCenter"
-        app:layout_constraintTop_toTopOf="parent">
+        app:layout_constraintTop_toTopOf="parent"
+        android:layout_marginTop="50dp">
 
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:layout_marginBottom="6dp">
+        <ImageButton
+            android:id="@+id/btnAiPanelSelectAll"
+            style="@style/KeyboardImageButton"
+            android:layout_marginEnd="6dp"
+            android:contentDescription="@string/cd_select_all"
+            android:src="@drawable/selection_all_toggle" />
 
-            <ImageButton
-                android:id="@+id/btnAiPanelSelectAll"
-                style="@style/KeyboardImageButton"
-                android:layout_marginEnd="6dp"
-                android:contentDescription="@string/cd_select_all"
-                android:src="@drawable/selection_all_toggle" />
+        <ImageButton
+            android:id="@+id/btnAiPanelUndo"
+            style="@style/KeyboardImageButton"
+            android:layout_marginStart="0dp"
+            android:contentDescription="@string/cd_backspace"
+            android:src="@drawable/backspace_toggle" />
 
-            <ImageButton
-                android:id="@+id/btnAiPanelUndo"
-                style="@style/KeyboardImageButton"
-                android:layout_marginStart="0dp"
-                android:contentDescription="@string/cd_backspace"
-                android:src="@drawable/backspace_toggle" />
-        </LinearLayout>
+    </LinearLayout>
 
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:layout_marginBottom="6dp">
+    <LinearLayout
+        android:id="@+id/aiEditRow2Left"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:gravity="start|center_vertical"
+        android:orientation="horizontal"
+        app:layout_constraintEnd_toStartOf="@id/guidelineCenter"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        android:layout_marginTop="96dp">
 
-            <ImageButton
-                android:id="@+id/btnAiPanelCopy"
-                style="@style/KeyboardImageButton"
-                android:layout_marginEnd="6dp"
-                android:contentDescription="@string/cd_copy"
-                android:src="@drawable/copy_toggle" />
+        <ImageButton
+            android:id="@+id/btnAiPanelCursorLeft"
+            style="@style/KeyboardImageButton"
+            android:layout_marginEnd="6dp"
+            android:contentDescription="@string/cd_cursor_left"
+            android:src="@drawable/arrow_left_toggle" />
 
-            <ImageButton
-                android:id="@+id/btnAiPanelPaste"
-                style="@style/KeyboardImageButton"
-                android:layout_marginStart="0dp"
-                android:contentDescription="@string/cd_paste"
-                android:src="@drawable/selection_background_toggle" />
-        </LinearLayout>
+        <ImageButton
+            android:id="@+id/btnAiPanelCursorRight"
+            style="@style/KeyboardImageButton"
+            android:layout_marginStart="0dp"
+            android:contentDescription="@string/cd_cursor_right"
+            android:src="@drawable/arrow_right_toggle" />
+    </LinearLayout>
 
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
+    <LinearLayout
+        android:id="@+id/aiEditRow2Right"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:gravity="end|center_vertical"
+        android:orientation="horizontal"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/guidelineCenter"
+        app:layout_constraintTop_toTopOf="parent"
+        android:layout_marginTop="96dp">
 
-            <ImageButton
-                android:id="@+id/btnAiPanelMoveStart"
-                style="@style/KeyboardImageButton"
-                android:layout_marginEnd="6dp"
-                android:contentDescription="@string/cd_move_home"
-                android:src="@drawable/arrow_line_left_toggle" />
+        <ImageButton
+            android:id="@+id/btnAiPanelCopy"
+            style="@style/KeyboardImageButton"
+            android:layout_marginEnd="6dp"
+            android:contentDescription="@string/cd_copy"
+            android:src="@drawable/copy_toggle" />
 
-            <ImageButton
-                android:id="@+id/btnAiPanelMoveEnd"
-                style="@style/KeyboardImageButton"
-                android:layout_marginStart="0dp"
-                android:contentDescription="@string/cd_move_end"
-                android:src="@drawable/arrow_line_right_toggle" />
-        </LinearLayout>
+        <ImageButton
+            android:id="@+id/btnAiPanelPaste"
+            style="@style/KeyboardImageButton"
+            android:layout_marginStart="0dp"
+            android:contentDescription="@string/cd_paste"
+            android:src="@drawable/selection_background_toggle" />
+
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/aiEditRow3Left"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="start|center_vertical"
+        android:orientation="horizontal"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        android:layout_marginTop="142dp">
+
+        <ImageButton
+            android:id="@+id/btnAiPanelNumpad"
+            style="@style/KeyboardImageButton"
+            android:layout_marginEnd="6dp"
+            android:contentDescription="@string/cd_numpad"
+            android:src="@drawable/numpad_toggle" />
+
+        <ImageButton
+            android:id="@+id/btnAiPanelSelect"
+            style="@style/KeyboardImageButton"
+            android:layout_marginStart="0dp"
+            android:contentDescription="@string/cd_select_toggle"
+            android:src="@drawable/selection_toggle" />
+
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/btnAiPanelSpace"
+        style="@style/KeyboardRectContainer"
+        android:layout_width="0dp"
+        android:layout_marginTop="142dp"
+        android:layout_marginStart="6dp"
+        android:layout_marginEnd="6dp"
+        android:contentDescription="@string/cd_space"
+        android:text="@string/cd_space"
+        android:textColor="?attr/colorOnSurfaceVariant"
+        android:textSize="14sp"
+        android:gravity="center"
+        app:layout_constraintStart_toEndOf="@id/aiEditRow3Left"
+        app:layout_constraintEnd_toStartOf="@id/aiEditRow3Right"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <LinearLayout
+        android:id="@+id/aiEditRow3Right"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="end|center_vertical"
+        android:orientation="horizontal"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        android:layout_marginTop="142dp">
+
+        <ImageButton
+            android:id="@+id/btnAiPanelMoveStart"
+            style="@style/KeyboardImageButton"
+            android:layout_marginEnd="6dp"
+            android:contentDescription="@string/cd_move_home"
+            android:src="@drawable/arrow_line_left_toggle" />
+
+        <ImageButton
+            android:id="@+id/btnAiPanelMoveEnd"
+            style="@style/KeyboardImageButton"
+            android:layout_marginStart="0dp"
+            android:contentDescription="@string/cd_move_end"
+            android:src="@drawable/arrow_line_right_toggle" />
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

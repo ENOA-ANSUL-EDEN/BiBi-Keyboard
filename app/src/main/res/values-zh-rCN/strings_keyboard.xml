@@ -42,6 +42,10 @@
     <string name="cd_move_end">移到末尾</string>
     <string name="cd_undo">撤回</string>
 
+    <!-- AI 编辑面板操作指引 -->
+    <string name="ime_ai_edit_guide_tap">点按麦克风开始录音指令，再次点按结束</string>
+    <string name="ime_ai_edit_guide_hold">长按麦克风说出编辑指令，放开停止</string>
+
     <!-- Keyboard height -->
     <string name="label_keyboard_height">键盘比例</string>
     <string name="keyboard_height_small">小</string>

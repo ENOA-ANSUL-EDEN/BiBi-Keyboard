@@ -42,6 +42,10 @@
     <string name="cd_move_end">移至結尾</string>
     <string name="cd_undo">復原</string>
 
+    <!-- AI 編輯面板操作指引 -->
+    <string name="ime_ai_edit_guide_tap">點擊麥克風開始錄下編輯指令，再次點擊停止</string>
+    <string name="ime_ai_edit_guide_hold">長按麥克風說出編輯指令，放開停止</string>
+
     <!-- Keyboard height -->
     <string name="label_keyboard_height">鍵盤縮放</string>
     <string name="keyboard_height_small">小</string>

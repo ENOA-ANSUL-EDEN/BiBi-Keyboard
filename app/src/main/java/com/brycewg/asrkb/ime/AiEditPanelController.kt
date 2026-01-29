@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import androidx.appcompat.widget.PopupMenu
 import com.brycewg.asrkb.R
 import com.brycewg.asrkb.store.Prefs
@@ -43,6 +44,14 @@ internal class AiEditPanelController(
         views.btnAiPanelApplyPreset?.setOnClickListener { v ->
             performKeyHaptic(v)
             showPromptPickerForApply(v)
+        }
+
+        // AI 编辑面板：空格键
+        views.btnAiPanelSpace?.setOnClickListener { v ->
+            performKeyHaptic(v)
+            val state = actionHandler.getCurrentState()
+            if (state is KeyboardState.Listening || state is KeyboardState.AiEditListening) return@setOnClickListener
+            actionHandler.commitText(inputConnectionProvider(), " ")
         }
 
         // AI 编辑面板：光标/选择移动
@@ -105,17 +114,38 @@ internal class AiEditPanelController(
         if (isVisible) return
         // 进入面板时重置选择模式
         resetSelectionMode()
+        val mainHeight = views.layoutMainKeyboard?.height
         views.layoutMainKeyboard?.visibility = View.GONE
-        views.layoutAiEditPanel?.visibility = View.VISIBLE
+        val panel = views.layoutAiEditPanel
+        if (panel != null) {
+            if (mainHeight != null && mainHeight > 0) {
+                val lp = panel.layoutParams
+                lp.height = mainHeight
+                panel.layoutParams = lp
+            }
+            panel.visibility = View.VISIBLE
+        }
         isVisible = true
     }
 
     fun hide() {
-        if (!isVisible) return
-        views.layoutAiEditPanel?.visibility = View.GONE
+        val panel = views.layoutAiEditPanel
+        if (panel != null) {
+            panel.visibility = View.GONE
+            val lp = panel.layoutParams
+            lp.height = ViewGroup.LayoutParams.WRAP_CONTENT
+            panel.layoutParams = lp
+        }
         views.layoutMainKeyboard?.visibility = View.VISIBLE
         isVisible = false
         resetSelectionMode()
+        releaseCursorRepeatCallbacks()
+    }
+
+    fun resetSelectionState() {
+        resetSelectionMode()
+        lastSelStart = -1
+        lastSelEnd = -1
         releaseCursorRepeatCallbacks()
     }
 
@@ -356,4 +386,3 @@ internal class AiEditPanelController(
         applySelectExtButtonsUi()
     }
 }
-
