@@ -360,6 +360,12 @@ class VolcStreamAsrEngine(
                     Log.e(TAG, "Audio streaming failed: ${t.message}", t)
                     listener.onError(context.getString(R.string.error_audio_error, t.message ?: ""))
                 }
+            } finally {
+                try {
+                    vadDetector?.release()
+                } catch (t: Throwable) {
+                    Log.w(TAG, "VAD release failed", t)
+                }
             }
         }
     }

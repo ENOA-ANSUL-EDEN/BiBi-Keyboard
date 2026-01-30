@@ -308,6 +308,12 @@ class ParaformerStreamAsrEngine(
                         }
                     }
                 }
+            } finally {
+                try {
+                    vadDetector?.release()
+                } catch (t: Throwable) {
+                    Log.w(TAG, "VAD release failed", t)
+                }
             }
         }
     }
