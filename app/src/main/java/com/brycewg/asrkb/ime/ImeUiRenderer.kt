@@ -20,7 +20,7 @@ internal class ImeUiRenderer(
     private val micGestureController: () -> MicGestureController?,
     private val downloadClipboardFileById: (String) -> Unit,
     private val markShownClipboardText: (String) -> Unit,
-    private val copyTextToSystemClipboard: (label: String, text: String) -> Unit,
+    private val copyTextToSystemClipboard: (label: String, text: String) -> Boolean,
 ) {
     private var clipboardPreviewTimeout: Runnable? = null
 
@@ -60,11 +60,14 @@ internal class ImeUiRenderer(
             message.contains(Regex("\\b(401|403|404|500|502|503)\\b"))
 
         if (isError) {
-            try {
+            val copied = try {
                 copyTextToSystemClipboard("ASR Error", message)
-                Toast.makeText(context, context.getString(R.string.error_auto_copied), Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
                 android.util.Log.e("AsrKeyboardService", "Failed to copy error message", e)
+                false
+            }
+            if (copied) {
+                Toast.makeText(context, context.getString(R.string.error_auto_copied), Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -347,4 +350,3 @@ internal class ImeUiRenderer(
         views.btnExtCenter2?.text = context.getString(R.string.cd_space)
     }
 }
-

@@ -224,12 +224,14 @@ internal class ImeClipboardCoordinator(
         lastShownClipboardHash = sha256Hex(text)
     }
 
-    fun copyPlainTextToSystemClipboard(label: String, text: String) {
-        try {
+    fun copyPlainTextToSystemClipboard(label: String, text: String): Boolean {
+        return try {
             val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             cm.setPrimaryClip(ClipData.newPlainText(label, text))
+            true
         } catch (e: Exception) {
             android.util.Log.e("AsrKeyboardService", "Failed to copy text to clipboard", e)
+            false
         }
     }
 
@@ -273,4 +275,3 @@ internal class ImeClipboardCoordinator(
         }
     }
 }
-
