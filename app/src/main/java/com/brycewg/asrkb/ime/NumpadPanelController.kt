@@ -1,6 +1,7 @@
 package com.brycewg.asrkb.ime
 
 import android.view.View
+import android.view.ViewGroup
 import android.widget.TextView
 import com.brycewg.asrkb.R
 import com.brycewg.asrkb.store.Prefs
@@ -60,9 +61,19 @@ internal class NumpadPanelController(
     fun show(returnToAiPanel: Boolean) {
         if (isVisible) return
         this.returnToAiPanel = returnToAiPanel
+        val mainHeight = views.layoutMainKeyboard?.height?.takeIf { it > 0 }
+            ?: ((views.rootView.height - views.rootView.paddingTop - views.rootView.paddingBottom).takeIf { it > 0 })
         views.layoutAiEditPanel?.visibility = View.GONE
         views.layoutMainKeyboard?.visibility = View.GONE
-        views.layoutNumpadPanel?.visibility = View.VISIBLE
+        val panel = views.layoutNumpadPanel
+        if (panel != null) {
+            if (mainHeight != null && mainHeight > 0) {
+                val lp = panel.layoutParams
+                lp.height = mainHeight
+                panel.layoutParams = lp
+            }
+            panel.visibility = View.VISIBLE
+        }
         views.groupMicStatus?.visibility = View.GONE
         isVisible = true
         applyPunctMode()
@@ -74,7 +85,13 @@ internal class NumpadPanelController(
             views.groupMicStatus?.visibility = View.VISIBLE
             return
         }
-        views.layoutNumpadPanel?.visibility = View.GONE
+        val panel = views.layoutNumpadPanel
+        if (panel != null) {
+            panel.visibility = View.GONE
+            val lp = panel.layoutParams
+            lp.height = ViewGroup.LayoutParams.WRAP_CONTENT
+            panel.layoutParams = lp
+        }
         views.groupMicStatus?.visibility = View.VISIBLE
         views.layoutMainKeyboard?.visibility = View.VISIBLE
         isVisible = false

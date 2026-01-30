@@ -4,6 +4,7 @@ import android.inputmethodservice.InputMethodService
 import android.view.Gravity
 import android.view.View
 import android.widget.FrameLayout
+import android.widget.LinearLayout
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -229,6 +230,45 @@ internal class ImeLayoutController(
         // 数字/标点小键盘的方形按键（通过 tag="key40" 统一缩放高度）
         scaleChildrenByTag(refs?.layoutNumpadPanel, "key40")
 
+        // 数字/符号面板：按主键盘网格对齐，避免切换时上下错位
+        run {
+            val panel = refs?.layoutNumpadPanel ?: root.findViewById(R.id.layoutNumpadPanel)
+            if (panel != null) {
+                val extRowHeightPx = dp(50f * scale)
+                val keySizePx = dp(40f * scale)
+                val topInsetPx = ((extRowHeightPx - keySizePx) / 2).coerceAtLeast(0)
+                val gapPx = dp(6f)
+
+                val ps = panel.paddingStart
+                val pe = panel.paddingEnd
+                val pb = panel.paddingBottom
+                if (panel.paddingTop != topInsetPx) {
+                    panel.setPaddingRelative(ps, topInsetPx, pe, pb)
+                }
+
+                fun updateLinearTopMargin(id: Int, topPx: Int) {
+                    val v = panel.findViewById<View>(id) ?: return
+                    val lp = v.layoutParams as? LinearLayout.LayoutParams ?: return
+                    if (lp.topMargin == topPx) return
+                    lp.topMargin = topPx
+                    v.layoutParams = lp
+                }
+
+                fun updateLinearBottomMargin(id: Int, bottomPx: Int) {
+                    val v = panel.findViewById<View>(id) ?: return
+                    val lp = v.layoutParams as? LinearLayout.LayoutParams ?: return
+                    if (lp.bottomMargin == bottomPx) return
+                    lp.bottomMargin = bottomPx
+                    v.layoutParams = lp
+                }
+
+                updateLinearBottomMargin(R.id.rowNumpadDigits, topInsetPx)
+                updateLinearBottomMargin(R.id.rowPunct1, gapPx)
+                updateLinearBottomMargin(R.id.rowPunct2, gapPx)
+                updateLinearTopMargin(R.id.rowNumpadBottomBar, 0)
+            }
+        }
+
         // AI 编辑面板：按主键盘按钮行对齐（避免切换时按钮上下跳变）
         run {
             fun updateTopMargin(id: Int, topPx: Int) {
@@ -364,4 +404,3 @@ internal class ImeLayoutController(
         )
     }
 }
-
