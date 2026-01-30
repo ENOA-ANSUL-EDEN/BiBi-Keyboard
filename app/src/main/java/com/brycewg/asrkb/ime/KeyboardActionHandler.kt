@@ -6,18 +6,10 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import com.brycewg.asrkb.R
 import com.brycewg.asrkb.asr.LlmPostProcessor
-import com.brycewg.asrkb.asr.AsrTimeoutCalculator
-import com.brycewg.asrkb.asr.LOCAL_MODEL_READY_WAIT_MAX_MS
-import com.brycewg.asrkb.asr.awaitLocalAsrReady
-import com.brycewg.asrkb.asr.isLocalAsrVendor
 import com.brycewg.asrkb.asr.VadAutoStopGuard
-import com.brycewg.asrkb.util.TextSanitizer
-import com.brycewg.asrkb.util.TypewriterTextAnimator
 import com.brycewg.asrkb.store.Prefs
-import com.brycewg.asrkb.analytics.AnalyticsManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import com.brycewg.asrkb.store.debug.DebugLogManager
 
@@ -65,16 +57,107 @@ class KeyboardActionHandler(
     // 会话上下文
     private var sessionContext = KeyboardSessionContext()
 
-    // 全局撤销快照栈（支持多次撤回，最多保存3个快照）
-    private val undoSnapshots = ArrayDeque<UndoSnapshot>(3)
-    private val maxUndoSnapshots = 3
-
-    // Processing 阶段兜底定时器（防止最终结果长时间未回调导致无法再次开始）
-    private var processingTimeoutJob: Job? = null
     // 强制停止标记：用于忽略上一会话迟到的 onFinal/onStopped
     private var dropPendingFinal: Boolean = false
     // 操作序列号：用于取消在途处理（强制停止/新会话开始都会递增）
     private var opSeq: Long = 0L
+
+    private val undoManager = UndoManager(inputHelper = inputHelper, logTag = TAG, maxSnapshots = 3)
+
+    private val processingTimeoutController = ProcessingTimeoutController(
+        scope = scope,
+        prefs = prefs,
+        logTag = TAG,
+        currentStateProvider = { currentState },
+        opSeqProvider = { opSeq },
+        audioMsProvider = { asrManager.peekLastAudioMsForStats() },
+        usingBackupEngineProvider = { asrManager.getEngine() is com.brycewg.asrkb.asr.ParallelAsrEngine },
+        onTimeout = { transitionToIdle() }
+    )
+
+    private val commitRecorder = AsrCommitRecorder(
+        context = context,
+        prefs = prefs,
+        asrManager = asrManager,
+        logTag = TAG
+    )
+
+    private val postprocessPipeline = PostprocessPipeline(
+        context = context,
+        scope = scope,
+        prefs = prefs,
+        inputHelper = inputHelper,
+        llmPostProcessor = llmPostProcessor,
+        logTag = TAG
+    )
+
+    private val dictationUseCase = DictationUseCase(
+        context = context,
+        prefs = prefs,
+        asrManager = asrManager,
+        inputHelper = inputHelper,
+        processingTimeoutController = processingTimeoutController,
+        postprocessPipeline = postprocessPipeline,
+        commitRecorder = commitRecorder,
+        uiListenerProvider = { uiListener },
+        getCurrentEditorInfo = { getCurrentEditorInfo() },
+        isCancelled = { seq -> seq != opSeq },
+        consumeAutoEnterOnce = { consumeAutoEnterOnce() },
+        updateSessionContext = { transform -> sessionContext = transform(sessionContext) },
+        transitionToState = { transitionToState(it) },
+        transitionToIdle = { keepMessage -> transitionToIdle(keepMessage = keepMessage) },
+        transitionToIdleWithTiming = { showBackupUsedHint -> transitionToIdleWithTiming(showBackupUsedHint) },
+        scheduleProcessingTimeout = { audioMsOverride -> scheduleProcessingTimeout(audioMsOverride) }
+    )
+
+    private val aiEditUseCase = AiEditUseCase(
+        context = context,
+        prefs = prefs,
+        asrManager = asrManager,
+        inputHelper = inputHelper,
+        llmPostProcessor = llmPostProcessor,
+        uiListenerProvider = { uiListener },
+        currentStateProvider = { currentState },
+        getCurrentInputConnection = { getCurrentInputConnection() },
+        isCancelled = { seq -> seq != opSeq },
+        getLastAsrCommitText = { sessionContext.lastAsrCommitText },
+        updateSessionContext = { transform -> sessionContext = transform(sessionContext) },
+        transitionToState = { transitionToState(it) },
+        transitionToIdle = { keepMessage -> transitionToIdle(keepMessage = keepMessage) },
+        transitionToIdleWithTiming = { showBackupUsedHint -> transitionToIdleWithTiming(showBackupUsedHint) }
+    )
+
+    private val promptApplyUseCase = PromptApplyUseCase(
+        context = context,
+        scope = scope,
+        prefs = prefs,
+        inputHelper = inputHelper,
+        llmPostProcessor = llmPostProcessor,
+        uiListenerProvider = { uiListener },
+        saveUndoSnapshot = { ic -> saveUndoSnapshot(ic) },
+        getLastAsrCommitText = { sessionContext.lastAsrCommitText },
+        updateSessionContext = { transform -> sessionContext = transform(sessionContext) },
+        logTag = TAG
+    )
+
+    private val extensionButtonDispatcher = ExtensionButtonActionDispatcher(
+        context = context,
+        prefs = prefs,
+        inputHelper = inputHelper,
+        uiListenerProvider = { uiListener },
+        handleUndo = { ic -> handleUndo(ic) },
+        logTag = TAG
+    )
+
+    private val retryUseCase = RetryUseCase(
+        context = context,
+        asrManager = asrManager,
+        uiListenerProvider = { uiListener },
+        transitionToState = { transitionToState(it) },
+        transitionToIdle = { transitionToIdle() },
+        scheduleProcessingTimeout = { scheduleProcessingTimeout() },
+        logTag = TAG
+    )
     // 长按期间的"按住状态"和自动重启计数（用于应对录音被系统提前中断的设备差异）
     private var micHoldActive: Boolean = false
     private var micHoldRestartCount: Int = 0
@@ -83,40 +166,7 @@ class KeyboardActionHandler(
     private var isAutoStartedRecording: Boolean = false
 
     private fun scheduleProcessingTimeout(audioMsOverride: Long? = null) {
-        try { processingTimeoutJob?.cancel() } catch (t: Throwable) { Log.w(TAG, "Cancel previous processingTimeoutJob failed", t) }
-        val audioMs = audioMsOverride ?: try { asrManager.peekLastAudioMsForStats() } catch (_: Throwable) { 0L }
-        val usingBackupEngine = try {
-            asrManager.getEngine() is com.brycewg.asrkb.asr.ParallelAsrEngine
-        } catch (_: Throwable) {
-            false
-        }
-        val baseTimeoutMs = AsrTimeoutCalculator.calculateTimeoutMs(audioMs)
-        val timeoutMs = if (usingBackupEngine) baseTimeoutMs + 2_000L else baseTimeoutMs
-        val shouldDeferForLocalModel = try {
-            !usingBackupEngine && isLocalAsrVendor(prefs.asrVendor)
-        } catch (t: Throwable) {
-            Log.w(TAG, "Failed to determine local ASR vendor for timeout gating", t)
-            false
-        }
-        processingTimeoutJob = scope.launch {
-            if (shouldDeferForLocalModel) {
-                // 本地模型：将超时计时起点推移到“模型加载完成”之后，避免首次加载期间误触发超时
-                val ok = awaitLocalAsrReady(prefs, maxWaitMs = LOCAL_MODEL_READY_WAIT_MAX_MS)
-                if (!ok) {
-                    // 读取配置失败等异常场景：回退为原有策略（不阻塞、继续计时）
-                    Log.w(TAG, "awaitLocalAsrReady returned false, fallback to immediate timeout countdown")
-                }
-                // 若等待期间状态已变化，则不再继续计时
-                if (currentState !is KeyboardState.Processing) return@launch
-            }
-            delay(timeoutMs)
-            // 若仍处于 Processing，则回到 Idle
-            if (currentState is KeyboardState.Processing) {
-                try { DebugLogManager.log("ime", "processing_timeout_fired", mapOf("opSeq" to opSeq, "audioMs" to audioMs, "timeoutMs" to timeoutMs)) } catch (_: Throwable) { }
-                transitionToIdle()
-            }
-        }
-        try { DebugLogManager.log("ime", "processing_timeout_scheduled", mapOf("opSeq" to opSeq, "audioMs" to audioMs, "timeoutMs" to timeoutMs)) } catch (_: Throwable) { }
+        processingTimeoutController.schedule(audioMsOverride)
     }
 
     private fun ensureAutoStopSuppressed() {
@@ -198,8 +248,7 @@ class KeyboardActionHandler(
             }
             is KeyboardState.Processing -> {
                 // 强制停止：立即回到 Idle，并忽略本会话迟到的 onFinal/onStopped
-                try { processingTimeoutJob?.cancel() } catch (t: Throwable) { Log.w(TAG, "Cancel timeout on force stop failed", t) }
-                processingTimeoutJob = null
+                processingTimeoutController.cancel()
                 dropPendingFinal = true
                 transitionToIdle(keepMessage = true)
                 uiListener?.onStatusMessage(context.getString(R.string.status_cancelled))
@@ -240,10 +289,7 @@ class KeyboardActionHandler(
             }
             is KeyboardState.Processing -> {
                 // 强制停止：根据模式决定后续动作
-                try {
-                    processingTimeoutJob?.cancel()
-                } catch (t: Throwable) { Log.w(TAG, "Cancel processing timeout on press", t) }
-                processingTimeoutJob = null
+                processingTimeoutController.cancel()
                 // 标记忽略上一会话的迟到回调
                 dropPendingFinal = true
                 if (!prefs.micTapToggleEnabled) {
@@ -354,54 +400,7 @@ class KeyboardActionHandler(
      * 处理 AI 编辑按钮点击
      */
     fun handleAiEditClick(ic: InputConnection?) {
-        if (ic == null) {
-            uiListener?.onStatusMessage(context.getString(R.string.status_idle))
-            return
-        }
-
-        // 如果正在 AI 编辑录音，停止录音
-        if (currentState is KeyboardState.AiEditListening) {
-            asrManager.stopRecording()
-            uiListener?.onStatusMessage(context.getString(R.string.status_recognizing))
-            return
-        }
-
-        // 如果正在普通录音，忽略
-        if (asrManager.isRunning()) {
-            return
-        }
-
-        // 准备 AI 编辑
-        val selected = inputHelper.getSelectedText(ic, 0)
-        val targetIsSelection = !selected.isNullOrEmpty()
-        val targetText = if (targetIsSelection) {
-            selected.toString()
-        } else {
-            // 无选区：根据偏好选择来源（上次识别结果 或 整个输入框文本）
-            if (prefs.aiEditDefaultToLastAsr) {
-                val lastText = sessionContext.lastAsrCommitText
-                if (lastText.isNullOrEmpty()) {
-                    uiListener?.onStatusMessage(context.getString(R.string.status_last_asr_not_found))
-                    return
-                }
-                lastText
-            } else {
-                val before = inputHelper.getTextBeforeCursor(ic, 10000)?.toString() ?: ""
-                val after = inputHelper.getTextAfterCursor(ic, 10000)?.toString() ?: ""
-                val all = before + after
-                if (all.isEmpty()) {
-                    uiListener?.onStatusMessage(context.getString(R.string.hint_cannot_read_text))
-                    return
-                }
-                all
-            }
-        }
-
-        // 开始 AI 编辑录音
-        val state = KeyboardState.AiEditListening(targetIsSelection, targetText)
-        transitionToState(state)
-        asrManager.startRecording(state)
-        uiListener?.onStatusMessage(context.getString(R.string.status_ai_edit_listening))
+        aiEditUseCase.handleClick(ic)
     }
 
     /**
@@ -440,18 +439,15 @@ class KeyboardActionHandler(
         }
 
         // 2) 否则从撤销栈恢复快照
-        val snapshot = undoSnapshots.removeLastOrNull()
-        if (snapshot != null) {
-            if (inputHelper.restoreSnapshot(ic, snapshot)) {
-                val remaining = undoSnapshots.size
-                val message = if (remaining > 0) {
-                    context.getString(R.string.status_undone) + " ($remaining)"
-                } else {
-                    context.getString(R.string.status_undone)
-                }
-                uiListener?.onStatusMessage(message)
-                return true
+        val remaining = undoManager.popAndRestoreSnapshot(ic)
+        if (remaining != null) {
+            val message = if (remaining > 0) {
+                context.getString(R.string.status_undone) + " ($remaining)"
+            } else {
+                context.getString(R.string.status_undone)
             }
+            uiListener?.onStatusMessage(message)
+            return true
         }
 
         return false
@@ -465,117 +461,7 @@ class KeyboardActionHandler(
         action: com.brycewg.asrkb.ime.ExtensionButtonAction,
         ic: InputConnection?
     ): ExtensionButtonActionResult {
-        // 部分动作不依赖输入连接（如收起键盘），因此仅对需要输入连接的动作做空判断
-        return when (action) {
-            com.brycewg.asrkb.ime.ExtensionButtonAction.NONE -> {
-                ExtensionButtonActionResult.SUCCESS
-            }
-            com.brycewg.asrkb.ime.ExtensionButtonAction.SELECT -> {
-                // 切换选择模式（需要 IME 支持）
-                ExtensionButtonActionResult.NEED_TOGGLE_SELECTION
-            }
-            com.brycewg.asrkb.ime.ExtensionButtonAction.SELECT_ALL -> {
-                if (ic == null) return ExtensionButtonActionResult.FAILED
-                try {
-                    ic.performContextMenuAction(android.R.id.selectAll)
-                    ExtensionButtonActionResult.SUCCESS
-                } catch (t: Throwable) {
-                    Log.w(TAG, "SELECT_ALL failed", t)
-                    ExtensionButtonActionResult.FAILED
-                }
-            }
-            com.brycewg.asrkb.ime.ExtensionButtonAction.COPY -> {
-                if (ic == null) return ExtensionButtonActionResult.FAILED
-                try {
-                    ic.performContextMenuAction(android.R.id.copy)
-                    uiListener?.onStatusMessage(context.getString(R.string.status_copied))
-                    ExtensionButtonActionResult.SUCCESS
-                } catch (t: Throwable) {
-                    Log.w(TAG, "COPY failed", t)
-                    ExtensionButtonActionResult.FAILED
-                }
-            }
-            com.brycewg.asrkb.ime.ExtensionButtonAction.PASTE -> {
-                if (ic == null) return ExtensionButtonActionResult.FAILED
-                try {
-                    ic.performContextMenuAction(android.R.id.paste)
-                    uiListener?.onStatusMessage(context.getString(R.string.status_pasted))
-                    ExtensionButtonActionResult.SUCCESS
-                } catch (t: Throwable) {
-                    Log.w(TAG, "PASTE failed", t)
-                    ExtensionButtonActionResult.FAILED
-                }
-            }
-            com.brycewg.asrkb.ime.ExtensionButtonAction.CURSOR_LEFT -> {
-                // 支持长按连发
-                ExtensionButtonActionResult.NEED_CURSOR_LEFT
-            }
-            com.brycewg.asrkb.ime.ExtensionButtonAction.CURSOR_RIGHT -> {
-                // 支持长按连发
-                ExtensionButtonActionResult.NEED_CURSOR_RIGHT
-            }
-            com.brycewg.asrkb.ime.ExtensionButtonAction.MOVE_START -> {
-                if (ic == null) return ExtensionButtonActionResult.FAILED
-                try {
-                    // 移动到文本开头
-                    val before = inputHelper.getTextBeforeCursor(ic, 100000)?.length ?: 0
-                    if (before > 0) {
-                        ic.setSelection(0, 0)
-                    }
-                    ExtensionButtonActionResult.SUCCESS
-                } catch (t: Throwable) {
-                    Log.w(TAG, "MOVE_START failed", t)
-                    ExtensionButtonActionResult.FAILED
-                }
-            }
-            com.brycewg.asrkb.ime.ExtensionButtonAction.MOVE_END -> {
-                if (ic == null) return ExtensionButtonActionResult.FAILED
-                try {
-                    // 移动到文本结尾
-                    val before = inputHelper.getTextBeforeCursor(ic, 100000)?.toString() ?: ""
-                    val after = inputHelper.getTextAfterCursor(ic, 100000)?.toString() ?: ""
-                    val total = before.length + after.length
-                    ic.setSelection(total, total)
-                    ExtensionButtonActionResult.SUCCESS
-                } catch (t: Throwable) {
-                    Log.w(TAG, "MOVE_END failed", t)
-                    ExtensionButtonActionResult.FAILED
-                }
-            }
-            com.brycewg.asrkb.ime.ExtensionButtonAction.NUMPAD -> {
-                // 显示数字符号键盘（需要 IME 支持）
-                ExtensionButtonActionResult.NEED_SHOW_NUMPAD
-            }
-            com.brycewg.asrkb.ime.ExtensionButtonAction.CLIPBOARD -> {
-                // 显示剪贴板管理面板（需要 IME 支持）
-                ExtensionButtonActionResult.NEED_SHOW_CLIPBOARD
-            }
-            com.brycewg.asrkb.ime.ExtensionButtonAction.SILENCE_AUTOSTOP_TOGGLE -> {
-                val newValue = !prefs.autoStopOnSilenceEnabled
-                prefs.autoStopOnSilenceEnabled = newValue
-                val msgRes = if (newValue) {
-                    R.string.toast_silence_autostop_on
-                } else {
-                    R.string.toast_silence_autostop_off
-                }
-                uiListener?.onStatusMessage(context.getString(msgRes))
-                ExtensionButtonActionResult.SUCCESS
-            }
-            com.brycewg.asrkb.ime.ExtensionButtonAction.UNDO -> {
-                if (ic == null) return ExtensionButtonActionResult.FAILED
-                val success = handleUndo(ic)
-                if (success) {
-                    ExtensionButtonActionResult.SUCCESS
-                } else {
-                    uiListener?.onStatusMessage(context.getString(R.string.status_nothing_to_undo))
-                    ExtensionButtonActionResult.FAILED
-                }
-            }
-            com.brycewg.asrkb.ime.ExtensionButtonAction.HIDE_KEYBOARD -> {
-                // 收起键盘由 IME 层处理
-                ExtensionButtonActionResult.NEED_HIDE_KEYBOARD
-            }
-        }
+        return extensionButtonDispatcher.dispatch(action, ic)
     }
 
     /**
@@ -603,51 +489,7 @@ class KeyboardActionHandler(
      */
     fun saveUndoSnapshot(ic: InputConnection?, force: Boolean = false) {
         if (ic == null) return
-
-        // 获取栈顶快照（最近的一个）
-        val topSnapshot = undoSnapshots.lastOrNull()
-
-        // 强制保存或首次保存
-        if (force || topSnapshot == null) {
-            val newSnapshot = inputHelper.captureUndoSnapshot(ic)
-            if (newSnapshot != null) {
-                undoSnapshots.addLast(newSnapshot)
-                // 限制栈大小
-                while (undoSnapshots.size > maxUndoSnapshots) {
-                    undoSnapshots.removeFirst()
-                }
-            }
-            return
-        }
-
-        // 智能判断：检查当前内容是否与栈顶快照不同
-        try {
-            val currentBefore = inputHelper.getTextBeforeCursor(ic, 10000)?.toString() ?: ""
-            val currentAfter = inputHelper.getTextAfterCursor(ic, 10000)?.toString() ?: ""
-            val snapshotBefore = topSnapshot.beforeCursor.toString()
-            val snapshotAfter = topSnapshot.afterCursor.toString()
-
-            // 如果内容有变化，保存新快照
-            if (currentBefore != snapshotBefore || currentAfter != snapshotAfter) {
-                val newSnapshot = inputHelper.captureUndoSnapshot(ic)
-                if (newSnapshot != null) {
-                    undoSnapshots.addLast(newSnapshot)
-                    // 限制栈大小
-                    while (undoSnapshots.size > maxUndoSnapshots) {
-                        undoSnapshots.removeFirst()
-                    }
-                }
-            }
-        } catch (e: Throwable) {
-            Log.w(TAG, "Failed to compare snapshot, saving anyway", e)
-            val newSnapshot = inputHelper.captureUndoSnapshot(ic)
-            if (newSnapshot != null) {
-                undoSnapshots.addLast(newSnapshot)
-                while (undoSnapshots.size > maxUndoSnapshots) {
-                    undoSnapshots.removeFirst()
-                }
-            }
-        }
+        undoManager.saveSnapshot(ic, force)
     }
 
     /**
@@ -664,103 +506,7 @@ class KeyboardActionHandler(
      * 成功则用返回结果替换（保留撤销快照）。
      */
     fun applyActivePromptToSelectionOrAll(ic: InputConnection?) {
-        if (ic == null) return
-        scope.launch {
-            // LLM 参数可用性校验
-            if (!prefs.hasLlmKeys()) {
-                uiListener?.onStatusMessage(context.getString(R.string.hint_need_llm_keys))
-                return@launch
-            }
-            // 读取目标文本：优先选区，否则整个文本
-            val selected = try { inputHelper.getSelectedText(ic, 0)?.toString() } catch (_: Throwable) { null }
-            val targetText: String
-            val mode: Int // 0=selection, 1=lastAsr, 2=entire
-            if (!selected.isNullOrEmpty()) {
-                targetText = selected
-                mode = 0
-            } else if (prefs.aiEditDefaultToLastAsr) {
-                val last = sessionContext.lastAsrCommitText
-                if (!last.isNullOrEmpty()) {
-                    targetText = last
-                    mode = 1
-                } else {
-                    val before = inputHelper.getTextBeforeCursor(ic, 10000)?.toString() ?: ""
-                    val after = inputHelper.getTextAfterCursor(ic, 10000)?.toString() ?: ""
-                    val all = before + after
-                    if (all.isEmpty()) {
-                        uiListener?.onStatusMessage(context.getString(R.string.hint_cannot_read_text))
-                        return@launch
-                    }
-                    targetText = all
-                    mode = 2
-                }
-            } else {
-                val before = inputHelper.getTextBeforeCursor(ic, 10000)?.toString() ?: ""
-                val after = inputHelper.getTextAfterCursor(ic, 10000)?.toString() ?: ""
-                val all = before + after
-                if (all.isEmpty()) {
-                    uiListener?.onStatusMessage(context.getString(R.string.hint_cannot_read_text))
-                    return@launch
-                }
-                targetText = all
-                mode = 2
-            }
-
-            // 显示处理状态
-            uiListener?.onStatusMessage(context.getString(R.string.status_ai_processing))
-
-            // 执行 LLM 处理（统一后处理链）
-            val res = try {
-                com.brycewg.asrkb.util.AsrFinalFilters.applyWithAi(context, prefs, targetText, llmPostProcessor, promptOverride = null, forceAi = true)
-            } catch (t: Throwable) {
-                android.util.Log.e(TAG, "applyActivePromptToSelectionOrAll failed", t)
-                null
-            }
-
-            val out = res?.text ?: targetText
-            val ok = res?.ok == true
-
-            // 应用结果（带撤销）
-            saveUndoSnapshot(ic)
-            when (mode) {
-                0 -> {
-                    // 在选区上直接提交将覆盖选区
-                    inputHelper.commitText(ic, out)
-                }
-                1 -> {
-                    // 替换最近一次 ASR 提交的文本
-                    val replaced = inputHelper.replaceText(ic, targetText, out)
-                    if (!replaced) {
-                        uiListener?.onStatusMessage(context.getString(R.string.status_last_asr_not_found))
-                        return@launch
-                    }
-                    // 更新 lastAsrCommitText 为新文本
-                    sessionContext = sessionContext.copy(lastAsrCommitText = out)
-                }
-                else -> {
-                    // 清空并写入全文
-                    val snapshot = inputHelper.captureUndoSnapshot(ic)
-                    inputHelper.clearAllText(ic, snapshot)
-                    inputHelper.commitText(ic, out)
-                }
-            }
-
-            uiListener?.onVibrate()
-            // 记录“后处理提交”，便于全局撤销优先恢复原文
-            if (ok && out.isNotEmpty() && out != targetText) {
-                sessionContext = sessionContext.copy(
-                    lastPostprocCommit = PostprocCommit(processed = out, raw = targetText)
-                )
-            } else {
-                sessionContext = sessionContext.copy(lastPostprocCommit = null)
-            }
-
-            if (!ok) {
-                uiListener?.onStatusMessage(context.getString(R.string.status_llm_failed_used_raw))
-            } else {
-                uiListener?.onStatusMessage(context.getString(R.string.status_idle))
-            }
-        }
+        promptApplyUseCase.apply(ic, promptOverride = null)
     }
 
     /**
@@ -768,92 +514,7 @@ class KeyboardActionHandler(
      * 不修改全局激活的 Prompt；成功则用返回结果替换（保留撤销快照）。
      */
     fun applyPromptToSelectionOrAll(ic: InputConnection?, promptContent: String) {
-        if (ic == null) return
-        scope.launch {
-            if (!prefs.hasLlmKeys()) {
-                uiListener?.onStatusMessage(context.getString(R.string.hint_need_llm_keys))
-                return@launch
-            }
-
-            val selected = try { inputHelper.getSelectedText(ic, 0)?.toString() } catch (_: Throwable) { null }
-            val targetText: String
-            val mode: Int // 0=selection, 1=lastAsr, 2=entire
-            if (!selected.isNullOrEmpty()) {
-                targetText = selected
-                mode = 0
-            } else if (prefs.aiEditDefaultToLastAsr) {
-                val last = sessionContext.lastAsrCommitText
-                if (!last.isNullOrEmpty()) {
-                    targetText = last
-                    mode = 1
-                } else {
-                    val before = inputHelper.getTextBeforeCursor(ic, 10000)?.toString() ?: ""
-                    val after = inputHelper.getTextAfterCursor(ic, 10000)?.toString() ?: ""
-                    val all = before + after
-                    if (all.isEmpty()) {
-                        uiListener?.onStatusMessage(context.getString(R.string.hint_cannot_read_text))
-                        return@launch
-                    }
-                    targetText = all
-                    mode = 2
-                }
-            } else {
-                val before = inputHelper.getTextBeforeCursor(ic, 10000)?.toString() ?: ""
-                val after = inputHelper.getTextAfterCursor(ic, 10000)?.toString() ?: ""
-                val all = before + after
-                if (all.isEmpty()) {
-                    uiListener?.onStatusMessage(context.getString(R.string.hint_cannot_read_text))
-                    return@launch
-                }
-                targetText = all
-                mode = 2
-            }
-
-            uiListener?.onStatusMessage(context.getString(R.string.status_ai_processing))
-
-            val res = try {
-                com.brycewg.asrkb.util.AsrFinalFilters.applyWithAi(context, prefs, targetText, llmPostProcessor, promptOverride = promptContent, forceAi = true)
-            } catch (t: Throwable) {
-                Log.e(TAG, "applyPromptToSelectionOrAll failed", t)
-                null
-            }
-
-            val out = res?.text ?: targetText
-            val ok = res?.ok == true
-
-            saveUndoSnapshot(ic)
-            when (mode) {
-                0 -> inputHelper.commitText(ic, out)
-                1 -> {
-                    val replaced = inputHelper.replaceText(ic, targetText, out)
-                    if (!replaced) {
-                        uiListener?.onStatusMessage(context.getString(R.string.status_last_asr_not_found))
-                        return@launch
-                    }
-                    sessionContext = sessionContext.copy(lastAsrCommitText = out)
-                }
-                else -> {
-                    val snapshot = inputHelper.captureUndoSnapshot(ic)
-                    inputHelper.clearAllText(ic, snapshot)
-                    inputHelper.commitText(ic, out)
-                }
-            }
-
-            uiListener?.onVibrate()
-            if (ok && out.isNotEmpty() && out != targetText) {
-                sessionContext = sessionContext.copy(
-                    lastPostprocCommit = PostprocCommit(processed = out, raw = targetText)
-                )
-            } else {
-                sessionContext = sessionContext.copy(lastPostprocCommit = null)
-            }
-
-            if (!ok) {
-                uiListener?.onStatusMessage(context.getString(R.string.status_llm_failed_used_raw))
-            } else {
-                uiListener?.onStatusMessage(context.getString(R.string.status_idle))
-            }
-        }
+        promptApplyUseCase.apply(ic, promptOverride = promptContent)
     }
 
     /**
@@ -949,7 +610,7 @@ class KeyboardActionHandler(
             if (asrManager.isRunning() && stateNow is KeyboardState.Listening) return@launch
             when (currentState) {
                 is KeyboardState.AiEditListening -> {
-                    handleAiEditFinal(text, currentState, seq)
+                    aiEditUseCase.handleFinal(text, currentState, seq)
                 }
                 is KeyboardState.Listening -> {
                     handleNormalDictationFinal(text, currentState, seq)
@@ -1001,7 +662,7 @@ class KeyboardActionHandler(
             uiListener?.onStatusMessage(message)
             uiListener?.onVibrate()
             try {
-                if (shouldOfferRetry(message)) {
+                if (retryUseCase.shouldOfferRetry(message)) {
                     uiListener?.onShowRetryChip(context.getString(R.string.btn_retry))
                 } else {
                     uiListener?.onHideRetryChip()
@@ -1120,8 +781,7 @@ class KeyboardActionHandler(
         // 新的显式归位：递增操作序列，取消在途处理
         opSeq++
         try { DebugLogManager.log("ime", "opseq_inc", mapOf("at" to "to_idle", "opSeq" to opSeq)) } catch (_: Throwable) { }
-        try { processingTimeoutJob?.cancel() } catch (t: Throwable) { Log.w(TAG, "Cancel timeout on toIdle failed", t) }
-        processingTimeoutJob = null
+        processingTimeoutController.cancel()
         autoEnterOnce = false
         isAutoStartedRecording = false  // 清除自动启动标志
         transitionToState(KeyboardState.Idle)
@@ -1134,8 +794,7 @@ class KeyboardActionHandler(
         // 开启新一轮录音：递增操作序列，取消在途处理
         opSeq++
         try { DebugLogManager.log("ime", "opseq_inc", mapOf("at" to "start_listening", "opSeq" to opSeq)) } catch (_: Throwable) { }
-        try { processingTimeoutJob?.cancel() } catch (t: Throwable) { Log.w(TAG, "Cancel timeout on startNormalListening failed", t) }
-        processingTimeoutJob = null
+        processingTimeoutController.cancel()
         dropPendingFinal = false
         autoEnterOnce = false
         try { uiListener?.onHideRetryChip() } catch (_: Throwable) {}
@@ -1149,479 +808,17 @@ class KeyboardActionHandler(
     private var modelLoadStartUptimeMs: Long = 0L
 
     /**
-     * 判断是否应提供“重试”入口（仅非流式 + 网络错误 + 有片段 + 非空结果错误）。
-     */
-    private fun shouldOfferRetry(message: String): Boolean {
-        val engine = try { asrManager.getEngine() } catch (_: Throwable) { null }
-        val isFileEngine = engine is com.brycewg.asrkb.asr.BaseFileAsrEngine
-        if (!isFileEngine) return false
-
-        val msgLower = message.lowercase()
-        val isEmptyResult = ("为空" in message) || ("empty" in msgLower)
-        if (isEmptyResult) return false
-
-        val networkKeywords = arrayOf(
-            "网络", "超时", "timeout", "timed out", "connect", "connection", "socket", "host", "unreachable", "rate", "too many requests"
-        )
-        val looksNetwork = networkKeywords.any { kw -> kw in message || kw in msgLower }
-        if (!looksNetwork) return false
-
-        return try { asrManager.canRetryLastFileRecognition() } catch (_: Throwable) { false }
-    }
-
-    /**
      * 处理“重试”点击：隐藏芯片，进入 Processing，并触发重试。
      */
     fun handleRetryClick() {
-        try { uiListener?.onHideRetryChip() } catch (_: Throwable) {}
-        transitionToState(KeyboardState.Processing)
-        scheduleProcessingTimeout()
-        uiListener?.onStatusMessage(context.getString(R.string.status_recognizing))
-        val ok = try { asrManager.retryLastFileRecognition() } catch (t: Throwable) {
-            Log.e(TAG, "retryLastFileRecognition threw", t)
-            false
-        }
-        if (!ok) {
-            transitionToIdle()
-        }
+        retryUseCase.onRetryClick()
     }
 
     // ========== 私有方法：处理最终识别结果 ==========
 
     private suspend fun handleNormalDictationFinal(text: String, state: KeyboardState.Listening, seq: Long) {
         val ic = getCurrentInputConnection() ?: return
-
-        if (prefs.postProcessEnabled && prefs.hasLlmKeys()) {
-            // AI 后处理流程
-            handleDictationWithPostprocess(ic, text, state, seq)
-        } else {
-            // 无后处理流程
-            handleDictationWithoutPostprocess(ic, text, state, seq)
-        }
-    }
-
-    private suspend fun handleDictationWithPostprocess(
-        ic: InputConnection,
-        text: String,
-        state: KeyboardState.Listening,
-        seq: Long
-    ) {
-        // 若已被取消，不再更新预览
-        if (seq != opSeq) return
-        // 显示识别文本为 composing
-        inputHelper.setComposingText(ic, text)
-        uiListener?.onStatusMessage(context.getString(R.string.status_ai_processing))
-
-        // 统一使用 AsrFinalFilters（含预修剪/LLM/后修剪/繁体转换）
-        val preTrimRaw = try { if (prefs.trimFinalTrailingPunct) TextSanitizer.trimTrailingPunctAndEmoji(text) else text } catch (_: Throwable) { text }
-        val typewriterEnabled = try { prefs.postprocTypewriterEnabled } catch (_: Throwable) { true }
-        var postprocCommitted = false
-        val typewriter = if (typewriterEnabled) {
-            TypewriterTextAnimator(
-                scope = scope,
-                onEmit = emit@{ typed ->
-                    if (seq != opSeq || postprocCommitted) return@emit
-                    inputHelper.setComposingText(ic, typed)
-                }
-            )
-        } else {
-            null
-        }
-        var lastStreamingText: String? = null
-        val onStreamingUpdate: (String) -> Unit = onStreamingUpdate@{ streamed ->
-            if (seq != opSeq || postprocCommitted) return@onStreamingUpdate
-            if (streamed.isEmpty() || streamed == lastStreamingText) return@onStreamingUpdate
-            lastStreamingText = streamed
-            if (typewriter != null) {
-                typewriter.submit(streamed)
-            } else {
-                scope.launch {
-                    if (seq != opSeq || postprocCommitted) return@launch
-                    inputHelper.setComposingText(ic, streamed)
-                }
-            }
-        }
-        val res = try {
-            com.brycewg.asrkb.util.AsrFinalFilters.applyWithAi(
-                context,
-                prefs,
-                text,
-                llmPostProcessor,
-                onStreamingUpdate = onStreamingUpdate
-            )
-        } catch (t: Throwable) {
-            Log.e(TAG, "applyWithAi failed", t)
-            // 统一回退到 applySimple，确保语音预设仍然生效
-            val fallback = try { com.brycewg.asrkb.util.AsrFinalFilters.applySimple(context, prefs, text) } catch (_: Throwable) { preTrimRaw }
-            com.brycewg.asrkb.asr.LlmPostProcessor.LlmProcessResult(ok = false, text = fallback, attempted = true, llmMs = 0L)
-        }
-        val postprocFailed = !res.ok
-        if (postprocFailed) {
-            uiListener?.onStatusMessage(context.getString(R.string.status_llm_failed_used_raw))
-        }
-        val finalOut = if (res.text.isBlank()) {
-            // 若 AI 返回空文本，回退到简单后处理（包含正则/繁体），而非仅使用预修剪文本
-            try {
-                com.brycewg.asrkb.util.AsrFinalFilters.applySimple(context, prefs, text)
-            } catch (t: Throwable) {
-                Log.w(TAG, "applySimple fallback after blank AI result failed", t)
-                preTrimRaw
-            }
-        } else {
-            res.text
-        }
-        val aiUsed = (res.usedAi && res.ok)
-        val aiPostMs = if (res.attempted) res.llmMs else 0L
-        val aiPostStatus = when {
-            res.attempted && aiUsed -> com.brycewg.asrkb.store.AsrHistoryStore.AiPostStatus.SUCCESS
-            res.attempted -> com.brycewg.asrkb.store.AsrHistoryStore.AiPostStatus.FAILED
-            else -> com.brycewg.asrkb.store.AsrHistoryStore.AiPostStatus.NONE
-        }
-
-        // 若已被取消，不再提交
-        if (seq != opSeq) {
-            postprocCommitted = true
-            typewriter?.cancel()
-            return
-        }
-        // 最终结果已就绪：取消 Processing 超时，避免“追赶等待”期间触发超时导致 opSeq 递增而丢提交
-        processingTimeoutJob?.cancel()
-        processingTimeoutJob = null
-        if (typewriter != null && aiUsed && finalOut.isNotEmpty()) {
-            // 最终结果到达后：不再“秒出”，改为让打字机以最快速度追到最终文本
-            typewriter.submit(finalOut, rush = true)
-            val finalLen = finalOut.length
-            val t0 = try { android.os.SystemClock.uptimeMillis() } catch (_: Throwable) { 0L }
-            while (seq == opSeq &&
-                (t0 <= 0L || (android.os.SystemClock.uptimeMillis() - t0) < 2_000L) &&
-                typewriter.currentText().length != finalLen
-            ) {
-                delay(20)
-            }
-        }
-        if (seq != opSeq) {
-            postprocCommitted = true
-            typewriter?.cancel()
-            return
-        }
-        postprocCommitted = true
-        typewriter?.cancel()
-        // 提交最终文本
-        inputHelper.setComposingText(ic, finalOut)
-        inputHelper.finishComposingText(ic)
-
-        // 若需要，最终结果后自动发送回车（仅一次）
-        if (finalOut.isNotEmpty() && autoEnterOnce) {
-            try { inputHelper.sendEnter(ic, getCurrentEditorInfo()) } catch (t: Throwable) {
-                Log.w(TAG, "sendEnter after postprocess failed", t)
-            }
-            autoEnterOnce = false
-        }
-
-        // 记录后处理提交（用于撤销）
-        if (finalOut.isNotEmpty() && finalOut != preTrimRaw) {
-            sessionContext = sessionContext.copy(
-                lastPostprocCommit = PostprocCommit(finalOut, preTrimRaw)
-            )
-        }
-
-        // 更新会话上下文
-        sessionContext = sessionContext.copy(lastAsrCommitText = finalOut)
-
-        // 统计字数 & 记录使用统计/历史（尊重“关闭识别历史/统计”开关）
-        try {
-            val chars = TextSanitizer.countEffectiveChars(finalOut)
-            if (!prefs.disableUsageStats) {
-                prefs.addAsrChars(chars)
-            }
-            // 记录使用统计（IME）
-            try {
-                val audioMs = asrManager.popLastAudioMsForStats()
-                val totalElapsedMs = asrManager.popLastTotalElapsedMsForStats()
-                val procMs = asrManager.getLastRequestDuration() ?: 0L
-                val vendorForRecord = try {
-                    asrManager.peekLastFinalVendorForStats()
-                } catch (t: Throwable) {
-                    Log.w(TAG, "Failed to get final vendor for stats", t)
-                    prefs.asrVendor
-                }
-                AnalyticsManager.recordAsrEvent(
-                    context = context,
-                    vendorId = vendorForRecord.id,
-                    audioMs = audioMs,
-                    procMs = procMs,
-                    source = "ime",
-                    aiProcessed = aiUsed,
-                    charCount = chars
-                )
-                if (!prefs.disableUsageStats) {
-                    prefs.recordUsageCommit("ime", vendorForRecord, audioMs, chars, procMs)
-                }
-                // 写入历史记录（AI 后处理：以实际“是否使用 AI 输出”记录）
-                if (!prefs.disableAsrHistory) {
-                    try {
-                        val store = com.brycewg.asrkb.store.AsrHistoryStore(context)
-                        store.add(
-                            com.brycewg.asrkb.store.AsrHistoryStore.AsrHistoryRecord(
-                                timestamp = System.currentTimeMillis(),
-                                text = finalOut,
-                                vendorId = vendorForRecord.id,
-                                audioMs = audioMs,
-                                totalElapsedMs = totalElapsedMs,
-                                procMs = procMs,
-                                source = "ime",
-                                aiProcessed = aiUsed,
-                                aiPostMs = aiPostMs,
-                                aiPostStatus = aiPostStatus,
-                                charCount = chars
-                            )
-                        )
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Failed to add ASR history (with postprocess)", e)
-                    }
-                }
-            } catch (t: Throwable) {
-                Log.e(TAG, "Failed to record usage stats (with postprocess)", t)
-            }
-        } catch (_: Throwable) { }
-
-        uiListener?.onVibrate()
-
-        // 分段录音期间保持 Listening（保留 lockedBySwipe 标志）；
-        // 否则：若后处理失败，直接回到 Idle 并保留错误提示；成功则显示耗时后回到 Idle。
-        if (asrManager.isRunning()) {
-            transitionToState(KeyboardState.Listening(lockedBySwipe = state.lockedBySwipe))
-        } else {
-            if (postprocFailed) {
-                // 回到 Idle 后再次设置错误提示，避免被 Idle 文案覆盖
-                transitionToIdle()
-                uiListener?.onStatusMessage(context.getString(R.string.status_llm_failed_used_raw))
-            } else {
-                val usedBackupResult =
-                    (asrManager.getEngine() as? com.brycewg.asrkb.asr.ParallelAsrEngine)
-                        ?.wasLastResultFromBackup() == true
-                transitionToState(KeyboardState.Processing)
-                scheduleProcessingTimeout()
-                transitionToIdleWithTiming(showBackupUsedHint = usedBackupResult)
-            }
-        }
-    }
-
-    private suspend fun handleDictationWithoutPostprocess(
-        ic: InputConnection,
-        text: String,
-        state: KeyboardState.Listening,
-        seq: Long
-    ) {
-        val finalToCommit = com.brycewg.asrkb.util.AsrFinalFilters.applySimple(context, prefs, text)
-
-        // 如果识别为空，直接返回
-        if (finalToCommit.isBlank()) {
-            // 空结果：先切换到 Idle 再提示，避免被 Idle 文案覆盖
-            transitionToIdle(keepMessage = true)
-            uiListener?.onStatusMessage(context.getString(R.string.asr_error_empty_result))
-            uiListener?.onVibrate()
-            return
-        }
-
-        // 若已被取消，退出
-        if (seq != opSeq) return
-        // 提交文本
-        val partial = state.partialText
-        if (!partial.isNullOrEmpty()) {
-            // 有中间结果：智能合并
-            inputHelper.finishComposingText(ic)
-            if (finalToCommit.startsWith(partial)) {
-                val remainder = finalToCommit.substring(partial.length)
-                if (remainder.isNotEmpty()) {
-                    inputHelper.commitText(ic, remainder)
-                }
-            } else {
-                // 标点/大小写可能变化，删除中间结果并重新提交
-                inputHelper.deleteSurroundingText(ic, partial.length, 0)
-                inputHelper.commitText(ic, finalToCommit)
-            }
-        } else {
-            // 无中间结果：直接提交
-            val committedStableLen = state.committedStableLen
-            val remainder = if (finalToCommit.length > committedStableLen) {
-                finalToCommit.substring(committedStableLen)
-            } else {
-                ""
-            }
-            inputHelper.finishComposingText(ic)
-            if (remainder.isNotEmpty()) {
-                inputHelper.commitText(ic, remainder)
-            }
-        }
-
-        // 更新会话上下文
-        sessionContext = sessionContext.copy(
-            lastAsrCommitText = finalToCommit,
-            lastPostprocCommit = null
-        )
-
-        // 若需要，最终结果后自动发送回车（仅一次）
-        if (finalToCommit.isNotEmpty() && autoEnterOnce) {
-            try { inputHelper.sendEnter(ic, getCurrentEditorInfo()) } catch (t: Throwable) {
-                Log.w(TAG, "sendEnter after final failed", t)
-            }
-            autoEnterOnce = false
-        }
-
-        // 统计字数 & 记录使用统计/历史（尊重“关闭识别历史/统计”开关）
-        try {
-            if (!prefs.disableUsageStats) {
-                prefs.addAsrChars(TextSanitizer.countEffectiveChars(finalToCommit))
-            }
-            // 记录使用统计（IME）
-            try {
-                val audioMs = asrManager.popLastAudioMsForStats()
-                val totalElapsedMs = asrManager.popLastTotalElapsedMsForStats()
-                val procMs = asrManager.getLastRequestDuration() ?: 0L
-                val chars = TextSanitizer.countEffectiveChars(finalToCommit)
-                val vendorForRecord = try {
-                    asrManager.peekLastFinalVendorForStats()
-                } catch (t: Throwable) {
-                    Log.w(TAG, "Failed to get final vendor for stats", t)
-                    prefs.asrVendor
-                }
-                AnalyticsManager.recordAsrEvent(
-                    context = context,
-                    vendorId = vendorForRecord.id,
-                    audioMs = audioMs,
-                    procMs = procMs,
-                    source = "ime",
-                    aiProcessed = false,
-                    charCount = chars
-                )
-                if (!prefs.disableUsageStats) {
-                    prefs.recordUsageCommit("ime", vendorForRecord, audioMs, chars, procMs)
-                }
-                // 写入历史记录（无 AI 后处理）
-                if (!prefs.disableAsrHistory) {
-                    try {
-                        val store = com.brycewg.asrkb.store.AsrHistoryStore(context)
-                        store.add(
-                            com.brycewg.asrkb.store.AsrHistoryStore.AsrHistoryRecord(
-                                timestamp = System.currentTimeMillis(),
-                                text = finalToCommit,
-                                vendorId = vendorForRecord.id,
-                                audioMs = audioMs,
-                                totalElapsedMs = totalElapsedMs,
-                                procMs = procMs,
-                                source = "ime",
-                                aiProcessed = false,
-                                charCount = chars
-                            )
-                        )
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Failed to add ASR history (no postprocess)", e)
-                    }
-                }
-            } catch (t: Throwable) {
-                Log.e(TAG, "Failed to record usage stats (no postprocess)", t)
-            }
-        } catch (_: Throwable) { }
-
-        uiListener?.onVibrate()
-
-        // 分段录音期间保持 Listening（保留 lockedBySwipe 标志）；否则进入 Processing 并延时返回 Idle
-        if (asrManager.isRunning()) {
-            transitionToState(KeyboardState.Listening(lockedBySwipe = state.lockedBySwipe))
-        } else {
-            val usedBackupResult =
-                (asrManager.getEngine() as? com.brycewg.asrkb.asr.ParallelAsrEngine)
-                    ?.wasLastResultFromBackup() == true
-            transitionToState(KeyboardState.Processing)
-            scheduleProcessingTimeout()
-            transitionToIdleWithTiming(showBackupUsedHint = usedBackupResult)
-        }
-    }
-
-    private suspend fun handleAiEditFinal(text: String, state: KeyboardState.AiEditListening, seq: Long) {
-        val ic = getCurrentInputConnection() ?: run {
-            transitionToIdleWithTiming()
-            return
-        }
-
-        uiListener?.onStatusMessage(context.getString(R.string.status_ai_editing))
-
-        val instruction = if (prefs.trimFinalTrailingPunct) {
-            TextSanitizer.trimTrailingPunctAndEmoji(text)
-        } else {
-            text
-        }
-
-        val original = state.targetText
-        if (original.isBlank()) {
-            uiListener?.onStatusMessage(context.getString(R.string.hint_cannot_read_text))
-            uiListener?.onVibrate()
-            transitionToIdleWithTiming()
-            return
-        }
-
-        val (ok, edited) = try {
-            val res = llmPostProcessor.editTextWithStatus(original, instruction, prefs)
-            res.ok to res.text
-        } catch (e: Throwable) {
-            Log.e(TAG, "AI edit failed", e)
-            false to ""
-        }
-
-        // 若已被取消，退出
-        if (seq != opSeq) return
-        if (!ok) {
-            uiListener?.onVibrate()
-            // 先归位到 Idle，再设置错误消息，确保不会被 Idle 覆盖
-            transitionToIdle()
-            uiListener?.onStatusMessage(context.getString(R.string.status_llm_edit_failed))
-            return
-        }
-        if (edited.isBlank()) {
-            uiListener?.onVibrate()
-            transitionToIdle()
-            uiListener?.onStatusMessage(context.getString(R.string.status_llm_empty_result))
-            return
-        }
-
-        // 统一套用简单后处理（正则/繁体等）
-        val editedFinal = try {
-            com.brycewg.asrkb.util.AsrFinalFilters.applySimple(context, prefs, edited)
-        } catch (t: Throwable) {
-            Log.w(TAG, "applySimple on AI-edited text failed", t)
-            edited
-        }
-
-        // 执行替换
-        if (seq != opSeq) return
-        if (state.targetIsSelection) {
-            // 替换选中文本
-            inputHelper.commitText(ic, editedFinal)
-        } else {
-            // 替换最后一次 ASR 提交的文本
-            if (inputHelper.replaceText(ic, original, editedFinal)) {
-                // 更新最后提交的文本为编辑后的结果
-                sessionContext = sessionContext.copy(lastAsrCommitText = editedFinal)
-            } else {
-                uiListener?.onStatusMessage(context.getString(R.string.status_last_asr_not_found))
-                uiListener?.onVibrate()
-                transitionToIdleWithTiming()
-                return
-            }
-        }
-
-        uiListener?.onVibrate()
-
-        // AI 编辑不计入后处理提交，清除记录
-        sessionContext = sessionContext.copy(lastPostprocCommit = null)
-
-        // 回到 Idle 或继续 Listening
-        if (asrManager.isRunning()) {
-            transitionToState(KeyboardState.Listening())
-        } else {
-            transitionToIdleWithTiming()
-        }
+        dictationUseCase.handleFinal(ic, text, state, seq)
     }
 
     private fun transitionToIdleWithTiming(showBackupUsedHint: Boolean = false) {
@@ -1693,6 +890,12 @@ class KeyboardActionHandler(
 
     private fun getCurrentEditorInfo(): EditorInfo? {
         return currentEditorInfoProvider?.invoke()
+    }
+
+    private fun consumeAutoEnterOnce(): Boolean {
+        if (!autoEnterOnce) return false
+        autoEnterOnce = false
+        return true
     }
 
     // 会话一次性标记：最终结果提交后是否自动发送回车
