@@ -61,6 +61,9 @@ class FloatingBallViewManager(
     private var edgeAnimator: ValueAnimator? = null
     private var edgeHandleVisible: Boolean = false
     private var errorVisualActive: Boolean = false
+    private var errorShakeAnimator: ValueAnimator? = null
+    private var errorClearRunnable: Runnable? = null
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private var completionResetPosted: Boolean = false
     private var monetContext: Context? = null
     private var currentState: FloatingBallState = FloatingBallState.Idle
@@ -244,9 +247,23 @@ class FloatingBallViewManager(
 
     /** 更新悬浮球状态显示 */
     fun updateStateVisual(state: FloatingBallState) {
+        val prevState = currentState
+        val enteringError = state is FloatingBallState.Error &&
+            (prevState !is FloatingBallState.Error || prevState.message != state.message)
+        val leavingError = prevState is FloatingBallState.Error && state !is FloatingBallState.Error
+
         currentState = state
-        // 清除颜色滤镜（错误视觉期间不清除）
-        if (!errorVisualActive) ballIcon?.clearColorFilter()
+        if (leavingError) {
+            cancelErrorVisual()
+        }
+        // 非 Error 状态确保不会遗留错误滤镜/动画
+        if (state !is FloatingBallState.Error) {
+            try {
+                ballIcon?.clearColorFilter()
+            } catch (e: Throwable) {
+                Log.w(TAG, "Failed to clear color filter", e)
+            }
+        }
 
         when (state) {
             is FloatingBallState.Recording -> {
@@ -265,7 +282,7 @@ class FloatingBallViewManager(
                 stopRippleAnimation()
                 processingSpinner?.visibility = View.GONE
                 stopProcessingSpinner()
-                playErrorShakeAnimation()
+                if (enteringError) playErrorShakeAnimation()
             }
             else -> {
                 // Idle, MoveMode
@@ -507,6 +524,7 @@ class FloatingBallViewManager(
         stopProcessingSpinner()
         edgeAnimator?.cancel()
         edgeAnimator = null
+        cancelErrorVisual()
     }
 
     // ==================== 私有辅助方法 ====================
@@ -1285,6 +1303,8 @@ class FloatingBallViewManager(
     private fun playErrorShakeAnimation() {
         val icon = ballIcon ?: return
 
+        cancelErrorVisual()
+
         errorVisualActive = true
         try {
             icon.animate().cancel()
@@ -1293,26 +1313,73 @@ class FloatingBallViewManager(
         }
         icon.setColorFilter(UiColors.error(icon))
 
+        var canceled = false
         val shake = ValueAnimator.ofFloat(0f, -16f, 16f, -12f, 12f, -6f, 6f, 0f).apply {
             duration = 500
             addUpdateListener { anim ->
                 icon.translationX = (anim.animatedValue as Float)
             }
             addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationCancel(animation: Animator) {
+                    canceled = true
+                }
+
                 override fun onAnimationEnd(animation: Animator) {
+                    if (errorShakeAnimator === animation) {
+                        errorShakeAnimator = null
+                    }
                     icon.translationX = 0f
-                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    if (canceled) return
+
+                    val clearRunnable = Runnable {
                         try {
                             icon.clearColorFilter()
                         } catch (e: Throwable) {
                             Log.w(TAG, "Failed to clear color filter", e)
                         }
                         errorVisualActive = false
-                    }, 1000)
+                    }
+                    errorClearRunnable = clearRunnable
+                    try {
+                        mainHandler.postDelayed(clearRunnable, 1000)
+                    } catch (e: Throwable) {
+                        Log.w(TAG, "Failed to post delayed clear runnable", e)
+                        errorVisualActive = false
+                    }
                 }
             })
-            start()
         }
+        errorShakeAnimator = shake
+        shake.start()
+    }
+
+    private fun cancelErrorVisual() {
+        errorClearRunnable?.let { runnable ->
+            try {
+                mainHandler.removeCallbacks(runnable)
+            } catch (e: Throwable) {
+                Log.w(TAG, "Failed to remove error clear runnable", e)
+            }
+        }
+        errorClearRunnable = null
+
+        try {
+            errorShakeAnimator?.cancel()
+        } catch (e: Throwable) {
+            Log.w(TAG, "Failed to cancel error shake animator", e)
+        }
+        errorShakeAnimator = null
+
+        ballIcon?.let { icon ->
+            icon.translationX = 0f
+            try {
+                icon.clearColorFilter()
+            } catch (e: Throwable) {
+                Log.w(TAG, "Failed to clear color filter", e)
+            }
+        }
+
+        errorVisualActive = false
     }
 
     private fun applyAlpha(color: Int, alpha: Float): Int {
