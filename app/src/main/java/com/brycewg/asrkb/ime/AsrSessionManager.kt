@@ -16,7 +16,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import java.util.Locale
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -654,7 +653,7 @@ class AsrSessionManager(
             Log.w(TAG, "Cancel local model wait job failed onError", t)
         }
         localModelReadyWaitJob = null
-        val friendlyMessage = mapErrorToFriendlyMessage(message)
+        val friendlyMessage = AsrErrorMessageMapper.map(context, message)
         try {
             DebugLogManager.log(
                 category = "asr",
@@ -786,28 +785,6 @@ class AsrSessionManager(
             localModelReadyWaitJob = null
         }
         Log.d(TAG, "Request duration: ${adjusted}ms")
-    }
-
-    /**
-     * 将底层错误字符串归类为用户可理解的提示文案
-     */
-    private fun mapErrorToFriendlyMessage(raw: String): String? {
-        if (raw.isEmpty()) return null
-        val lower = raw.lowercase(Locale.ROOT)
-
-        // 这里应该调用实际的错误映射函数
-        // 由于原代码中的映射逻辑很长，这里简化处理
-        // 实际使用时应该复用原有的映射逻辑
-
-        return when {
-            lower.contains("empty") -> "识别返回为空"
-            lower.contains("401") -> "认证失败，请检查密钥"
-            lower.contains("403") -> "权限不足"
-            lower.contains("permission") -> "录音权限被拒绝"
-            lower.contains("timeout") -> "网络超时"
-            lower.contains("network") || lower.contains("connection") -> "网络连接失败"
-            else -> null
-        }
     }
 
     // ========== 音频焦点控制 ==========
