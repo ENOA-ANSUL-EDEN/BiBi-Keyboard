@@ -39,7 +39,7 @@
             style="@style/KeyboardImageButton"
             android:layout_marginStart="6dp"
             android:contentDescription="@string/cd_clipboard_delete"
-            android:src="@drawable/backspace_toggle"
+            android:src="@drawable/trash_toggle"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
