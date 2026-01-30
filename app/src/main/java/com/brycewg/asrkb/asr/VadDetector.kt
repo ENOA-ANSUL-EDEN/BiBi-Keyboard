@@ -7,6 +7,7 @@ import com.brycewg.asrkb.ui.floating.FloatingAsrService
 import com.k2fsa.sherpa.onnx.TenVadModelConfig
 import com.k2fsa.sherpa.onnx.Vad
 import com.k2fsa.sherpa.onnx.VadModelConfig
+import java.util.ArrayDeque
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -63,53 +64,179 @@ class VadDetector(
             0.12f, // 9
             0.08f  // 10 更敏感
         )
-        // 全局共享 VAD 实例（App 启动时可预加载）
-        @Volatile
-        private var sharedVad: Vad? = null
 
-        // 预加载全局 VAD（若已存在则跳过）
+        private const val MAX_POOL_SIZE = 2
+
+        private data class VadPoolKey(
+            val sampleRate: Int,
+            val sensitivityLevel: Int
+        )
+
+        private val poolLock = Any()
+        @Volatile
+        private var poolKey: VadPoolKey? = null
+        private val vadPool: ArrayDeque<Vad> = ArrayDeque()
+
+        private fun buildVadModelConfig(sampleRate: Int, sensitivityLevel: Int): VadModelConfig {
+            val lvl = sensitivityLevel.coerceIn(1, LEVELS)
+            val threshold = when (lvl) {
+                in 1..3 -> 0.40f
+                in 4..7 -> 0.50f
+                else -> 0.60f
+            }
+            val minSilenceDuration = MIN_SILENCE_DURATION_MAP[lvl - 1]
+
+            val tenConfig = TenVadModelConfig(
+                model = "vad/ten-vad.onnx",
+                threshold = threshold,
+                minSilenceDuration = minSilenceDuration,
+                minSpeechDuration = 0.25f,
+                windowSize = 256
+            )
+            return VadModelConfig(
+                tenVadModelConfig = tenConfig,
+                sampleRate = sampleRate,
+                numThreads = 1,
+                provider = "cpu",
+                debug = false
+            )
+        }
+
+        private fun createVad(context: Context, sampleRate: Int, sensitivityLevel: Int): Vad {
+            return Vad(
+                assetManager = context.assets,
+                config = buildVadModelConfig(sampleRate, sensitivityLevel)
+            )
+        }
+
+        private fun acquireFromPool(
+            context: Context,
+            sampleRate: Int,
+            sensitivityLevel: Int
+        ): Vad {
+            val lvl = sensitivityLevel.coerceIn(1, LEVELS)
+            val key = VadPoolKey(sampleRate = sampleRate, sensitivityLevel = lvl)
+
+            var take: Vad? = null
+            var toRelease: List<Vad> = emptyList()
+            synchronized(poolLock) {
+                if (poolKey != null && poolKey != key && vadPool.isNotEmpty()) {
+                    toRelease = vadPool.toList()
+                    vadPool.clear()
+                }
+                if (poolKey == null || poolKey != key) {
+                    poolKey = key
+                }
+                if (vadPool.isNotEmpty()) {
+                    take = vadPool.removeFirst()
+                }
+            }
+            toRelease.forEach { v ->
+                try {
+                    v.release()
+                } catch (t: Throwable) {
+                    Log.w(TAG, "Failed to release pooled VAD", t)
+                }
+            }
+
+            val vad = take ?: createVad(context, sampleRate, lvl)
+            try {
+                vad.reset()
+                while (!vad.empty()) vad.pop()
+            } catch (t: Throwable) {
+                Log.w(TAG, "Failed to reset VAD after acquire", t)
+            }
+            return vad
+        }
+
+        private fun recycleToPool(
+            key: VadPoolKey,
+            vad: Vad
+        ) {
+            val shouldPool = synchronized(poolLock) {
+                (poolKey == key) && (vadPool.size < MAX_POOL_SIZE)
+            }
+
+            if (!shouldPool) {
+                try {
+                    vad.release()
+                } catch (t: Throwable) {
+                    Log.w(TAG, "Failed to release VAD", t)
+                }
+                return
+            }
+
+            try {
+                vad.reset()
+                while (!vad.empty()) vad.pop()
+            } catch (t: Throwable) {
+                Log.w(TAG, "Failed to reset VAD before pooling", t)
+            }
+
+            synchronized(poolLock) {
+                if (poolKey == key && vadPool.size < MAX_POOL_SIZE) {
+                    vadPool.addLast(vad)
+                    return
+                }
+            }
+            try {
+                vad.release()
+            } catch (t: Throwable) {
+                Log.w(TAG, "Failed to release VAD", t)
+            }
+        }
+
+        // 预加载 VAD（填充池，降低首次录音时的模型加载延迟）
         fun preload(context: Context, sampleRate: Int, sensitivityLevel: Int) {
-            if (sharedVad != null) return
             try {
                 val lvl = sensitivityLevel.coerceIn(1, LEVELS)
-                val threshold = when (lvl) {
-                    in 1..3 -> 0.40f
-                    in 4..7 -> 0.50f
-                    else -> 0.60f
-                }
-                val minSilenceDuration = MIN_SILENCE_DURATION_MAP[lvl - 1]
+                val key = VadPoolKey(sampleRate = sampleRate, sensitivityLevel = lvl)
 
-                val tenConfig = TenVadModelConfig(
-                    model = "vad/ten-vad.onnx",
-                    threshold = threshold,
-                    minSilenceDuration = minSilenceDuration,
-                    minSpeechDuration = 0.25f,
-                    windowSize = 256
-                )
-                val vadConfig = VadModelConfig(
-                    tenVadModelConfig = tenConfig,
-                    sampleRate = sampleRate,
-                    numThreads = 1,
-                    provider = "cpu",
-                    debug = false
-                )
-                sharedVad = Vad(
-                    assetManager = context.assets,
-                    config = vadConfig
-                )
-                Log.i(TAG, "Global VAD preloaded (sr=$sampleRate, sensitivity=$lvl)")
+                var alreadyReady = false
+                var toRelease: List<Vad> = emptyList()
+                synchronized(poolLock) {
+                    alreadyReady = (poolKey == key && vadPool.isNotEmpty())
+                    if (poolKey != null && poolKey != key && vadPool.isNotEmpty()) {
+                        toRelease = vadPool.toList()
+                        vadPool.clear()
+                    }
+                    poolKey = key
+                }
+                toRelease.forEach { v ->
+                    try {
+                        v.release()
+                    } catch (t: Throwable) {
+                        Log.w(TAG, "Failed to release pooled VAD during preload", t)
+                    }
+                }
+                if (alreadyReady) return
+
+                val vad = createVad(context, sampleRate, lvl)
+                recycleToPool(key, vad)
+                Log.i(TAG, "VAD preloaded (sr=$sampleRate, sensitivity=$lvl)")
             } catch (t: Throwable) {
                 Log.e(TAG, "Failed to preload global VAD", t)
             }
         }
 
-        // 重建全局 VAD（用于灵敏度调整后“立即生效”）。
-        // 不直接释放旧实例，避免影响正在录音的会话；旧实例会在该会话结束时被各自的 release() 回收。
+        // 重建预加载池（用于灵敏度调整后“立即生效”）。
         fun rebuildGlobal(context: Context, sampleRate: Int, sensitivityLevel: Int) {
             try {
-                sharedVad = null
+                val toRelease: List<Vad>
+                synchronized(poolLock) {
+                    toRelease = vadPool.toList()
+                    vadPool.clear()
+                    poolKey = null
+                }
+                toRelease.forEach { v ->
+                    try {
+                        v.release()
+                    } catch (t: Throwable) {
+                        Log.w(TAG, "Failed to release pooled VAD during rebuild", t)
+                    }
+                }
                 preload(context, sampleRate, sensitivityLevel)
-                Log.i(TAG, "Global VAD rebuilt (sr=$sampleRate, sensitivity=${sensitivityLevel.coerceIn(1, LEVELS)})")
+                Log.i(TAG, "VAD pool rebuilt (sr=$sampleRate, sensitivity=${sensitivityLevel.coerceIn(1, LEVELS)})")
             } catch (t: Throwable) {
                 Log.e(TAG, "Failed to rebuild global VAD", t)
             }
@@ -126,9 +253,11 @@ class VadDetector(
     private val initialDebounceMs: Int
     private var initialDebounceRemainingMs: Int = 0
     private var hasDetectedSpeech: Boolean = false
+    private val poolKey: Companion.VadPoolKey
 
     init {
         val lvl = sensitivityLevel.coerceIn(1, LEVELS)
+        poolKey = Companion.VadPoolKey(sampleRate = sampleRate, sensitivityLevel = lvl)
         minSilenceDuration = MIN_SILENCE_DURATION_MAP[lvl - 1]
 
         // 将灵敏度映射到 VAD 置信阈值：
@@ -171,38 +300,8 @@ class VadDetector(
      * 初始化 sherpa-onnx Vad
      */
     private fun initVad() {
-        // Reuse global instance if available
-        val g = sharedVad
-        if (g != null) {
-            vad = g
-            Log.d(TAG, "Reusing global VAD instance")
-            return
-        }
-        // 1. 构建 TenVadModelConfig
-        val tenConfig = TenVadModelConfig(
-            model = "vad/ten-vad.onnx",   // 模型路径（相对于 assets）
-            threshold = threshold,         // 按灵敏度映射的语音检测阈值
-            minSilenceDuration = minSilenceDuration, // 根据灵敏度映射
-            minSpeechDuration = 0.25f,     // 最小语音持续时长
-            windowSize = 256               // Ten VAD 窗口大小
-        )
-
-        // 2. 构建 VadModelConfig
-        val vadConfig = VadModelConfig(
-            tenVadModelConfig = tenConfig,
-            sampleRate = sampleRate,
-            numThreads = 1,
-            provider = "cpu",
-            debug = false
-        )
-
-        // 3. 创建 Vad 实例
-        vad = Vad(
-            assetManager = context.assets,
-            config = vadConfig
-        )
-
-        Log.d(TAG, "Vad instance created successfully (non-global)")
+        vad = acquireFromPool(context, sampleRate, poolKey.sensitivityLevel)
+        Log.d(TAG, "Vad instance acquired")
     }
 
     /**
@@ -238,8 +337,10 @@ class VadDetector(
             // 3. 调用 Vad.isSpeechDetected(): Boolean
             val isSpeech = vad.isSpeechDetected()
 
-            // 4. 调用 Vad.clear() 清除内部状态（准备下一帧）
-            vad.clear()
+            // 4. 清理已完成的语音片段队列，避免堆积；保留 VAD 内部时序状态以支持跨帧判定
+            while (!vad.empty()) {
+                vad.pop()
+            }
 
             // 5. 初期防抖 + 语音挂起 平滑处理，再进行累计非语音时长
             if (isSpeech) {
@@ -301,25 +402,21 @@ class VadDetector(
         speechHangoverRemainingMs = 0
         initialDebounceRemainingMs = initialDebounceMs
         hasDetectedSpeech = false
+        try {
+            vad?.reset()
+            while (vad?.empty() == false) vad?.pop()
+        } catch (t: Throwable) {
+            Log.w(TAG, "Failed to reset VAD", t)
+        }
     }
 
     /**
      * 释放 VAD 资源
      */
     fun release() {
-        // Skip releasing when using global instance
-        if (vad != null && vad === sharedVad) {
-            Log.d(TAG, "Skip releasing global VAD instance")
-            return
-        }
-        try {
-            vad?.release()
-            Log.d(TAG, "VAD released successfully")
-        } catch (t: Throwable) {
-            Log.w(TAG, "Failed to release VAD", t)
-        } finally {
-            vad = null
-        }
+        val v = vad ?: return
+        vad = null
+        recycleToPool(poolKey, v)
     }
 
     /**
