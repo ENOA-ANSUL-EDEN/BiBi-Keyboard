@@ -1,3 +1,6 @@
+/**
+ * 设置页通用选项面板（BottomSheetDialog），用于展示单选/多选等菜单。
+ */
 package com.brycewg.asrkb.ui
 
 import android.content.Context
@@ -116,6 +119,61 @@ object SettingsOptionSheet {
       HapticFeedbackHelper.performTap(context, prefs, view)
       dialog.dismiss()
       context.mainExecutor.execute { onSelected(position) }
+    }
+
+    dialog.setContentView(contentView)
+    dialog.setOnShowListener {
+      listView.post { adjustBottomSheetHeight(dialog, contentView, listView) }
+    }
+    dialog.show()
+  }
+
+  fun showMultiChoice(
+    context: Context,
+    @StringRes titleResId: Int,
+    items: List<String>,
+    initialCheckedItems: BooleanArray,
+    onCheckedChanged: ((
+      listView: ListView,
+      which: Int,
+      isChecked: Boolean,
+      checkedItems: BooleanArray
+    ) -> Unit)? = null
+  ) {
+    if (items.isEmpty()) {
+      return
+    }
+
+    val dialog = BottomSheetDialog(context, R.style.SettingsBottomSheetDialog)
+    val contentView = LayoutInflater.from(context)
+      .inflate(R.layout.bottom_sheet_single_choice, null, false)
+    val titleView = contentView.findViewById<TextView>(R.id.tvBottomSheetTitle)
+    val listView = contentView.findViewById<ListView>(R.id.listBottomSheetOptions)
+    val prefs = Prefs(context)
+
+    val checkedItems = BooleanArray(items.size) { idx ->
+      initialCheckedItems.getOrNull(idx) == true
+    }
+
+    titleView.setText(titleResId)
+    val adapter = ArrayAdapter(context, R.layout.item_settings_bottom_sheet_multi_choice, items)
+    listView.adapter = adapter
+    listView.choiceMode = ListView.CHOICE_MODE_MULTIPLE
+    capListHeightToMaxSheetHeight(contentView, listView)
+
+    for (index in checkedItems.indices) {
+      listView.setItemChecked(index, checkedItems[index])
+    }
+
+    checkedItems.indexOfFirst { it }.takeIf { it >= 0 }?.let { firstChecked ->
+      listView.setSelection(firstChecked)
+    }
+
+    listView.setOnItemClickListener { _, view, position, _ ->
+      HapticFeedbackHelper.performTap(context, prefs, view)
+      val isChecked = listView.isItemChecked(position)
+      checkedItems[position] = isChecked
+      onCheckedChanged?.invoke(listView, position, isChecked, checkedItems)
     }
 
     dialog.setContentView(contentView)

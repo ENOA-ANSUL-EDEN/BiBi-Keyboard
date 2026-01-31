@@ -1,9 +1,12 @@
+/**
+ * ASR 设置页 Soniox section：API Key、流式开关与识别语言提示等配置。
+ */
 package com.brycewg.asrkb.ui.settings.asr.sections
 
 import android.widget.EditText
 import android.widget.TextView
-import androidx.appcompat.app.AlertDialog
 import com.brycewg.asrkb.R
+import com.brycewg.asrkb.ui.SettingsOptionSheet
 import com.brycewg.asrkb.ui.settings.asr.bindString
 import com.brycewg.asrkb.ui.installExplainedSwitch
 import com.brycewg.asrkb.ui.settings.asr.AsrSettingsBinding
@@ -119,21 +122,32 @@ internal class SonioxAsrSettingsSection : AsrSettingsSection {
             val checked = BooleanArray(sonioxLangCodes.size) { idx ->
                 if (idx == 0) saved.isEmpty() else sonioxLangCodes[idx] in saved
             }
-            AlertDialog.Builder(binding.activity)
-                .setTitle(R.string.label_soniox_language)
-                .setMultiChoiceItems(sonioxLangLabels.toTypedArray(), checked) { _, which, isChecked ->
-                    if (which == 0) {
-                        if (isChecked) {
-                            for (i in 1 until checked.size) checked[i] = false
+            SettingsOptionSheet.showMultiChoice(
+                context = binding.activity,
+                titleResId = R.string.label_soniox_language,
+                items = sonioxLangLabels,
+                initialCheckedItems = checked,
+                onCheckedChanged = { listView, which, isChecked, checkedItems ->
+                    if (which == 0 && isChecked) {
+                        for (i in 1 until checkedItems.size) {
+                            if (checkedItems[i]) {
+                                checkedItems[i] = false
+                                listView.setItemChecked(i, false)
+                            }
                         }
-                    } else if (isChecked) {
-                        checked[0] = false
+                    } else if (which != 0 && isChecked) {
+                        if (checkedItems[0]) {
+                            checkedItems[0] = false
+                            listView.setItemChecked(0, false)
+                        }
                     }
-                }
-                .setPositiveButton(android.R.string.ok) { _, _ ->
+                    if (checkedItems.none { it }) {
+                        checkedItems[0] = true
+                        listView.setItemChecked(0, true)
+                    }
                     val codes = mutableListOf<String>()
-                    for (i in checked.indices) {
-                        if (checked[i]) {
+                    for (i in checkedItems.indices) {
+                        if (checkedItems[i]) {
                             val code = sonioxLangCodes[i]
                             if (code.isNotEmpty()) codes.add(code)
                         }
@@ -141,8 +155,7 @@ internal class SonioxAsrSettingsSection : AsrSettingsSection {
                     binding.viewModel.updateSonioxLanguages(codes)
                     updateSonioxLangSummary()
                 }
-                .setNegativeButton(R.string.btn_cancel, null)
-                .show()
+            )
         }
     }
 }
