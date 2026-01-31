@@ -25,6 +25,7 @@ import com.brycewg.asrkb.util.HapticFeedbackHelper
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.textfield.TextInputEditText
 import java.util.Locale
+import kotlin.math.abs
 
 class SettingsSearchActivity : BaseActivity() {
 
@@ -214,6 +215,11 @@ class SettingsSearchActivity : BaseActivity() {
         if (title.contains(term)) return 2
         if (all.contains(term)) return 6
 
+        if (term.length >= 2) {
+            if (containsEditDistanceAtMostOne(title, term)) return 7
+            if (containsEditDistanceAtMostOne(all, term)) return 11
+        }
+
         if (term.length >= 3 && isSubsequence(term, title)) {
             return 14 + (title.length - term.length).coerceAtLeast(0)
         }
@@ -221,6 +227,74 @@ class SettingsSearchActivity : BaseActivity() {
             return 18 + (all.length - term.length).coerceAtLeast(0)
         }
         return null
+    }
+
+    private fun containsEditDistanceAtMostOne(haystack: String, needle: String): Boolean {
+        if (needle.isBlank()) return true
+
+        val n = needle.length
+        val lengths = intArrayOf(n - 1, n, n + 1)
+        for (len in lengths) {
+            if (len <= 0 || len > haystack.length) continue
+            for (start in 0..(haystack.length - len)) {
+                if (isEditDistanceAtMostOne(needle, haystack, start, len)) return true
+            }
+        }
+        return false
+    }
+
+    private fun isEditDistanceAtMostOne(needle: String, haystack: String, start: Int, len: Int): Boolean {
+        if (abs(needle.length - len) > 1) return false
+        if (needle.length == len) {
+            var diff = 0
+            for (i in 0 until len) {
+                if (needle[i] != haystack[start + i]) {
+                    diff++
+                    if (diff > 1) return false
+                }
+            }
+            return true
+        }
+
+        if (needle.length + 1 == len) {
+            var i = 0
+            var j = 0
+            var edits = 0
+            while (i < needle.length && j < len) {
+                val cNeedle = needle[i]
+                val cHay = haystack[start + j]
+                if (cNeedle == cHay) {
+                    i++
+                    j++
+                    continue
+                }
+                edits++
+                if (edits > 1) return false
+                j++
+            }
+            return true
+        }
+
+        if (needle.length - 1 == len) {
+            var i = 0
+            var j = 0
+            var edits = 0
+            while (i < needle.length && j < len) {
+                val cNeedle = needle[i]
+                val cHay = haystack[start + j]
+                if (cNeedle == cHay) {
+                    i++
+                    j++
+                    continue
+                }
+                edits++
+                if (edits > 1) return false
+                i++
+            }
+            return true
+        }
+
+        return false
     }
 
     private fun isSubsequence(needle: String, haystack: String): Boolean {
