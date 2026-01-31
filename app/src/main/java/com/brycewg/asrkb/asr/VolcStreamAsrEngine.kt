@@ -48,7 +48,6 @@ class VolcStreamAsrEngine(
     companion object {
         private const val TAG = "VolcStreamAsrEngine"
         private const val WS_ENDPOINT_BIDI_ASYNC = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async"
-        private const val WS_ENDPOINT_NOSTREAM = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_nostream"
         // 流式识别模型 1.0 / 2.0
         private const val STREAM_RESOURCE_V1 = "volc.bigasr.sauc.duration"
         private const val STREAM_RESOURCE_V2 = "volc.seedasr.sauc.duration"
@@ -175,9 +174,8 @@ class VolcStreamAsrEngine(
     private fun openWebSocket(startAudio: Boolean) {
         val connectId = UUID.randomUUID().toString()
         if (startAudio) startAudioStreaming()
-        val wsUrl = if (prefs.volcBidiStreamingEnabled) WS_ENDPOINT_BIDI_ASYNC else WS_ENDPOINT_NOSTREAM
         val req = Request.Builder()
-            .url(wsUrl)
+            .url(WS_ENDPOINT_BIDI_ASYNC)
             .headers(
                 Headers.headersOf(
                     "X-Api-App-Key", prefs.appKey,
@@ -277,7 +275,7 @@ class VolcStreamAsrEngine(
     private fun startAudioStreaming() {
         audioJob?.cancel()
         audioJob = scope.launch(Dispatchers.IO) {
-            val chunkMillis = if (prefs.volcFirstCharAccelEnabled) 100 else 200
+            val chunkMillis = 200
             val audioManager = AudioCaptureManager(
                 context = context,
                 sampleRate = sampleRate,

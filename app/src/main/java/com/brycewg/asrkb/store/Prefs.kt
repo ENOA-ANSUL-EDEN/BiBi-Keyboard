@@ -706,11 +706,6 @@ class Prefs(context: Context) {
         get() = sp.getBoolean(KEY_VOLC_STREAMING_ENABLED, true)
         set(value) = sp.edit { putBoolean(KEY_VOLC_STREAMING_ENABLED, value) }
 
-    // 火山引擎：双向流式开关（bigmodel_async vs bigmodel_nostream），默认开启
-    var volcBidiStreamingEnabled: Boolean
-        get() = sp.getBoolean(KEY_VOLC_BIDI_STREAMING_ENABLED, true)
-        set(value) = sp.edit { putBoolean(KEY_VOLC_BIDI_STREAMING_ENABLED, value) }
-
     // 火山引擎：语义顺滑开关（enable_ddc）
     var volcDdcEnabled: Boolean
         get() = sp.getBoolean(KEY_VOLC_DDC_ENABLED, true)
@@ -730,11 +725,6 @@ class Prefs(context: Context) {
     var volcLanguage: String
         get() = sp.getString(KEY_VOLC_LANGUAGE, "") ?: ""
         set(value) = sp.edit { putString(KEY_VOLC_LANGUAGE, value.trim()) }
-
-    // 火山引擎：首字加速（客户端减小分包时长）
-    var volcFirstCharAccelEnabled: Boolean
-        get() = sp.getBoolean(KEY_VOLC_FIRST_CHAR_ACCEL_ENABLED, false)
-        set(value) = sp.edit { putBoolean(KEY_VOLC_FIRST_CHAR_ACCEL_ENABLED, value) }
 
     // 火山引擎：文件识别标准版开关（submit/query）
     var volcFileStandardEnabled: Boolean

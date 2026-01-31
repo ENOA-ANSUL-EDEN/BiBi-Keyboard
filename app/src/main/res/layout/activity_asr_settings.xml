@@ -122,11 +122,6 @@
             android:text="@string/label_volc_model_v2" />
 
           <com.google.android.material.materialswitch.MaterialSwitch
-            android:id="@+id/switchVolcBidiStreaming"
-            style="@style/SettingsSwitch"
-            android:text="@string/label_volc_bidi_streaming" />
-
-          <com.google.android.material.materialswitch.MaterialSwitch
             android:id="@+id/switchVolcNonstream"
             style="@style/SettingsSwitch"
             android:text="@string/label_volc_nonstream" />
@@ -140,11 +135,6 @@
             android:id="@+id/switchVolcVad"
             style="@style/SettingsSwitch"
             android:text="@string/label_volc_vad" />
-
-          <com.google.android.material.materialswitch.MaterialSwitch
-            android:id="@+id/switchVolcFirstCharAccel"
-            style="@style/SettingsSwitch"
-            android:text="@string/label_volc_first_char_accel" />
 
           <TextView
             android:id="@+id/tvVolcLanguageLabel"

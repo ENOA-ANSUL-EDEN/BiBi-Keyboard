@@ -63,29 +63,6 @@ internal class VolcengineSettingsSection : AsrSettingsSection {
             )
         }
 
-        binding.view<MaterialSwitch>(R.id.switchVolcBidiStreaming).apply {
-            isChecked = binding.prefs.volcBidiStreamingEnabled
-            installExplainedSwitch(
-                context = binding.activity,
-                titleRes = R.string.label_volc_bidi_streaming,
-                offDescRes = R.string.feature_volc_bidi_streaming_off_desc,
-                onDescRes = R.string.feature_volc_bidi_streaming_on_desc,
-                preferenceKey = "volc_bidi_streaming_explained",
-                readPref = { binding.prefs.volcBidiStreamingEnabled },
-                writePref = { v -> binding.viewModel.updateVolcBidiStreaming(v) },
-                onChanged = { enabled ->
-                    if (!enabled) {
-                        try {
-                            binding.view<MaterialSwitch>(R.id.switchVolcNonstream).isChecked = false
-                        } catch (t: Throwable) {
-                            android.util.Log.e(TAG, "Failed to turn off two-pass switch when bidi disabled", t)
-                        }
-                    }
-                },
-                hapticFeedback = { binding.hapticTapIfEnabled(it) }
-            )
-        }
-
         binding.view<MaterialSwitch>(R.id.switchVolcDdc).apply {
             isChecked = binding.prefs.volcDdcEnabled
             installExplainedSwitch(
@@ -124,20 +101,6 @@ internal class VolcengineSettingsSection : AsrSettingsSection {
                 preferenceKey = "volc_nonstream_explained",
                 readPref = { binding.prefs.volcNonstreamEnabled },
                 writePref = { v -> binding.viewModel.updateVolcNonstream(v) },
-                hapticFeedback = { binding.hapticTapIfEnabled(it) }
-            )
-        }
-
-        binding.view<MaterialSwitch>(R.id.switchVolcFirstCharAccel).apply {
-            isChecked = binding.prefs.volcFirstCharAccelEnabled
-            installExplainedSwitch(
-                context = binding.activity,
-                titleRes = R.string.label_volc_first_char_accel,
-                offDescRes = R.string.feature_volc_first_char_accel_off_desc,
-                onDescRes = R.string.feature_volc_first_char_accel_on_desc,
-                preferenceKey = "volc_first_char_accel_explained",
-                readPref = { binding.prefs.volcFirstCharAccelEnabled },
-                writePref = { v -> binding.viewModel.updateVolcFirstCharAccel(v) },
                 hapticFeedback = { binding.hapticTapIfEnabled(it) }
             )
         }

@@ -43,11 +43,9 @@ class AsrSettingsViewModel : ViewModel() {
             aiEditPreferLastAsr = prefs.aiEditDefaultToLastAsr,
             // Volc settings
             volcStreamingEnabled = prefs.volcStreamingEnabled,
-            volcBidiStreamingEnabled = prefs.volcBidiStreamingEnabled,
             volcDdcEnabled = prefs.volcDdcEnabled,
             volcVadEnabled = prefs.volcVadEnabled,
             volcNonstreamEnabled = prefs.volcNonstreamEnabled,
-            volcFirstCharAccelEnabled = prefs.volcFirstCharAccelEnabled,
             volcFileStandardEnabled = prefs.volcFileStandardEnabled,
             volcModelV2Enabled = prefs.volcModelV2Enabled,
             volcLanguage = prefs.volcLanguage,
@@ -200,28 +198,9 @@ class AsrSettingsViewModel : ViewModel() {
         _uiState.value = _uiState.value.copy(volcVadEnabled = enabled)
     }
 
-    fun updateVolcBidiStreaming(enabled: Boolean) {
-        prefs.volcBidiStreamingEnabled = enabled
-        // 若关闭双向流式，则强制关闭二遍识别
-        if (!enabled) {
-            if (prefs.volcNonstreamEnabled) prefs.volcNonstreamEnabled = false
-            _uiState.value = _uiState.value.copy(
-                volcBidiStreamingEnabled = false,
-                volcNonstreamEnabled = false
-            )
-        } else {
-            _uiState.value = _uiState.value.copy(volcBidiStreamingEnabled = true)
-        }
-    }
-
     fun updateVolcNonstream(enabled: Boolean) {
         prefs.volcNonstreamEnabled = enabled
         _uiState.value = _uiState.value.copy(volcNonstreamEnabled = enabled)
-    }
-
-    fun updateVolcFirstCharAccel(enabled: Boolean) {
-        prefs.volcFirstCharAccelEnabled = enabled
-        _uiState.value = _uiState.value.copy(volcFirstCharAccelEnabled = enabled)
     }
 
     fun updateVolcFileStandard(enabled: Boolean) {
@@ -659,11 +638,9 @@ data class AsrSettingsUiState(
     val aiEditPreferLastAsr: Boolean = false,
     // Volcengine settings
     val volcStreamingEnabled: Boolean = false,
-    val volcBidiStreamingEnabled: Boolean = true,
     val volcDdcEnabled: Boolean = false,
     val volcVadEnabled: Boolean = false,
     val volcNonstreamEnabled: Boolean = false,
-    val volcFirstCharAccelEnabled: Boolean = false,
     val volcFileStandardEnabled: Boolean = true,
     val volcModelV2Enabled: Boolean = true,
     val volcLanguage: String = "",

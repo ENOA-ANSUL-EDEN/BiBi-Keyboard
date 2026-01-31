@@ -37,7 +37,7 @@ internal class AsrSettingsUiRendererSection : AsrSettingsSection {
         }
 
         updateVolcStreamOptionsVisibility(binding, state.volcStreamingEnabled)
-        updateVolcTwoPassVisibility(binding, state.volcStreamingEnabled, state.volcBidiStreamingEnabled)
+        updateVolcTwoPassVisibility(binding, state.volcStreamingEnabled)
     }
 
     private fun updateVendorSummary(binding: AsrSettingsBinding, vendor: AsrVendor) {
@@ -113,14 +113,12 @@ internal class AsrSettingsUiRendererSection : AsrSettingsSection {
             if (v.visibility != vis) v.visibility = vis
         }
         setIfChanged(binding.view(R.id.switchVolcVad))
-        setIfChanged(binding.view(R.id.switchVolcFirstCharAccel))
         setIfChanged(binding.view(R.id.tvVolcLanguageValue))
         setIfChanged(binding.view(R.id.tvVolcLanguageLabel))
-        setIfChanged(binding.view(R.id.switchVolcBidiStreaming))
     }
 
-    private fun updateVolcTwoPassVisibility(binding: AsrSettingsBinding, streamingEnabled: Boolean, bidiEnabled: Boolean) {
-        val vis = if (streamingEnabled && bidiEnabled) View.VISIBLE else View.GONE
+    private fun updateVolcTwoPassVisibility(binding: AsrSettingsBinding, streamingEnabled: Boolean) {
+        val vis = if (streamingEnabled) View.VISIBLE else View.GONE
         val v = binding.view<View>(R.id.switchVolcNonstream)
         if (v.visibility != vis) v.visibility = vis
     }

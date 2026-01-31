@@ -74,7 +74,6 @@ internal object PrefsBackup {
         o.put(KEY_OA_ASR_USE_PROMPT, oaAsrUsePrompt)
         // Volcano streaming toggle
         o.put(KEY_VOLC_STREAMING_ENABLED, volcStreamingEnabled)
-        o.put(KEY_VOLC_BIDI_STREAMING_ENABLED, volcBidiStreamingEnabled)
         // DashScope streaming toggle
         o.put(KEY_DASH_STREAMING_ENABLED, dashStreamingEnabled)
         o.put(KEY_DASH_REGION, dashRegion)
@@ -96,7 +95,6 @@ internal object PrefsBackup {
         o.put(KEY_GEMINI_DISABLE_THINKING, geminiDisableThinking)
         // ElevenLabs streaming toggle
         o.put(KEY_ELEVEN_STREAMING_ENABLED, elevenStreamingEnabled)
-        o.put(KEY_VOLC_FIRST_CHAR_ACCEL_ENABLED, volcFirstCharAccelEnabled)
         // 多 LLM 配置
         o.put(KEY_LLM_PROVIDERS, llmProvidersJson)
         o.put(KEY_LLM_ACTIVE_ID, activeLlmId)
@@ -330,7 +328,6 @@ internal object PrefsBackup {
             // OpenAI ASR：Prompt 开关
             optBool(KEY_OA_ASR_USE_PROMPT)?.let { oaAsrUsePrompt = it }
             optBool(KEY_VOLC_STREAMING_ENABLED)?.let { volcStreamingEnabled = it }
-            optBool(KEY_VOLC_BIDI_STREAMING_ENABLED)?.let { volcBidiStreamingEnabled = it }
             // DashScope：优先读取新模型字段；否则回退旧开关并迁移
             val importedDashModel = optString(KEY_DASH_ASR_MODEL)
             if (importedDashModel != null) {
@@ -352,7 +349,6 @@ internal object PrefsBackup {
             optString(KEY_VOLC_LANGUAGE)?.let { volcLanguage = it }
             optBool(KEY_RETURN_PREV_IME_ON_HIDE)?.let { returnPrevImeOnHide = it }
             optString(KEY_IME_SWITCH_TARGET_ID)?.let { imeSwitchTargetId = it }
-            optBool(KEY_VOLC_FIRST_CHAR_ACCEL_ENABLED)?.let { volcFirstCharAccelEnabled = it }
             optBool(KEY_VOLC_FILE_STANDARD_ENABLED)?.let { volcFileStandardEnabled = it }
             optBool(KEY_VOLC_MODEL_V2_ENABLED)?.let { volcModelV2Enabled = it }
             // Soniox（若提供数组则优先；否则回退单值）
