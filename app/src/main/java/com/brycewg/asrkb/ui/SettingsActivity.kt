@@ -74,6 +74,7 @@ class SettingsActivity : BaseActivity() {
     companion object {
         private const val TAG = "SettingsActivity"
         const val EXTRA_AUTO_SHOW_IME_PICKER = "extra_auto_show_ime_picker"
+        const val EXTRA_SHOW_IME_PICKER = "extra_show_ime_picker"
         private const val DOCS_URL = "https://bibidocs.brycewg.com"
     }
 
@@ -99,6 +100,9 @@ class SettingsActivity : BaseActivity() {
     private var imePickerShown = false
     private var imePickerLostFocusOnce = false
     private var autoShownImePicker = false
+
+    // IME 选择器请求（用于快捷设置磁贴）
+    private var qsTileImePickerRequested = false
 
     // 一键设置轮询任务（用于等待用户选择输入法）
     private var setupPollingRunnable: Runnable? = null
@@ -130,6 +134,15 @@ class SettingsActivity : BaseActivity() {
 
         // 显示识别字数统计
         updateAsrTotalChars()
+
+        consumeShowImePickerExtraIfPresent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        consumeShowImePickerExtraIfPresent(intent)
+        handleShowImePickerFromTile(hasWindowFocus())
     }
 
     override fun onResume() {
@@ -214,6 +227,9 @@ class SettingsActivity : BaseActivity() {
 
         // 处理自动弹出 IME 选择器（由 Intent Extra 触发）
         handleAutoShowImePicker(hasFocus)
+
+        // 处理快捷设置磁贴触发的 IME 选择器（进入设置页后弹出，关闭后自动退出前台）
+        handleShowImePickerFromTile(hasFocus)
 
         // 处理一键设置流程中的 IME 选择器焦点变化
         handleSetupImePickerFocus(hasFocus)
@@ -1504,6 +1520,32 @@ class SettingsActivity : BaseActivity() {
                 Log.e(TAG, "Failed to show IME picker", e)
             }
         }
+    }
+
+    /**
+     * 处理快捷设置磁贴触发的 IME 选择器（由 Intent Extra 触发）
+     *
+     * 行为：进入设置页后弹出输入法选择器，选择器关闭后自动退出前台设置页。
+     */
+    private fun handleShowImePickerFromTile(hasFocus: Boolean) {
+        if (!hasFocus) return
+        if (!qsTileImePickerRequested) return
+
+        qsTileImePickerRequested = false
+
+        handler.post {
+            val imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
+            autoCloseAfterImePicker = true
+            imePickerShown = true
+            imePickerLostFocusOnce = false
+            imm.showInputMethodPicker()
+        }
+    }
+
+    private fun consumeShowImePickerExtraIfPresent(intent: Intent?) {
+        if (intent?.getBooleanExtra(EXTRA_SHOW_IME_PICKER, false) != true) return
+        intent.removeExtra(EXTRA_SHOW_IME_PICKER)
+        qsTileImePickerRequested = true
     }
 
     /**
