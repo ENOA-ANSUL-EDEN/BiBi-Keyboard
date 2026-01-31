@@ -11,9 +11,9 @@ import androidx.annotation.StringRes
 
 data class SettingsSearchEntry(
     val title: String,
+    val sectionTitle: String? = null,
     @StringRes val screenTitleResId: Int,
     val activityClass: Class<out Activity>,
     @IdRes val targetViewId: Int,
     val keywords: List<String> = emptyList()
 )
-

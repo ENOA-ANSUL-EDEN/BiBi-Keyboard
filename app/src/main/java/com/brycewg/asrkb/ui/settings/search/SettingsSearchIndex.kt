@@ -7,9 +7,13 @@ package com.brycewg.asrkb.ui.settings.search
 
 import android.app.Activity
 import android.content.Context
+import android.graphics.Typeface
+import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.LinearLayout
+import android.widget.TextView
 import androidx.annotation.IdRes
 import androidx.annotation.LayoutRes
 import androidx.annotation.StringRes
@@ -64,6 +68,11 @@ object SettingsSearchIndex {
     )
 
     private fun buildIndex(context: Context): List<SettingsSearchEntry> {
+        val minCardTitlePx = TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_SP,
+            18f,
+            context.resources.displayMetrics
+        )
         val specs = listOf(
             ScreenSpec(
                 layoutResId = R.layout.activity_input_settings,
@@ -125,15 +134,18 @@ object SettingsSearchIndex {
 
         val unique = LinkedHashMap<String, SettingsSearchEntry>()
         for (spec in specs) {
-            val auto = collectAutoEntries(context, spec)
+            val root = LayoutInflater.from(context).inflate(spec.layoutResId, null, false)
+            val auto = collectAutoEntries(spec, root, minCardTitlePx)
             for (entry in auto) {
                 unique.putIfAbsent(entry.uniqueKey(), entry)
             }
             for (mapping in spec.manualMappings) {
                 val title = runCatching { context.getString(mapping.labelResId) }.getOrNull().orEmpty()
                 if (title.isBlank()) continue
+                val sectionTitle = resolveSectionTitle(root, mapping.targetViewId, minCardTitlePx)
                 val manual = SettingsSearchEntry(
                     title = title,
+                    sectionTitle = sectionTitle,
                     screenTitleResId = spec.screenTitleResId,
                     activityClass = spec.activityClass,
                     targetViewId = mapping.targetViewId,
@@ -150,10 +162,13 @@ object SettingsSearchIndex {
         return activityClass.name + "#" + targetViewId + "#" + title.lowercase(Locale.ROOT)
     }
 
-    private fun collectAutoEntries(context: Context, spec: ScreenSpec): List<SettingsSearchEntry> {
-        val root = LayoutInflater.from(context).inflate(spec.layoutResId, null, false)
+    private fun collectAutoEntries(
+        spec: ScreenSpec,
+        root: View,
+        minCardTitlePx: Float
+    ): List<SettingsSearchEntry> {
         val results = mutableListOf<SettingsSearchEntry>()
-        collectFromView(spec, root, isVisibleSoFar = true, out = results)
+        collectFromView(spec, root, isVisibleSoFar = true, currentSectionTitle = null, minCardTitlePx = minCardTitlePx, out = results)
         return results
     }
 
@@ -161,6 +176,8 @@ object SettingsSearchIndex {
         spec: ScreenSpec,
         view: View,
         isVisibleSoFar: Boolean,
+        currentSectionTitle: String?,
+        minCardTitlePx: Float,
         out: MutableList<SettingsSearchEntry>
     ) {
         val isVisible = isVisibleSoFar && view.visibility == View.VISIBLE
@@ -173,6 +190,7 @@ object SettingsSearchIndex {
                     out.add(
                         SettingsSearchEntry(
                             title = title,
+                            sectionTitle = currentSectionTitle,
                             screenTitleResId = spec.screenTitleResId,
                             activityClass = spec.activityClass,
                             targetViewId = view.id,
@@ -188,6 +206,7 @@ object SettingsSearchIndex {
                     out.add(
                         SettingsSearchEntry(
                             title = title,
+                            sectionTitle = currentSectionTitle,
                             screenTitleResId = spec.screenTitleResId,
                             activityClass = spec.activityClass,
                             targetViewId = view.id,
@@ -204,6 +223,7 @@ object SettingsSearchIndex {
                     out.add(
                         SettingsSearchEntry(
                             title = title,
+                            sectionTitle = currentSectionTitle,
                             screenTitleResId = spec.screenTitleResId,
                             activityClass = spec.activityClass,
                             targetViewId = editTextId,
@@ -215,10 +235,53 @@ object SettingsSearchIndex {
         }
 
         if (view is ViewGroup) {
+            val nextSectionTitle = extractCardTitleText(view, minCardTitlePx) ?: currentSectionTitle
             for (i in 0 until view.childCount) {
-                collectFromView(spec, view.getChildAt(i), isVisibleSoFar = isVisible, out = out)
+                collectFromView(
+                    spec = spec,
+                    view = view.getChildAt(i),
+                    isVisibleSoFar = isVisible,
+                    currentSectionTitle = nextSectionTitle,
+                    minCardTitlePx = minCardTitlePx,
+                    out = out
+                )
             }
         }
     }
-}
 
+    private fun extractCardTitleText(group: ViewGroup, minCardTitlePx: Float): String? {
+        val linear = group as? LinearLayout ?: return null
+        if (linear.orientation != LinearLayout.VERTICAL) return null
+
+        // SettingsSectionCardTitle：bold + 20sp。使用字号与粗体做启发式识别。
+        val titleView = (0 until linear.childCount)
+            .asSequence()
+            .map { linear.getChildAt(it) }
+            .filterIsInstance<TextView>()
+            .firstOrNull()
+            ?: return null
+
+        val title = titleView.text?.toString()?.trim().orEmpty()
+        if (title.isBlank()) return null
+        if (titleView.textSize < minCardTitlePx) return null
+        val typefaceStyle = titleView.typeface?.style ?: 0
+        val isBold = (typefaceStyle and Typeface.BOLD) == Typeface.BOLD || titleView.paint.isFakeBoldText
+        if (!isBold) return null
+        return title
+    }
+
+    private fun resolveSectionTitle(root: View, @IdRes targetViewId: Int, minCardTitlePx: Float): String? {
+        val target = root.findViewById<View>(targetViewId) ?: return null
+        return findSectionTitleForTarget(target, minCardTitlePx)
+    }
+
+    private fun findSectionTitleForTarget(target: View, minCardTitlePx: Float): String? {
+        var p = target.parent
+        while (p is ViewGroup) {
+            val title = extractCardTitleText(p, minCardTitlePx)
+            if (!title.isNullOrBlank()) return title
+            p = p.parent
+        }
+        return null
+    }
+}

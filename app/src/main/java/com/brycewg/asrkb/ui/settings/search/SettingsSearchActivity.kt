@@ -89,8 +89,13 @@ class SettingsSearchActivity : BaseActivity() {
         val entries = SettingsSearchIndex.get(this)
         allRows = entries.map { e ->
             val screenTitle = runCatching { getString(e.screenTitleResId) }.getOrNull().orEmpty()
+            val sectionTitle = e.sectionTitle.orEmpty()
             val searchText = buildString {
                 append(e.title)
+                if (sectionTitle.isNotBlank()) {
+                    append(' ')
+                    append(sectionTitle)
+                }
                 if (screenTitle.isNotBlank()) {
                     append(' ')
                     append(screenTitle)
@@ -123,8 +128,12 @@ class SettingsSearchActivity : BaseActivity() {
         } else {
             allRows
                 .asSequence()
-                .filter { it.searchNormalized.contains(q) }
-                .map { it.entry }
+                .mapNotNull { row ->
+                    val score = matchScore(row.searchNormalized, q) ?: return@mapNotNull null
+                    row.entry to score
+                }
+                .sortedWith(compareBy<Pair<SettingsSearchEntry, Int>>({ it.second }, { it.first.title }))
+                .map { it.first }
                 .toList()
         }
 
@@ -136,7 +145,29 @@ class SettingsSearchActivity : BaseActivity() {
     private fun normalizeForSearch(raw: String): String {
         return raw
             .lowercase(Locale.ROOT)
-            .filterNot { it.isWhitespace() }
+            .filter { it.isLetterOrDigit() }
+    }
+
+    private fun matchScore(text: String, query: String): Int? {
+        if (query.isBlank()) return 0
+        if (text.contains(query)) return 0
+        if (query.length <= 2) return null
+        if (isSubsequence(query, text)) {
+            return 10 + (text.length - query.length).coerceAtLeast(0)
+        }
+        return null
+    }
+
+    private fun isSubsequence(needle: String, haystack: String): Boolean {
+        if (needle.isEmpty()) return true
+        var i = 0
+        for (c in haystack) {
+            if (i < needle.length && needle[i] == c) {
+                i++
+                if (i == needle.length) return true
+            }
+        }
+        return false
     }
 
     private fun hapticTapIfEnabled(view: View?) {
@@ -168,7 +199,8 @@ class SettingsSearchActivity : BaseActivity() {
 
             fun bind(entry: SettingsSearchEntry) {
                 tvTitle.text = entry.title
-                tvSubtitle.text = screenTitleProvider(entry.screenTitleResId)
+                tvSubtitle.text = entry.sectionTitle?.takeIf { it.isNotBlank() }
+                    ?: screenTitleProvider(entry.screenTitleResId)
                 itemView.setOnClickListener { v -> onClick(v, entry) }
             }
         }
