@@ -69,7 +69,7 @@ If you are interested in BiBi Keyboard, join our [Telegram Group](https://t.me/+
 - **Smart Target Selection** - Automatically identifies editing targets (selected text/last recognition/full text)
 - **Custom Keys** - Personalized punctuation keys
 - **Fcitx5/Trime Integration** - Supports invoking BiBi Keyboard's speech recognition capability directly via modified Fcitx5-Android/Trime
-- **External Speech Input Interface** - Supports third-party apps invoking BiBi Keyboard for speech input via SpeechRecognizer interface
+- **External Speech Input Interface** - Supports third-party apps invoking BiBi Keyboard for speech input via SpeechRecognizer interface [Open-source Test Tool](https://github.com/BryceWG/SpeechRecognizer-Tester)
 
 </td>
 <td width="50%">
