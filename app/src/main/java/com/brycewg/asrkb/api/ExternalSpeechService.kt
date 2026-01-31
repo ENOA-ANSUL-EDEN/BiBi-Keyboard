@@ -181,6 +181,7 @@ class ExternalSpeechService : Service() {
         private val cb: CallbackProxy
     ) : StreamingAsrEngine.Listener {
         var engine: StreamingAsrEngine? = null
+        private var autoStopSuppression: AutoCloseable? = null
         // 统计：录音起止与耗时（用于历史记录展示）
 	        private var sessionStartUptimeMs: Long = 0L
 	        private var sessionStartTotalUptimeMs: Long = 0L
@@ -201,6 +202,21 @@ class ExternalSpeechService : Service() {
         @Volatile private var finished: Boolean = false
         @Volatile private var canceled: Boolean = false
         @Volatile private var hasAsrPartial: Boolean = false
+
+        private fun ensureAutoStopSuppressed() {
+            if (autoStopSuppression != null) return
+            autoStopSuppression = VadAutoStopGuard.acquire()
+        }
+
+        private fun releaseAutoStopSuppression() {
+            val token = autoStopSuppression ?: return
+            autoStopSuppression = null
+            try {
+                token.close()
+            } catch (t: Throwable) {
+                Log.w(TAG, "Failed to release auto-stop suppression", t)
+            }
+        }
 
         private fun cancelLocalModelReadyWait() {
             try {
@@ -413,11 +429,13 @@ class ExternalSpeechService : Service() {
 	            } catch (t: Throwable) {
 	                Log.w(TAG, "Failed to mark session start", t)
 	            }
+                ensureAutoStopSuppressed()
 	            engine?.start()
 	        }
 
         fun stop() {
             if (canceled || finished) return
+            releaseAutoStopSuppression()
             // 记录一次会话录音时长（用于超时与统计）；部分引擎 stop() 不会回调 onStopped（如外部推流的本地流式），因此这里也做一次兜底快照。
 	            if (sessionStartUptimeMs > 0L) {
                 try {
@@ -443,6 +461,7 @@ class ExternalSpeechService : Service() {
         fun cancel() {
             canceled = true
             finished = true
+            releaseAutoStopSuppression()
             cancelLocalModelReadyWait()
             cancelProcessingTimeout()
             try {
@@ -716,6 +735,7 @@ class ExternalSpeechService : Service() {
         override fun onFinal(text: String) {
             if (canceled || finished) return
             finished = true
+            releaseAutoStopSuppression()
             cancelProcessingTimeout()
             processingEndUptimeMs = SystemClock.uptimeMillis()
             // 若尚未收到 onStopped，则以当前时间近似计算一次时长
@@ -929,6 +949,7 @@ class ExternalSpeechService : Service() {
         override fun onError(message: String) {
             if (canceled || finished) return
             finished = true
+            releaseAutoStopSuppression()
             processingEndUptimeMs = SystemClock.uptimeMillis()
             cancelLocalModelReadyWait()
             cancelProcessingTimeout()

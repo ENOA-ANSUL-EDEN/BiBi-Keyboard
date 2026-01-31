@@ -319,6 +319,7 @@ class AsrRecognitionService : RecognitionService() {
     ) : StreamingAsrEngine.Listener {
 
         private var engine: StreamingAsrEngine? = null
+        private var autoStopSuppression: AutoCloseable? = null
 
         @Volatile
         var isActive: Boolean = false
@@ -341,6 +342,21 @@ class AsrRecognitionService : RecognitionService() {
         private var processingTimeoutJob: Job? = null
         private var lastPostprocPreview: String? = null
 
+        private fun ensureAutoStopSuppressed() {
+            if (autoStopSuppression != null) return
+            autoStopSuppression = VadAutoStopGuard.acquire()
+        }
+
+        private fun releaseAutoStopSuppression() {
+            val token = autoStopSuppression ?: return
+            autoStopSuppression = null
+            try {
+                token.close()
+            } catch (t: Throwable) {
+                Log.w(TAG, "Failed to release auto-stop suppression", t)
+            }
+        }
+
         fun setEngine(engine: StreamingAsrEngine) {
             this.engine = engine
         }
@@ -356,12 +372,14 @@ class AsrRecognitionService : RecognitionService() {
             lastAudioMsForTimeout = 0L
             lastPostprocPreview = null
             cancelProcessingTimeout()
+            ensureAutoStopSuppressed()
             engine?.start()
         }
 
         fun stop() {
             // 停止录音阶段时标记会话为非活动，避免异常情况下卡在 BUSY 状态
             isActive = false
+            releaseAutoStopSuppression()
             snapshotAudioMsForTimeoutIfNeeded()
             deliverEndOfSpeechIfNeeded()
             scheduleProcessingTimeoutIfNeeded()
@@ -372,6 +390,7 @@ class AsrRecognitionService : RecognitionService() {
             isActive = false
             canceled = true
             finished = true
+            releaseAutoStopSuppression()
             cancelProcessingTimeout()
             try {
                 engine?.stop()
@@ -385,6 +404,7 @@ class AsrRecognitionService : RecognitionService() {
             Log.d(TAG, "onFinal: $text")
             isActive = false
             finalReceived = true
+            releaseAutoStopSuppression()
             cancelProcessingTimeout()
 
             val usedBackupResult = (engine as? ParallelAsrEngine)?.wasLastResultFromBackup() == true
@@ -539,6 +559,7 @@ class AsrRecognitionService : RecognitionService() {
             Log.e(TAG, "onError: $message")
             isActive = false
             finished = true
+            releaseAutoStopSuppression()
             cancelProcessingTimeout()
 
             val errorCode = mapToSpeechRecognizerError(message)
@@ -559,6 +580,7 @@ class AsrRecognitionService : RecognitionService() {
             Log.d(TAG, "onStopped")
             // 保底将会话标记为非活动，避免仅收到 onStopped 时长期占用 BUSY 状态
             isActive = false
+            releaseAutoStopSuppression()
             snapshotAudioMsForTimeoutIfNeeded()
             deliverEndOfSpeechIfNeeded()
             scheduleProcessingTimeoutIfNeeded()
