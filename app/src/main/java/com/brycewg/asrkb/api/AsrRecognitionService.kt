@@ -1,13 +1,17 @@
 package com.brycewg.asrkb.api
 
+import android.content.Context
+import android.content.ContextParams
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import android.speech.RecognitionService
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
+import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import com.brycewg.asrkb.asr.*
 import com.brycewg.asrkb.store.Prefs
@@ -62,6 +66,16 @@ class AsrRecognitionService : RecognitionService() {
             return
         }
 
+        // 校验调用方录音权限（系统通常已做校验，但此处显式防御，避免成为权限代理录音入口）
+        val callingHasPermission = checkCallingOrSelfPermission(
+            android.Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+        if (!callingHasPermission) {
+            Log.w(TAG, "Calling app missing RECORD_AUDIO permission")
+            callback.error(SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS)
+            return
+        }
+
         // 检查是否有活动会话
         // 根据 SpeechRecognizer 文档，在上一次会话触发 onResults/onError 之前
         // 再次调用 startListening 应当直接返回 ERROR_RECOGNIZER_BUSY
@@ -87,7 +101,8 @@ class AsrRecognitionService : RecognitionService() {
         )
 
         // 构建引擎
-        val engine = buildEngine(session)
+        val engineContext = createEngineContext(callback)
+        val engine = buildEngine(engineContext, session)
         if (engine == null) {
             Log.e(TAG, "Failed to build ASR engine")
             callback.error(SpeechRecognizer.ERROR_CLIENT)
@@ -136,16 +151,36 @@ class AsrRecognitionService : RecognitionService() {
         )
     }
 
+    private fun createEngineContext(callback: Callback): Context {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return this
+        return try {
+            Api31.createAttributionContext(this, callback)
+        } catch (t: Throwable) {
+            Log.w(TAG, "Failed to create attribution context; fallback to service context", t)
+            this
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.S)
+    private object Api31 {
+        fun createAttributionContext(service: Context, callback: Callback): Context {
+            val params = ContextParams.Builder()
+                .setNextAttributionSource(callback.callingAttributionSource)
+                .build()
+            return service.createContext(params)
+        }
+    }
+
     /**
      * 构建 ASR 引擎（复用 ExternalSpeechService 的逻辑）
      */
-    private fun buildEngine(listener: StreamingAsrEngine.Listener): StreamingAsrEngine? {
+    private fun buildEngine(engineContext: Context, listener: StreamingAsrEngine.Listener): StreamingAsrEngine? {
         val vendor = prefs.asrVendor
         val backupVendor = prefs.backupAsrVendor
         val backupEnabled = shouldUseBackupAsr(vendor, backupVendor)
         if (backupEnabled) {
             return ParallelAsrEngine(
-                context = this,
+                context = engineContext,
                 scope = serviceScope,
                 prefs = prefs,
                 listener = listener,
@@ -159,52 +194,52 @@ class AsrRecognitionService : RecognitionService() {
 
         return when (vendor) {
             AsrVendor.Volc -> if (streamingPref) {
-                VolcStreamAsrEngine(this, scope, prefs, listener)
+                VolcStreamAsrEngine(engineContext, scope, prefs, listener)
             } else {
                 if (prefs.volcFileStandardEnabled) {
-                    VolcStandardFileAsrEngine(this, scope, prefs, listener)
+                    VolcStandardFileAsrEngine(engineContext, scope, prefs, listener)
                 } else {
-                    VolcFileAsrEngine(this, scope, prefs, listener)
+                    VolcFileAsrEngine(engineContext, scope, prefs, listener)
                 }
             }
-            AsrVendor.SiliconFlow -> SiliconFlowFileAsrEngine(this, scope, prefs, listener)
+            AsrVendor.SiliconFlow -> SiliconFlowFileAsrEngine(engineContext, scope, prefs, listener)
             AsrVendor.ElevenLabs -> if (streamingPref) {
-                ElevenLabsStreamAsrEngine(this, scope, prefs, listener)
+                ElevenLabsStreamAsrEngine(engineContext, scope, prefs, listener)
             } else {
-                ElevenLabsFileAsrEngine(this, scope, prefs, listener)
+                ElevenLabsFileAsrEngine(engineContext, scope, prefs, listener)
             }
-            AsrVendor.OpenAI -> OpenAiFileAsrEngine(this, scope, prefs, listener)
+            AsrVendor.OpenAI -> OpenAiFileAsrEngine(engineContext, scope, prefs, listener)
             AsrVendor.DashScope -> if (streamingPref) {
-                DashscopeStreamAsrEngine(this, scope, prefs, listener)
+                DashscopeStreamAsrEngine(engineContext, scope, prefs, listener)
             } else {
-                DashscopeFileAsrEngine(this, scope, prefs, listener)
+                DashscopeFileAsrEngine(engineContext, scope, prefs, listener)
             }
-            AsrVendor.Gemini -> GeminiFileAsrEngine(this, scope, prefs, listener)
+            AsrVendor.Gemini -> GeminiFileAsrEngine(engineContext, scope, prefs, listener)
             AsrVendor.Soniox -> if (streamingPref) {
-                SonioxStreamAsrEngine(this, scope, prefs, listener)
+                SonioxStreamAsrEngine(engineContext, scope, prefs, listener)
             } else {
-                SonioxFileAsrEngine(this, scope, prefs, listener)
+                SonioxFileAsrEngine(engineContext, scope, prefs, listener)
             }
-            AsrVendor.Zhipu -> ZhipuFileAsrEngine(this, scope, prefs, listener)
+            AsrVendor.Zhipu -> ZhipuFileAsrEngine(engineContext, scope, prefs, listener)
             AsrVendor.SenseVoice -> {
                 if (prefs.svPseudoStreamEnabled) {
-                    SenseVoicePseudoStreamAsrEngine(this, scope, prefs, listener)
+                    SenseVoicePseudoStreamAsrEngine(engineContext, scope, prefs, listener)
                 } else {
-                    SenseVoiceFileAsrEngine(this, scope, prefs, listener)
+                    SenseVoiceFileAsrEngine(engineContext, scope, prefs, listener)
                 }
             }
             AsrVendor.FunAsrNano -> {
                 // FunASR Nano 模型算力开销高：不支持伪流式预览，仅保留整段离线识别
-                FunAsrNanoFileAsrEngine(this, scope, prefs, listener)
+                FunAsrNanoFileAsrEngine(engineContext, scope, prefs, listener)
             }
             AsrVendor.Telespeech -> {
                 if (prefs.tsPseudoStreamEnabled) {
-                    TelespeechPseudoStreamAsrEngine(this, scope, prefs, listener)
+                    TelespeechPseudoStreamAsrEngine(engineContext, scope, prefs, listener)
                 } else {
-                    TelespeechFileAsrEngine(this, scope, prefs, listener)
+                    TelespeechFileAsrEngine(engineContext, scope, prefs, listener)
                 }
             }
-            AsrVendor.Paraformer -> ParaformerStreamAsrEngine(this, scope, prefs, listener)
+            AsrVendor.Paraformer -> ParaformerStreamAsrEngine(engineContext, scope, prefs, listener)
         }
     }
 

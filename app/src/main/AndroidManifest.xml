@@ -64,6 +64,12 @@
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
 
+        <activity-alias
+            android:name=".ui.settings.asr.AsrRecognitionSettingsActivity"
+            android:exported="true"
+            android:targetActivity=".ui.settings.asr.AsrSettingsActivity"
+            android:windowSoftInputMode="adjustResize" />
+
         <activity
             android:name=".ui.settings.ai.AiPostSettingsActivity"
             android:exported="false"
@@ -197,8 +203,7 @@
         <!-- Android 标准语音识别服务 (RecognitionService) -->
         <service
             android:name=".api.AsrRecognitionService"
-            android:exported="true"
-            android:permission="android.permission.BIND_SPEECH_RECOGNITION">
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.speech.RecognitionService" />
                 <category android:name="android.intent.category.DEFAULT" />

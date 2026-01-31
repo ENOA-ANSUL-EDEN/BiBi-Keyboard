@@ -72,6 +72,51 @@ class AudioCaptureManager(
         ) == PackageManager.PERMISSION_GRANTED
     }
 
+    private fun createAudioRecord(audioSource: Int, bufferSize: Int): AudioRecord {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            Api31.createAudioRecord(
+                context = context,
+                audioSource = audioSource,
+                sampleRate = sampleRate,
+                channelConfig = channelConfig,
+                audioEncoding = audioFormat,
+                bufferSize = bufferSize
+            )
+        } else {
+            AudioRecord(
+                audioSource,
+                sampleRate,
+                channelConfig,
+                audioFormat,
+                bufferSize
+            )
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.S)
+    private object Api31 {
+        fun createAudioRecord(
+            context: Context,
+            audioSource: Int,
+            sampleRate: Int,
+            channelConfig: Int,
+            audioEncoding: Int,
+            bufferSize: Int
+        ): AudioRecord {
+            val format = AudioFormat.Builder()
+                .setSampleRate(sampleRate)
+                .setChannelMask(channelConfig)
+                .setEncoding(audioEncoding)
+                .build()
+            return AudioRecord.Builder()
+                .setContext(context)
+                .setAudioSource(audioSource)
+                .setAudioFormat(format)
+                .setBufferSizeInBytes(bufferSize)
+                .build()
+        }
+    }
+
     /**
      * 启动音频采集，返回音频数据流
      *
@@ -183,13 +228,7 @@ class AudioCaptureManager(
 
         // 3. 初始化 AudioRecord（优先 VOICE_RECOGNITION）
         var recorder: AudioRecord? = try {
-            AudioRecord(
-                MediaRecorder.AudioSource.VOICE_RECOGNITION,
-                sampleRate,
-                channelConfig,
-                audioFormat,
-                bufferSize
-            )
+            createAudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, bufferSize)
         } catch (t: Throwable) {
             Log.e(TAG, "Failed to create AudioRecord with VOICE_RECOGNITION", t)
             null
@@ -204,13 +243,7 @@ class AudioCaptureManager(
                 Log.e(TAG, "Failed to release failed recorder", t)
             }
             recorder = try {
-                AudioRecord(
-                    MediaRecorder.AudioSource.MIC,
-                    sampleRate,
-                    channelConfig,
-                    audioFormat,
-                    bufferSize
-                )
+                createAudioRecord(MediaRecorder.AudioSource.MIC, bufferSize)
             } catch (t: Throwable) {
                 Log.e(TAG, "Failed to create AudioRecord with MIC", t)
                 null
@@ -422,13 +455,7 @@ class AudioCaptureManager(
             }
 
             val newRecorder = try {
-                AudioRecord(
-                    MediaRecorder.AudioSource.MIC,
-                    sampleRate,
-                    channelConfig,
-                    audioFormat,
-                    bufferSize
-                )
+                createAudioRecord(MediaRecorder.AudioSource.MIC, bufferSize)
             } catch (t: Throwable) {
                 Log.e(TAG, "Failed to create new AudioRecord with MIC during warmup", t)
                 null
