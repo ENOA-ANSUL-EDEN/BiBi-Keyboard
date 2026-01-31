@@ -68,7 +68,7 @@ If you are interested in BiBi Keyboard, join our [Telegram Group](https://t.me/+
 - **Rich Editing Tools** - Complete editing functions including cursor movement, selection, copy-paste
 - **Smart Target Selection** - Automatically identifies editing targets (selected text/last recognition/full text)
 - **Custom Keys** - Personalized punctuation keys
-- **Fcitx5 Integration** - Supports invoking BiBi Keyboard's speech recognition capability directly via modified Fcitx5-Android
+- **Fcitx5/Trime Integration** - Supports invoking BiBi Keyboard's speech recognition capability directly via modified Fcitx5-Android/Trime
 - **External Speech Input Interface** - Supports third-party apps invoking BiBi Keyboard for speech input via SpeechRecognizer interface
 
 </td>
@@ -141,7 +141,6 @@ If you are interested in BiBi Keyboard, join our [Telegram Group](https://t.me/+
 ### 📥 Installation Steps
 
 1. **Download & Install**
-
    - Download the latest APK from [Releases](../../releases) page
    - Install on your Android device
 
@@ -152,13 +151,11 @@ If you are interested in BiBi Keyboard, join our [Telegram Group](https://t.me/+
    ```
 
 3. **Configure ASR Service**
-
    - Open BiBi Keyboard settings
    - Select ASR vendor (recommended: Volcengine)
    - Enter your API key
 
 4. **Start Using**
-
    - Switch to BiBi Keyboard in any input field
    - Long press the microphone button to start voice input
 
