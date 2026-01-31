@@ -8,6 +8,7 @@ import android.widget.Toast
 import com.brycewg.asrkb.R
 import com.brycewg.asrkb.store.Prefs
 import com.brycewg.asrkb.util.TextSanitizer
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -24,7 +25,17 @@ internal class SenseVoicePseudoStreamDelegate(
     private val tag: String
 ) {
     private val previewMutex = Mutex()
-    private val previewSegments = mutableListOf<String>()
+
+    @Volatile
+    private var activeSessionId: Long = 0L
+
+    @Volatile
+    private var previewSegments = mutableListOf<String>()
+
+    fun onSessionStart(sessionId: Long) {
+        activeSessionId = sessionId
+        previewSegments = mutableListOf()
+    }
 
     fun ensureReady(): Boolean {
         val manager = SenseVoiceOnnxManager.getInstance()
@@ -39,9 +50,10 @@ internal class SenseVoicePseudoStreamDelegate(
         return true
     }
 
-    fun onSegmentBoundary(pcmSegment: ByteArray) {
+    fun onSegmentBoundary(sessionId: Long, pcmSegment: ByteArray) {
         // 预览识别放到后台，避免阻塞录音
         scope.launch(Dispatchers.IO) {
+            if (sessionId != activeSessionId) return@launch
             val text = try {
                 decodeOnce(pcmSegment, reportErrorToUser = false)
             } catch (t: Throwable) {
@@ -49,6 +61,7 @@ internal class SenseVoicePseudoStreamDelegate(
                 null
             } ?: return@launch
 
+            if (sessionId != activeSessionId) return@launch
             val trimmed = text.trim()
             if (trimmed.isEmpty()) return@launch
 
@@ -63,9 +76,11 @@ internal class SenseVoicePseudoStreamDelegate(
 
             try {
                 previewMutex.withLock {
-                    previewSegments.add(normalizedSegment)
+                    val segments = previewSegments
+                    if (sessionId != activeSessionId) return@withLock
+                    segments.add(normalizedSegment)
                     // 简单拼接，避免在中文场景插入多余空格
-                    val merged = previewSegments.joinToString(separator = "")
+                    val merged = segments.joinToString(separator = "")
                     // 为安全起见，对整个预览再做一次尾部修剪
                     val previewOut = try {
                         TextSanitizer.trimTrailingPunctAndEmoji(merged)
@@ -73,6 +88,7 @@ internal class SenseVoicePseudoStreamDelegate(
                         Log.w(tag, "trimTrailingPunctAndEmoji failed for preview, fallback to merged", t)
                         merged
                     }
+                    if (sessionId != activeSessionId) return@withLock
                     try {
                         listener.onPartial(previewOut)
                     } catch (t: Throwable) {
@@ -85,18 +101,22 @@ internal class SenseVoicePseudoStreamDelegate(
         }
     }
 
-    suspend fun onSessionFinished(fullPcm: ByteArray) {
+    suspend fun onSessionFinished(sessionId: Long, fullPcm: ByteArray) {
         val t0 = System.currentTimeMillis()
         try {
+            if (sessionId != activeSessionId) return
             val text = decodeOnce(fullPcm, reportErrorToUser = true)
             val dt = System.currentTimeMillis() - t0
+            if (sessionId != activeSessionId) return
             try {
                 onRequestDuration?.invoke(dt)
             } catch (t: Throwable) {
                 Log.e(tag, "Failed to invoke duration callback", t)
             }
 
+            if (sessionId != activeSessionId) return
             if (text.isNullOrBlank()) {
+                if (sessionId != activeSessionId) return
                 try {
                     listener.onError(context.getString(R.string.error_asr_empty_result))
                 } catch (t: Throwable) {
@@ -104,14 +124,18 @@ internal class SenseVoicePseudoStreamDelegate(
                 }
             } else {
                 val raw = text.trim()
+                if (sessionId != activeSessionId) return
                 try {
                     listener.onFinal(raw)
                 } catch (t: Throwable) {
                     Log.e(tag, "Failed to notify final result", t)
                 }
             }
+        } catch (t: CancellationException) {
+            throw t
         } catch (t: Throwable) {
             Log.e(tag, "Final recognition failed", t)
+            if (sessionId != activeSessionId) return
             try {
                 listener.onError(
                     context.getString(
@@ -125,7 +149,9 @@ internal class SenseVoicePseudoStreamDelegate(
         } finally {
             try {
                 previewMutex.withLock {
-                    previewSegments.clear()
+                    val segments = previewSegments
+                    if (sessionId != activeSessionId) return@withLock
+                    segments.clear()
                 }
             } catch (t: Throwable) {
                 Log.e(tag, "Failed to reset preview segments after session", t)

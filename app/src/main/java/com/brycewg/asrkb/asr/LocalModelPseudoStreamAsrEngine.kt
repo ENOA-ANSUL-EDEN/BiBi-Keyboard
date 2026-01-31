@@ -12,10 +12,11 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * 本地模型伪流式基础引擎：
- * - 统一封装麦克风采集、定时分片（预览用）+ VAD 静音过滤 + 可选静音判停；
+ * - 统一封装麦克风采集、定时分片（预览用）与可选静音判停；
  * - 子类通过 onSegmentBoundary / onSessionFinished 实现片段预览与整段识别。
  */
 abstract class LocalModelPseudoStreamAsrEngine(
@@ -38,6 +39,12 @@ abstract class LocalModelPseudoStreamAsrEngine(
 
     private val running = AtomicBoolean(false)
     private var audioJob: Job? = null
+    private var finalRecognitionJob: Job? = null
+
+    private val sessionIdGenerator = AtomicLong(0L)
+
+    @Volatile
+    private var activeSessionId: Long = 0L
 
     @Volatile
     private var stoppedDelivered: Boolean = false
@@ -52,20 +59,44 @@ abstract class LocalModelPseudoStreamAsrEngine(
     protected open fun ensureReady(): Boolean = true
 
     /**
-     * 当检测到“停顿”形成一个可识别片段时回调。
+     * 当到达定时分段边界形成一个可识别片段时回调。
      * 子类可在内部启动后台协程进行识别并通过 listener.onPartial 输出预览。
      */
-    protected abstract fun onSegmentBoundary(pcmSegment: ByteArray)
+    protected abstract fun onSegmentBoundary(sessionId: Long, pcmSegment: ByteArray)
 
     /**
      * 会话结束后回调整段 PCM 音频。
      * 子类负责在内部进行识别，并通过 listener.onFinal / listener.onError 输出最终结果。
      */
-    protected abstract suspend fun onSessionFinished(fullPcm: ByteArray)
+    protected abstract suspend fun onSessionFinished(sessionId: Long, fullPcm: ByteArray)
+
+    /**
+     * 新会话开始时回调，用于清理上一会话的预览缓存等会话态数据。
+     * 必须为非阻塞实现。
+     */
+    protected open fun onSessionStart(sessionId: Long) { /* default no-op */ }
 
     override fun start() {
         if (running.get()) return
         if (!ensureReady()) return
+
+        val previousFinalJob = finalRecognitionJob
+        finalRecognitionJob = null
+        if (previousFinalJob != null) {
+            try {
+                previousFinalJob.cancel()
+            } catch (t: Throwable) {
+                Log.e(TAG, "Failed to cancel previous final recognition job", t)
+            }
+        }
+
+        val sessionId = sessionIdGenerator.incrementAndGet()
+        activeSessionId = sessionId
+        try {
+            onSessionStart(sessionId)
+        } catch (t: Throwable) {
+            Log.e(TAG, "onSessionStart failed", t)
+        }
 
         running.set(true)
         stoppedDelivered = false
@@ -75,10 +106,8 @@ abstract class LocalModelPseudoStreamAsrEngine(
             val sessionBuffer = ByteArrayOutputStream()
             val segmentBuffer = ByteArrayOutputStream()
             var hasRecordedAudio = false
-            var segVadDetector: VadDetector? = null
             var stopVadDetector: VadDetector? = null
             var segmentElapsedMs = 0L
-            var segmentHasSpeech = false
             val autoStopEnabled = try {
                 isVadAutoStopEnabled(context, prefs)
             } catch (t: Throwable) {
@@ -113,19 +142,6 @@ abstract class LocalModelPseudoStreamAsrEngine(
                     1200
                 }.coerceIn(300, 5000)
                 val segmentWindowMs = PREVIEW_SEGMENT_MS
-
-                segVadDetector = try {
-                    VadDetector(
-                        context = context,
-                        sampleRate = sampleRate,
-                        windowMs = segmentWindowMs,
-                        sensitivityLevel = prefs.autoStopSilenceSensitivity
-                    )
-                } catch (t: Throwable) {
-                    Log.e(TAG, "Failed to create segment VAD for pseudo stream", t)
-                    null
-                }
-                segmentHasSpeech = segVadDetector == null
 
                 stopVadDetector = if (autoStopEnabled) {
                     try {
@@ -162,20 +178,6 @@ abstract class LocalModelPseudoStreamAsrEngine(
                         Log.e(TAG, "Failed to buffer audio chunk", t)
                     }
 
-                    // 分段语音检测：用于过滤无声片段
-                    val segVad = segVadDetector
-                    if (segVad != null && audioChunk.isNotEmpty()) {
-                        val hasSpeech = try {
-                            segVad.isSpeechFrame(audioChunk, audioChunk.size)
-                        } catch (t: Throwable) {
-                            Log.e(TAG, "Segment VAD speech check failed", t)
-                            false
-                        }
-                        if (hasSpeech) segmentHasSpeech = true
-                    } else if (segVad == null) {
-                        segmentHasSpeech = true
-                    }
-
                     // 定时分段：固定间隔触发预览
                     val frameMs = if (audioChunk.isNotEmpty() && sampleRate > 0) {
                         ((audioChunk.size / 2) * 1000L) / sampleRate
@@ -199,22 +201,14 @@ abstract class LocalModelPseudoStreamAsrEngine(
                             } catch (t: Throwable) {
                                 Log.e(TAG, "Failed to append segment to session buffer", t)
                             }
-                            if (segmentHasSpeech) {
-                                try {
-                                    onSegmentBoundary(segBytes)
-                                } catch (t: Throwable) {
-                                    Log.e(TAG, "onSegmentBoundary failed", t)
-                                }
+                            try {
+                                onSegmentBoundary(sessionId, segBytes)
+                            } catch (t: Throwable) {
+                                Log.e(TAG, "onSegmentBoundary failed", t)
                             }
                         }
                         segmentBuffer.reset()
                         segmentElapsedMs = 0L
-                        segmentHasSpeech = segVadDetector == null
-                        try {
-                            segVadDetector?.reset()
-                        } catch (t: Throwable) {
-                            Log.w(TAG, "Failed to reset segment VAD detector", t)
-                        }
                     }
 
                     // 停录 VAD：启用静音自动停止时持续喂入，避免分段缓冲导致判停失效
@@ -245,11 +239,6 @@ abstract class LocalModelPseudoStreamAsrEngine(
                     }
                 }
             } finally {
-                try {
-                    segVadDetector?.release()
-                } catch (t: Throwable) {
-                    Log.e(TAG, "Failed to release segment VAD detector", t)
-                }
                 try {
                     stopVadDetector?.release()
                 } catch (t: Throwable) {
@@ -285,7 +274,7 @@ abstract class LocalModelPseudoStreamAsrEngine(
                     segmentBuffer.reset()
                 }
 
-                if (hasRecordedAudio) {
+                if (hasRecordedAudio && sessionId == activeSessionId) {
                     val fullPcm = sessionBuffer.toByteArray()
                     val denoised = OfflineSpeechDenoiserManager.denoiseIfEnabled(
                         context = context,
@@ -293,19 +282,26 @@ abstract class LocalModelPseudoStreamAsrEngine(
                         pcm = fullPcm,
                         sampleRate = sampleRate
                     )
-                    try {
-                        onSessionFinished(denoised)
-                    } catch (t: Throwable) {
-                        Log.e(TAG, "onSessionFinished failed", t)
+                    // stop() 会 cancel 录音协程。若直接在 finally 内调用 suspend 的 onSessionFinished，
+                    // 其内部若使用可取消的 suspend API（mutex.withLock / ensureActive 等）会被 CancellationException 中断，
+                    // 导致最终结果无法覆盖预览结果。
+                    finalRecognitionJob = scope.launch(Dispatchers.IO) {
                         try {
-                            listener.onError(
-                                context.getString(
-                                    R.string.error_recognize_failed_with_reason,
-                                    t.message ?: ""
+                            onSessionFinished(sessionId, denoised)
+                        } catch (t: CancellationException) {
+                            Log.d(TAG, "onSessionFinished cancelled: ${t.message}")
+                        } catch (t: Throwable) {
+                            Log.e(TAG, "onSessionFinished failed", t)
+                            try {
+                                listener.onError(
+                                    context.getString(
+                                        R.string.error_recognize_failed_with_reason,
+                                        t.message ?: ""
+                                    )
                                 )
-                            )
-                        } catch (e: Throwable) {
-                            Log.e(TAG, "Failed to notify final recognition error", e)
+                            } catch (e: Throwable) {
+                                Log.e(TAG, "Failed to notify final recognition error", e)
+                            }
                         }
                     }
                 }

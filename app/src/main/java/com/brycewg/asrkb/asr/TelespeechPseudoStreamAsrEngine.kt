@@ -6,7 +6,7 @@ import kotlinx.coroutines.CoroutineScope
 
 /**
  * TeleSpeech 本地模型伪流式引擎：
- * - 定时分片 + VAD 静音过滤，小片段离线识别后通过 onPartial 预览；
+ * - 定时分片，小片段离线识别后通过 onPartial 预览；
  * - 会话结束时对整段音频再识别一次，通过 onFinal 覆盖最终结果。
  */
 class TelespeechPseudoStreamAsrEngine(
@@ -35,11 +35,15 @@ class TelespeechPseudoStreamAsrEngine(
         return delegate.ensureReady()
     }
 
-    override fun onSegmentBoundary(pcmSegment: ByteArray) {
-        delegate.onSegmentBoundary(pcmSegment)
+    override fun onSessionStart(sessionId: Long) {
+        delegate.onSessionStart(sessionId)
     }
 
-    override suspend fun onSessionFinished(fullPcm: ByteArray) {
-        delegate.onSessionFinished(fullPcm)
+    override fun onSegmentBoundary(sessionId: Long, pcmSegment: ByteArray) {
+        delegate.onSegmentBoundary(sessionId, pcmSegment)
+    }
+
+    override suspend fun onSessionFinished(sessionId: Long, fullPcm: ByteArray) {
+        delegate.onSessionFinished(sessionId, fullPcm)
     }
 }
