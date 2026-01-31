@@ -47,6 +47,12 @@
             app:icon="@drawable/lightning_a" />
 
           <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnOpenSettingsSearch"
+            style="@style/SettingsOutlinedButton"
+            android:text="@string/btn_settings_search"
+            app:icon="@drawable/magnifying_glass" />
+
+          <com.google.android.material.button.MaterialButton
             android:id="@+id/btnTestInput"
             style="@style/SettingsOutlinedButton"
             android:text="@string/btn_test_input"
@@ -65,7 +71,6 @@
           <com.google.android.material.button.MaterialButton
             android:id="@+id/btnOpenInputSettings"
             style="@style/SettingsOutlinedButton"
-            android:layout_marginTop="0dp"
             android:text="@string/title_input_settings"
             app:icon="@drawable/keyboard" />
 

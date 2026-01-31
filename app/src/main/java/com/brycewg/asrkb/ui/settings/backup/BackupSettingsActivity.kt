@@ -1,3 +1,8 @@
+/**
+ * 备份与同步相关设置页面。
+ *
+ * 归属模块：ui/settings/backup
+ */
 package com.brycewg.asrkb.ui.settings.backup
 
 import android.net.Uri
@@ -11,6 +16,7 @@ import androidx.lifecycle.lifecycleScope
 import com.brycewg.asrkb.ui.BaseActivity
 import com.brycewg.asrkb.R
 import com.brycewg.asrkb.store.Prefs
+import com.brycewg.asrkb.ui.settings.search.SettingsSearchNavigator
 import com.brycewg.asrkb.util.HapticFeedbackHelper
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
@@ -52,6 +58,11 @@ class BackupSettingsActivity : BaseActivity() {
 
         setupFileSection()
         setupWebdavSection()
+    }
+
+    override fun onPostResume() {
+        super.onPostResume()
+        SettingsSearchNavigator.applyScrollAndHighlightIfNeeded(this)
     }
 
     // ================= 文件导入/导出 =================

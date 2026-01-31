@@ -1,3 +1,8 @@
+/**
+ * 其他设置页面。
+ *
+ * 归属模块：ui/settings/other
+ */
 package com.brycewg.asrkb.ui.settings.other
 
 import android.content.Intent
@@ -21,6 +26,7 @@ import com.brycewg.asrkb.analytics.AnalyticsManager
 import com.brycewg.asrkb.ui.SettingsOptionSheet
 import com.brycewg.asrkb.ui.floating.FloatingServiceManager
 import com.brycewg.asrkb.ui.installExplainedSwitch
+import com.brycewg.asrkb.ui.settings.search.SettingsSearchNavigator
 import com.brycewg.asrkb.util.HapticFeedbackHelper
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.materialswitch.MaterialSwitch
@@ -68,6 +74,11 @@ class OtherSettingsActivity : BaseActivity() {
 
     // Observe ViewModel state
     observeViewModel()
+    }
+
+    override fun onPostResume() {
+        super.onPostResume()
+        SettingsSearchNavigator.applyScrollAndHighlightIfNeeded(this)
     }
 
     // ========== General ==========

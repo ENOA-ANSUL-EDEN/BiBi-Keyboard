@@ -55,6 +55,10 @@
   <string name="title_asr_settings">Speech Recognition Settings</string>
   <string name="title_ai_settings">AI Post-processing Settings</string>
   <string name="title_other_settings">Other Settings</string>
+  <string name="btn_settings_search">Search Settings</string>
+  <string name="title_settings_search">Search Settings</string>
+  <string name="hint_settings_search">Search settings</string>
+  <string name="text_settings_search_empty">No matching settings</string>
 
   <!-- Settings page section titles -->
   <string name="section_settings_items">Main Settings</string>

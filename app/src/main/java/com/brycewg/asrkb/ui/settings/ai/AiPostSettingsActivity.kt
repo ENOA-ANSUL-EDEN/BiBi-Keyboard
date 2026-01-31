@@ -1,3 +1,8 @@
+/**
+ * AI 后处理设置页面。
+ *
+ * 归属模块：ui/settings/ai
+ */
 package com.brycewg.asrkb.ui.settings.ai
 
 import android.content.Intent
@@ -24,6 +29,7 @@ import com.brycewg.asrkb.store.Prefs
 import com.brycewg.asrkb.store.PromptPreset
 import com.brycewg.asrkb.ui.SettingsOptionSheet
 import com.brycewg.asrkb.ui.installExplainedSwitch
+import com.brycewg.asrkb.ui.settings.search.SettingsSearchNavigator
 import com.brycewg.asrkb.util.HapticFeedbackHelper
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -138,6 +144,11 @@ class AiPostSettingsActivity : BaseActivity() {
         setupPromptPresetSection()
         observeViewModelState()
         loadInitialData()
+    }
+
+    override fun onPostResume() {
+        super.onPostResume()
+        SettingsSearchNavigator.applyScrollAndHighlightIfNeeded(this)
     }
 
     // ======== Initialization Methods ========

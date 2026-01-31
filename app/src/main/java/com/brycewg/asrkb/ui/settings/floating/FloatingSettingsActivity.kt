@@ -1,3 +1,8 @@
+/**
+ * 悬浮球相关设置页面。
+ *
+ * 归属模块：ui/settings/floating
+ */
 package com.brycewg.asrkb.ui.settings.floating
 
 import android.content.Intent
@@ -12,6 +17,7 @@ import com.brycewg.asrkb.R
 import com.brycewg.asrkb.store.Prefs
 import com.brycewg.asrkb.ui.floating.FloatingServiceManager
 import com.brycewg.asrkb.ui.installExplainedSwitch
+import com.brycewg.asrkb.ui.settings.search.SettingsSearchNavigator
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.slider.Slider
@@ -86,6 +92,11 @@ class FloatingSettingsActivity : BaseActivity() {
     override fun onResume() {
         super.onResume()
         syncAsrToggleAfterPermissions()
+    }
+
+    override fun onPostResume() {
+        super.onPostResume()
+        SettingsSearchNavigator.applyScrollAndHighlightIfNeeded(this)
     }
 
     /**

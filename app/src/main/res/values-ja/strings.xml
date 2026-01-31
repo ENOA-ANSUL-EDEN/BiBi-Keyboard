@@ -54,6 +54,10 @@
   <string name="title_asr_settings">音声認識設定</string>
   <string name="title_ai_settings">AI後処理設定</string>
   <string name="title_other_settings">その他の設定</string>
+  <string name="btn_settings_search">設定を検索</string>
+  <string name="title_settings_search">設定を検索</string>
+  <string name="hint_settings_search">設定を検索</string>
+  <string name="text_settings_search_empty">一致する設定がありません</string>
 
   <!-- Settings page section titles -->
   <string name="section_settings_items">主要設定項目</string>

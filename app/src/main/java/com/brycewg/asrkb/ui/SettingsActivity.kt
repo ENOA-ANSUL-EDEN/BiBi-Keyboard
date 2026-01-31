@@ -1,3 +1,8 @@
+/**
+ * 主设置入口页面。
+ *
+ * 提供一键设置流程、入口导航与常用工具能力。
+ */
 package com.brycewg.asrkb.ui
 
 import android.Manifest
@@ -40,6 +45,7 @@ import com.brycewg.asrkb.ui.settings.ai.AiPostSettingsActivity
 import com.brycewg.asrkb.ui.settings.other.OtherSettingsActivity
 import com.brycewg.asrkb.ui.settings.floating.FloatingSettingsActivity
 import com.brycewg.asrkb.ui.settings.backup.BackupSettingsActivity
+import com.brycewg.asrkb.ui.settings.search.SettingsSearchActivity
 import com.brycewg.asrkb.analytics.AnalyticsManager
 import com.brycewg.asrkb.util.HapticFeedbackHelper
 import com.google.android.material.bottomsheet.BottomSheetDialog
@@ -269,6 +275,10 @@ class SettingsActivity : BaseActivity() {
         }
 
         // 子设置页导航
+        findViewById<Button>(R.id.btnOpenSettingsSearch)?.setOnClickListener { v ->
+            hapticTapIfEnabled(v)
+            startActivity(Intent(this, SettingsSearchActivity::class.java))
+        }
         findViewById<Button>(R.id.btnOpenInputSettings)?.setOnClickListener { v ->
             hapticTapIfEnabled(v)
             startActivity(Intent(this, InputSettingsActivity::class.java))

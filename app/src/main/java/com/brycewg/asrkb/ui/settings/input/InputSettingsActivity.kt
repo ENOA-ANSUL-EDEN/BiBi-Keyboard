@@ -1,3 +1,8 @@
+/**
+ * 输入相关设置页面。
+ *
+ * 归属模块：ui/settings/input
+ */
 package com.brycewg.asrkb.ui.settings.input
 
 import android.Manifest
@@ -19,6 +24,7 @@ import com.brycewg.asrkb.ime.AsrKeyboardService
 import com.brycewg.asrkb.store.Prefs
 import com.brycewg.asrkb.ui.SettingsOptionSheet
 import com.brycewg.asrkb.ui.installExplainedSwitch
+import com.brycewg.asrkb.ui.settings.search.SettingsSearchNavigator
 import com.brycewg.asrkb.util.HapticFeedbackHelper
 import com.google.android.material.button.MaterialButtonToggleGroup
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -258,7 +264,11 @@ class InputSettingsActivity : BaseActivity() {
         // 初始应用一次"从最近任务中排除"设置
         applyExcludeFromRecents(prefs.hideRecentTaskCard)
 
-        val root = findViewById<View>(android.R.id.content)
+    }
+
+    override fun onPostResume() {
+        super.onPostResume()
+        SettingsSearchNavigator.applyScrollAndHighlightIfNeeded(this)
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {

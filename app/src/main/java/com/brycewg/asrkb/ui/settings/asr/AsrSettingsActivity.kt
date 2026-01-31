@@ -1,3 +1,8 @@
+/**
+ * 语音识别设置页面入口。
+ *
+ * 归属模块：ui/settings/asr
+ */
 package com.brycewg.asrkb.ui.settings.asr
 
 import android.net.Uri
@@ -28,6 +33,7 @@ import com.brycewg.asrkb.ui.settings.asr.sections.SonioxAsrSettingsSection
 import com.brycewg.asrkb.ui.settings.asr.sections.TelespeechSettingsSection
 import com.brycewg.asrkb.ui.settings.asr.sections.VolcengineSettingsSection
 import com.brycewg.asrkb.ui.settings.asr.sections.ZhipuAsrSettingsSection
+import com.brycewg.asrkb.ui.settings.search.SettingsSearchNavigator
 import kotlinx.coroutines.launch
 
 class AsrSettingsActivity : BaseActivity() {
@@ -120,6 +126,11 @@ class AsrSettingsActivity : BaseActivity() {
         sections.forEach { it.onResume(binding) }
     }
 
+    override fun onPostResume() {
+        super.onPostResume()
+        SettingsSearchNavigator.applyScrollAndHighlightIfNeeded(this)
+    }
+
     override fun onPause() {
         super.onPause()
         sections.forEach { it.onPause(binding) }
@@ -207,4 +218,3 @@ class AsrSettingsActivity : BaseActivity() {
         private const val TAG = "AsrSettingsActivity"
     }
 }
-

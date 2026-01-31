@@ -53,6 +53,10 @@
   <string name="title_asr_settings">語音辨識設定</string>
   <string name="title_ai_settings">AI 後處理設定</string>
   <string name="title_other_settings">其他設定</string>
+  <string name="btn_settings_search">搜尋設定</string>
+  <string name="title_settings_search">搜尋設定</string>
+  <string name="hint_settings_search">搜尋設定項目</string>
+  <string name="text_settings_search_empty">找不到符合的設定項目</string>
 
   <!-- Settings page section titles -->
   <string name="section_settings_items">主要設定項</string>
