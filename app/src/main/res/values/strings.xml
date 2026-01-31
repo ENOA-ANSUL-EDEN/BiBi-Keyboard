@@ -117,6 +117,8 @@
   <string name="toast_preset_deleted">Preset deleted</string>
   <string name="untitled_preset">Untitled preset</string>
   <string name="switched_preset">Switched: %1$s</string>
+  <string name="toast_search_changed_asr_vendor">Switched ASR provider: %1$s</string>
+  <string name="toast_search_changed_llm_vendor">Switched post-processing model provider: %1$s</string>
 
   <!-- ============================================== -->
   <!-- Input Related -->

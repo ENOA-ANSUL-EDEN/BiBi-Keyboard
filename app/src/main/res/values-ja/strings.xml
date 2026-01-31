@@ -116,6 +116,8 @@
   <string name="toast_preset_deleted">プリセットが削除されました</string>
   <string name="untitled_preset">無題のプリセット</string>
   <string name="switched_preset">切り替え：%1$s</string>
+  <string name="toast_search_changed_asr_vendor">音声認識プロバイダーを切り替えました：%1$s</string>
+  <string name="toast_search_changed_llm_vendor">後処理モデルのプロバイダーを切り替えました：%1$s</string>
 
   <!-- ============================================== -->
   <!-- 输入相关 -->

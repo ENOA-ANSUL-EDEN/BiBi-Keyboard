@@ -115,6 +115,8 @@
   <string name="toast_preset_deleted">已删除预设</string>
   <string name="untitled_preset">未命名预设</string>
   <string name="switched_preset">已切换：%1$s</string>
+  <string name="toast_search_changed_asr_vendor">已切换语音识别服务商：%1$s</string>
+  <string name="toast_search_changed_llm_vendor">已切换后处理模型供应商：%1$s</string>
 
   <!-- ============================================== -->
   <!-- 输入相关 -->

@@ -30,6 +30,7 @@ class SettingsSearchActivity : BaseActivity() {
 
     private data class Row(
         val entry: SettingsSearchEntry,
+        val titleNormalized: String,
         val searchNormalized: String
     )
 
@@ -44,7 +45,9 @@ class SettingsSearchActivity : BaseActivity() {
                 source = this,
                 activityClass = entry.activityClass,
                 targetViewId = entry.targetViewId,
-                highlight = true
+                highlight = true,
+                forceAsrVendorId = entry.forceAsrVendorId,
+                forceLlmVendorId = entry.forceLlmVendorId
             )
             finish()
         },
@@ -58,7 +61,7 @@ class SettingsSearchActivity : BaseActivity() {
         setContentView(R.layout.activity_settings_search)
 
         findViewById<View>(android.R.id.content).let { rootView ->
-            WindowInsetsHelper.applySystemBarsInsets(rootView)
+            WindowInsetsHelper.applySystemBarsInsets(rootView, applyBottom = false)
         }
 
         prefs = Prefs(this)
@@ -72,7 +75,10 @@ class SettingsSearchActivity : BaseActivity() {
         rv = findViewById(R.id.rvSettingsSearchResults)
         tvEmpty = findViewById(R.id.tvSettingsSearchEmpty)
         rv.layoutManager = LinearLayoutManager(this)
+        rv.clipToPadding = false
         rv.adapter = adapter
+        WindowInsetsHelper.applyBottomInsets(rv)
+        WindowInsetsHelper.applyBottomInsets(tvEmpty)
 
         etSearch.requestFocus()
         etSearch.post {
@@ -89,12 +95,12 @@ class SettingsSearchActivity : BaseActivity() {
         val entries = SettingsSearchIndex.get(this)
         allRows = entries.map { e ->
             val screenTitle = runCatching { getString(e.screenTitleResId) }.getOrNull().orEmpty()
-            val sectionTitle = e.sectionTitle.orEmpty()
+            val sectionPath = e.sectionPath.filter { it.isNotBlank() }
             val searchText = buildString {
                 append(e.title)
-                if (sectionTitle.isNotBlank()) {
+                for (p in sectionPath) {
                     append(' ')
-                    append(sectionTitle)
+                    append(p)
                 }
                 if (screenTitle.isNotBlank()) {
                     append(' ')
@@ -107,7 +113,11 @@ class SettingsSearchActivity : BaseActivity() {
                     }
                 }
             }
-            Row(e, normalizeForSearch(searchText))
+            Row(
+                entry = e,
+                titleNormalized = normalizeForSearch(e.title),
+                searchNormalized = normalizeForSearch(searchText)
+            )
         }
     }
 
@@ -122,17 +132,24 @@ class SettingsSearchActivity : BaseActivity() {
     }
 
     private fun render(query: String) {
-        val q = normalizeForSearch(query)
-        val filtered = if (q.isBlank()) {
+        val raw = query.trim()
+        val q = QueryParts.from(raw, ::normalizeForSearch)
+        val filtered = if (q.normalizedAll.isBlank()) {
             allRows.map { it.entry }
         } else {
             allRows
                 .asSequence()
                 .mapNotNull { row ->
-                    val score = matchScore(row.searchNormalized, q) ?: return@mapNotNull null
+                    val score = matchScore(row, q) ?: return@mapNotNull null
                     row.entry to score
                 }
-                .sortedWith(compareBy<Pair<SettingsSearchEntry, Int>>({ it.second }, { it.first.title }))
+                .sortedWith(
+                    compareBy<Pair<SettingsSearchEntry, Int>>(
+                        { it.second },
+                        { it.first.sectionPath.size },
+                        { it.first.title }
+                    )
+                )
                 .map { it.first }
                 .toList()
         }
@@ -148,12 +165,60 @@ class SettingsSearchActivity : BaseActivity() {
             .filter { it.isLetterOrDigit() }
     }
 
-    private fun matchScore(text: String, query: String): Int? {
-        if (query.isBlank()) return 0
-        if (text.contains(query)) return 0
-        if (query.length <= 2) return null
-        if (isSubsequence(query, text)) {
-            return 10 + (text.length - query.length).coerceAtLeast(0)
+    private data class QueryParts(
+        val normalizedAll: String,
+        val normalizedTerms: List<String>
+    ) {
+        companion object {
+            fun from(raw: String, normalizer: (String) -> String): QueryParts {
+                val terms = raw
+                    .split(Regex("\\s+"))
+                    .asSequence()
+                    .map { normalizer(it) }
+                    .filter { it.isNotBlank() }
+                    .toList()
+                val all = normalizer(raw)
+                return QueryParts(normalizedAll = all, normalizedTerms = terms.ifEmpty { listOf(all) }.filter { it.isNotBlank() })
+            }
+        }
+    }
+
+    private fun matchScore(row: Row, query: QueryParts): Int? {
+        if (query.normalizedAll.isBlank()) return 0
+
+        var score = 0
+        for (term in query.normalizedTerms) {
+            val s = matchTermScore(row, term) ?: return null
+            score += s
+        }
+
+        if (row.titleNormalized == query.normalizedAll) {
+            score -= 6
+        } else if (row.titleNormalized.startsWith(query.normalizedAll)) {
+            score -= 4
+        } else if (row.titleNormalized.contains(query.normalizedAll)) {
+            score -= 2
+        }
+
+        return score.coerceAtLeast(0)
+    }
+
+    private fun matchTermScore(row: Row, term: String): Int? {
+        if (term.isBlank()) return 0
+
+        val title = row.titleNormalized
+        val all = row.searchNormalized
+
+        if (title == term) return 0
+        if (title.startsWith(term)) return 1
+        if (title.contains(term)) return 2
+        if (all.contains(term)) return 6
+
+        if (term.length >= 3 && isSubsequence(term, title)) {
+            return 14 + (title.length - term.length).coerceAtLeast(0)
+        }
+        if (term.length >= 3 && isSubsequence(term, all)) {
+            return 18 + (all.length - term.length).coerceAtLeast(0)
         }
         return null
     }
@@ -199,8 +264,19 @@ class SettingsSearchActivity : BaseActivity() {
 
             fun bind(entry: SettingsSearchEntry) {
                 tvTitle.text = entry.title
-                tvSubtitle.text = entry.sectionTitle?.takeIf { it.isNotBlank() }
-                    ?: screenTitleProvider(entry.screenTitleResId)
+                val screenTitle = screenTitleProvider(entry.screenTitleResId)
+                tvSubtitle.text = if (entry.sectionPath.isEmpty()) {
+                    screenTitle
+                } else {
+                    buildString {
+                        append(screenTitle)
+                        for (p in entry.sectionPath) {
+                            if (p.isBlank()) continue
+                            append(" → ")
+                            append(p)
+                        }
+                    }
+                }
                 itemView.setOnClickListener { v -> onClick(v, entry) }
             }
         }

@@ -21,16 +21,26 @@ import com.brycewg.asrkb.UiColorTokens
 object SettingsSearchNavigator {
     const val EXTRA_TARGET_VIEW_ID = "extra_target_view_id"
     const val EXTRA_HIGHLIGHT = "extra_highlight"
+    const val EXTRA_FORCE_ASR_VENDOR_ID = "extra_force_asr_vendor_id"
+    const val EXTRA_FORCE_LLM_VENDOR_ID = "extra_force_llm_vendor_id"
 
     fun <T : Activity> launch(
         source: Activity,
         activityClass: Class<T>,
         targetViewId: Int,
-        highlight: Boolean = true
+        highlight: Boolean = true,
+        forceAsrVendorId: String? = null,
+        forceLlmVendorId: String? = null
     ) {
         val intent = Intent(source, activityClass).apply {
             putExtra(EXTRA_TARGET_VIEW_ID, targetViewId)
             putExtra(EXTRA_HIGHLIGHT, highlight)
+            if (!forceAsrVendorId.isNullOrBlank()) {
+                putExtra(EXTRA_FORCE_ASR_VENDOR_ID, forceAsrVendorId)
+            }
+            if (!forceLlmVendorId.isNullOrBlank()) {
+                putExtra(EXTRA_FORCE_LLM_VENDOR_ID, forceLlmVendorId)
+            }
         }
         source.startActivity(intent)
     }
@@ -129,4 +139,3 @@ object SettingsSearchNavigator {
         return null
     }
 }
-

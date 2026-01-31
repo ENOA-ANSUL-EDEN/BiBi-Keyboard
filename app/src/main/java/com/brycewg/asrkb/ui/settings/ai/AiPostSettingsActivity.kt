@@ -137,6 +137,7 @@ class AiPostSettingsActivity : BaseActivity() {
 
         prefs = Prefs(this)
         viewModel = ViewModelProvider(this)[AiPostSettingsViewModel::class.java]
+        consumeSearchForcedVendorIfNeeded()
 
         initViews()
         setupVendorSection()
@@ -149,6 +150,22 @@ class AiPostSettingsActivity : BaseActivity() {
     override fun onPostResume() {
         super.onPostResume()
         SettingsSearchNavigator.applyScrollAndHighlightIfNeeded(this)
+    }
+
+    private fun consumeSearchForcedVendorIfNeeded() {
+        val id = intent?.getStringExtra(SettingsSearchNavigator.EXTRA_FORCE_LLM_VENDOR_ID)?.trim().orEmpty()
+        if (id.isBlank()) return
+        val vendor = com.brycewg.asrkb.asr.LlmVendor.fromId(id)
+        val oldVendor = prefs.llmVendor
+        if (vendor != oldVendor) {
+            viewModel.selectVendor(prefs, vendor)
+            Toast.makeText(
+                this,
+                getString(R.string.toast_search_changed_llm_vendor, getString(vendor.displayNameResId)),
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+        intent?.removeExtra(SettingsSearchNavigator.EXTRA_FORCE_LLM_VENDOR_ID)
     }
 
     // ======== Initialization Methods ========

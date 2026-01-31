@@ -17,6 +17,7 @@ import android.widget.TextView
 import androidx.annotation.IdRes
 import androidx.annotation.LayoutRes
 import androidx.annotation.StringRes
+import com.brycewg.asrkb.asr.LlmVendor
 import com.brycewg.asrkb.R
 import com.brycewg.asrkb.ui.settings.ai.AiPostSettingsActivity
 import com.brycewg.asrkb.ui.settings.asr.AsrSettingsActivity
@@ -65,6 +66,13 @@ object SettingsSearchIndex {
     private data class ManualMapping(
         @StringRes val labelResId: Int,
         @IdRes val targetViewId: Int
+    )
+
+    private data class VendorHint(
+        val title: String,
+        val asrVendorId: String? = null,
+        val llmVendorId: String? = null,
+        val keywords: List<String> = emptyList()
     )
 
     private fun buildIndex(context: Context): List<SettingsSearchEntry> {
@@ -142,16 +150,24 @@ object SettingsSearchIndex {
             for (mapping in spec.manualMappings) {
                 val title = runCatching { context.getString(mapping.labelResId) }.getOrNull().orEmpty()
                 if (title.isBlank()) continue
-                val sectionTitle = resolveSectionTitle(root, mapping.targetViewId, minCardTitlePx)
+                val sectionPathAndVendors = resolveSectionPathAndVendors(root, mapping.targetViewId, minCardTitlePx)
                 val manual = SettingsSearchEntry(
                     title = title,
-                    sectionTitle = sectionTitle,
+                    sectionPath = sectionPathAndVendors.sectionPath,
                     screenTitleResId = spec.screenTitleResId,
                     activityClass = spec.activityClass,
                     targetViewId = mapping.targetViewId,
-                    keywords = emptyList()
+                    keywords = sectionPathAndVendors.keywords,
+                    forceAsrVendorId = sectionPathAndVendors.forceAsrVendorId,
+                    forceLlmVendorId = sectionPathAndVendors.forceLlmVendorId
                 )
                 unique.putIfAbsent(manual.uniqueKey(), manual)
+            }
+            if (spec.activityClass == AiPostSettingsActivity::class.java) {
+                val vendorEntries = buildAiPostProcessModelVendorSubgroupEntries(spec, context)
+                for (entry in vendorEntries) {
+                    unique.putIfAbsent(entry.uniqueKey(), entry)
+                }
             }
         }
 
@@ -159,7 +175,25 @@ object SettingsSearchIndex {
     }
 
     private fun SettingsSearchEntry.uniqueKey(): String {
-        return activityClass.name + "#" + targetViewId + "#" + title.lowercase(Locale.ROOT)
+        return buildString {
+            append(activityClass.name)
+            append('#')
+            append(targetViewId)
+            append('#')
+            append(title.lowercase(Locale.ROOT))
+            if (sectionPath.isNotEmpty()) {
+                append('#')
+                append(sectionPath.joinToString(">").lowercase(Locale.ROOT))
+            }
+            if (!forceAsrVendorId.isNullOrBlank()) {
+                append("#asr=")
+                append(forceAsrVendorId.lowercase(Locale.ROOT))
+            }
+            if (!forceLlmVendorId.isNullOrBlank()) {
+                append("#llm=")
+                append(forceLlmVendorId.lowercase(Locale.ROOT))
+            }
+        }
     }
 
     private fun collectAutoEntries(
@@ -168,21 +202,29 @@ object SettingsSearchIndex {
         minCardTitlePx: Float
     ): List<SettingsSearchEntry> {
         val results = mutableListOf<SettingsSearchEntry>()
-        collectFromView(spec, root, isVisibleSoFar = true, currentSectionTitle = null, minCardTitlePx = minCardTitlePx, out = results)
+        collectFromView(
+            spec = spec,
+            view = root,
+            currentSectionPath = emptyList(),
+            extraKeywords = emptyList(),
+            forceAsrVendorId = null,
+            forceLlmVendorId = null,
+            minCardTitlePx = minCardTitlePx,
+            out = results
+        )
         return results
     }
 
     private fun collectFromView(
         spec: ScreenSpec,
         view: View,
-        isVisibleSoFar: Boolean,
-        currentSectionTitle: String?,
+        currentSectionPath: List<String>,
+        extraKeywords: List<String>,
+        forceAsrVendorId: String?,
+        forceLlmVendorId: String?,
         minCardTitlePx: Float,
         out: MutableList<SettingsSearchEntry>
     ) {
-        val isVisible = isVisibleSoFar && view.visibility == View.VISIBLE
-        if (!isVisible) return
-
         when (view) {
             is MaterialSwitch -> {
                 val title = view.text?.toString()?.trim().orEmpty()
@@ -190,11 +232,13 @@ object SettingsSearchIndex {
                     out.add(
                         SettingsSearchEntry(
                             title = title,
-                            sectionTitle = currentSectionTitle,
+                            sectionPath = currentSectionPath,
                             screenTitleResId = spec.screenTitleResId,
                             activityClass = spec.activityClass,
                             targetViewId = view.id,
-                            keywords = emptyList()
+                            keywords = extraKeywords,
+                            forceAsrVendorId = forceAsrVendorId,
+                            forceLlmVendorId = forceLlmVendorId
                         )
                     )
                 }
@@ -206,11 +250,13 @@ object SettingsSearchIndex {
                     out.add(
                         SettingsSearchEntry(
                             title = title,
-                            sectionTitle = currentSectionTitle,
+                            sectionPath = currentSectionPath,
                             screenTitleResId = spec.screenTitleResId,
                             activityClass = spec.activityClass,
                             targetViewId = view.id,
-                            keywords = emptyList()
+                            keywords = extraKeywords,
+                            forceAsrVendorId = forceAsrVendorId,
+                            forceLlmVendorId = forceLlmVendorId
                         )
                     )
                 }
@@ -223,11 +269,13 @@ object SettingsSearchIndex {
                     out.add(
                         SettingsSearchEntry(
                             title = title,
-                            sectionTitle = currentSectionTitle,
+                            sectionPath = currentSectionPath,
                             screenTitleResId = spec.screenTitleResId,
                             activityClass = spec.activityClass,
                             targetViewId = editTextId,
-                            keywords = emptyList()
+                            keywords = extraKeywords,
+                            forceAsrVendorId = forceAsrVendorId,
+                            forceLlmVendorId = forceLlmVendorId
                         )
                     )
                 }
@@ -235,15 +283,137 @@ object SettingsSearchIndex {
         }
 
         if (view is ViewGroup) {
-            val nextSectionTitle = extractCardTitleText(view, minCardTitlePx) ?: currentSectionTitle
+            if (shouldSkipAiPostProcessModelVendorDetails(spec, view.id)) {
+                return
+            }
+            val nextSectionPath = extractCardTitleText(view, minCardTitlePx)
+                ?.takeIf { it.isNotBlank() }
+                ?.let { listOf(it) }
+                ?: currentSectionPath
+
+            val vendorHint = resolveVendorHint(view.context, view.id)
+            val nextForceAsrVendorId = vendorHint?.asrVendorId ?: forceAsrVendorId
+            val nextForceLlmVendorId = vendorHint?.llmVendorId ?: forceLlmVendorId
+            val nextKeywords = buildList(extraKeywords.size + 4) {
+                addAll(extraKeywords)
+                if (vendorHint != null) {
+                    addAll(vendorHint.keywords)
+                }
+            }
+            val vendorTitle = vendorHint?.title?.takeIf { it.isNotBlank() }
+            val nextSectionPathWithVendor = if (vendorTitle == null) {
+                nextSectionPath
+            } else if (nextSectionPath.lastOrNull() == vendorTitle) {
+                nextSectionPath
+            } else {
+                nextSectionPath + vendorTitle
+            }
+
+            var pendingLabel: String? = null
             for (i in 0 until view.childCount) {
+                val child = view.getChildAt(i)
+
+                val childTextView = child as? TextView
+                if (childTextView != null) {
+                    val labelText = childTextView.text?.toString()?.trim().orEmpty()
+                    val labelMinPx = TypedValue.applyDimension(
+                        TypedValue.COMPLEX_UNIT_SP,
+                        14f,
+                        childTextView.resources.displayMetrics
+                    )
+                    val isLabelCandidate =
+                        !childTextView.isClickable &&
+                            !childTextView.isFocusable &&
+                            labelText.isNotBlank() &&
+                            childTextView.textSize >= labelMinPx &&
+                            !isLikelyCardTitleTextView(childTextView, minCardTitlePx)
+                    if (isLabelCandidate) {
+                        pendingLabel = labelText
+                    }
+
+                    val isClickableValue =
+                        childTextView.isClickable &&
+                            childTextView.id != View.NO_ID &&
+                            childTextView !is android.widget.Button
+                    if (isClickableValue) {
+                        val title = pendingLabel?.takeIf { it.isNotBlank() } ?: labelText
+                        if (title.isNotBlank()) {
+                            out.add(
+                                SettingsSearchEntry(
+                                    title = title,
+                                    sectionPath = nextSectionPathWithVendor,
+                                    screenTitleResId = spec.screenTitleResId,
+                                    activityClass = spec.activityClass,
+                                    targetViewId = childTextView.id,
+                                    keywords = nextKeywords,
+                                    forceAsrVendorId = nextForceAsrVendorId,
+                                    forceLlmVendorId = nextForceLlmVendorId
+                                )
+                            )
+                        }
+                        pendingLabel = null
+                        continue
+                    }
+                }
+
+                if (
+                    child is MaterialSwitch ||
+                    child is MaterialButton ||
+                    child is TextInputLayout
+                ) {
+                    pendingLabel = null
+                }
+
                 collectFromView(
                     spec = spec,
-                    view = view.getChildAt(i),
-                    isVisibleSoFar = isVisible,
-                    currentSectionTitle = nextSectionTitle,
+                    view = child,
+                    currentSectionPath = nextSectionPathWithVendor,
+                    extraKeywords = nextKeywords,
+                    forceAsrVendorId = nextForceAsrVendorId,
+                    forceLlmVendorId = nextForceLlmVendorId,
                     minCardTitlePx = minCardTitlePx,
                     out = out
+                )
+            }
+        }
+    }
+
+    private fun shouldSkipAiPostProcessModelVendorDetails(spec: ScreenSpec, @IdRes viewId: Int): Boolean {
+        if (spec.activityClass != AiPostSettingsActivity::class.java) return false
+        return when (viewId) {
+            R.id.groupSfFreeLlm,
+            R.id.groupBuiltinLlm,
+            R.id.groupCustomLlm -> true
+            else -> false
+        }
+    }
+
+    private fun buildAiPostProcessModelVendorSubgroupEntries(
+        spec: ScreenSpec,
+        context: Context
+    ): List<SettingsSearchEntry> {
+        val sectionTitle = runCatching { context.getString(R.string.section_post_process_model) }.getOrNull().orEmpty()
+        if (sectionTitle.isBlank()) return emptyList()
+
+        return buildList(LlmVendor.allVendors().size) {
+            for (vendor in LlmVendor.allVendors()) {
+                val title = runCatching { context.getString(vendor.displayNameResId) }.getOrNull().orEmpty()
+                if (title.isBlank()) continue
+                val targetViewId = when (vendor) {
+                    LlmVendor.SF_FREE -> R.id.groupSfFreeLlm
+                    LlmVendor.CUSTOM -> R.id.groupCustomLlm
+                    else -> R.id.groupBuiltinLlm
+                }
+                add(
+                    SettingsSearchEntry(
+                        title = title,
+                        sectionPath = listOf(sectionTitle),
+                        screenTitleResId = spec.screenTitleResId,
+                        activityClass = spec.activityClass,
+                        targetViewId = targetViewId,
+                        keywords = listOf(vendor.id),
+                        forceLlmVendorId = vendor.id
+                    )
                 )
             }
         }
@@ -258,30 +428,151 @@ object SettingsSearchIndex {
             .asSequence()
             .map { linear.getChildAt(it) }
             .filterIsInstance<TextView>()
-            .firstOrNull()
-            ?: return null
+            .firstOrNull { v ->
+                val text = v.text?.toString()?.trim().orEmpty()
+                text.isNotBlank() && isLikelyCardTitleTextView(v, minCardTitlePx)
+            } ?: return null
 
         val title = titleView.text?.toString()?.trim().orEmpty()
         if (title.isBlank()) return null
-        if (titleView.textSize < minCardTitlePx) return null
-        val typefaceStyle = titleView.typeface?.style ?: 0
-        val isBold = (typefaceStyle and Typeface.BOLD) == Typeface.BOLD || titleView.paint.isFakeBoldText
-        if (!isBold) return null
         return title
     }
 
-    private fun resolveSectionTitle(root: View, @IdRes targetViewId: Int, minCardTitlePx: Float): String? {
-        val target = root.findViewById<View>(targetViewId) ?: return null
-        return findSectionTitleForTarget(target, minCardTitlePx)
+    private fun isLikelyCardTitleTextView(view: TextView, minCardTitlePx: Float): Boolean {
+        if (view.textSize < minCardTitlePx) return false
+        val typefaceStyle = view.typeface?.style ?: 0
+        val isBold = (typefaceStyle and Typeface.BOLD) == Typeface.BOLD || view.paint.isFakeBoldText
+        return isBold
     }
 
-    private fun findSectionTitleForTarget(target: View, minCardTitlePx: Float): String? {
-        var p = target.parent
+    private data class ResolvedPathAndVendors(
+        val sectionPath: List<String>,
+        val forceAsrVendorId: String?,
+        val forceLlmVendorId: String?,
+        val keywords: List<String>
+    )
+
+    private fun resolveSectionPathAndVendors(
+        root: View,
+        @IdRes targetViewId: Int,
+        minCardTitlePx: Float
+    ): ResolvedPathAndVendors {
+        val target = root.findViewById<View>(targetViewId)
+        if (target == null) {
+            return ResolvedPathAndVendors(
+                sectionPath = emptyList(),
+                forceAsrVendorId = null,
+                forceLlmVendorId = null,
+                keywords = emptyList()
+            )
+        }
+
+        var sectionTitle: String? = null
+        var vendorHint: VendorHint? = null
+        var p: Any? = target.parent
         while (p is ViewGroup) {
-            val title = extractCardTitleText(p, minCardTitlePx)
-            if (!title.isNullOrBlank()) return title
+            if (sectionTitle.isNullOrBlank()) {
+                sectionTitle = extractCardTitleText(p, minCardTitlePx)
+            }
+            if (vendorHint == null && p.id != View.NO_ID) {
+                vendorHint = resolveVendorHint(p.context, p.id)
+            }
             p = p.parent
         }
-        return null
+
+        val sectionPath = buildList(2) {
+            if (!sectionTitle.isNullOrBlank()) add(sectionTitle!!.trim())
+            if (!vendorHint?.title.isNullOrBlank()) add(vendorHint!!.title)
+        }
+        val keywords = buildList(4) {
+            if (vendorHint != null) addAll(vendorHint!!.keywords)
+        }
+        return ResolvedPathAndVendors(
+            sectionPath = sectionPath,
+            forceAsrVendorId = vendorHint?.asrVendorId,
+            forceLlmVendorId = vendorHint?.llmVendorId,
+            keywords = keywords
+        )
+    }
+
+    private fun resolveVendorHint(context: Context, @IdRes viewId: Int): VendorHint? {
+        return when (viewId) {
+            // ======== ASR 供应商分组 ========
+            R.id.groupVolc -> VendorHint(
+                title = context.getString(R.string.vendor_volc),
+                asrVendorId = "volc",
+                keywords = listOf("volc")
+            )
+            R.id.groupSf,
+            R.id.groupSfFreeModel,
+            R.id.groupSfApiKey -> VendorHint(
+                title = context.getString(R.string.vendor_sf),
+                asrVendorId = "siliconflow",
+                keywords = listOf("siliconflow", "sf")
+            )
+            R.id.groupEleven -> VendorHint(
+                title = context.getString(R.string.vendor_eleven),
+                asrVendorId = "elevenlabs",
+                keywords = listOf("eleven", "elevenlabs")
+            )
+            R.id.groupOpenAI -> VendorHint(
+                title = context.getString(R.string.vendor_openai),
+                asrVendorId = "openai",
+                keywords = listOf("openai")
+            )
+            R.id.groupDashScope -> VendorHint(
+                title = context.getString(R.string.vendor_dashscope),
+                asrVendorId = "dashscope",
+                keywords = listOf("dashscope")
+            )
+            R.id.groupGemini -> VendorHint(
+                title = context.getString(R.string.vendor_gemini),
+                asrVendorId = "gemini",
+                keywords = listOf("gemini")
+            )
+            R.id.groupSoniox -> VendorHint(
+                title = context.getString(R.string.vendor_soniox),
+                asrVendorId = "soniox",
+                keywords = listOf("soniox")
+            )
+            R.id.groupZhipu -> VendorHint(
+                title = context.getString(R.string.vendor_zhipu),
+                asrVendorId = "zhipu",
+                keywords = listOf("zhipu", "glm")
+            )
+            R.id.groupSenseVoice -> VendorHint(
+                title = context.getString(R.string.vendor_sensevoice),
+                asrVendorId = "sensevoice",
+                keywords = listOf("sensevoice")
+            )
+            R.id.groupFunAsrNano -> VendorHint(
+                title = context.getString(R.string.vendor_funasr_nano),
+                asrVendorId = "funasr_nano",
+                keywords = listOf("funasr", "funasr_nano")
+            )
+            R.id.groupTelespeech -> VendorHint(
+                title = context.getString(R.string.vendor_telespeech),
+                asrVendorId = "telespeech",
+                keywords = listOf("telespeech")
+            )
+            R.id.groupParaformer -> VendorHint(
+                title = context.getString(R.string.vendor_paraformer),
+                asrVendorId = "paraformer",
+                keywords = listOf("paraformer", "zipformer")
+            )
+
+            // ======== LLM 分组 ========
+            R.id.groupSfFreeLlm -> VendorHint(
+                title = context.getString(R.string.llm_vendor_sf_free),
+                llmVendorId = "sf_free",
+                keywords = listOf("sf_free", "siliconflow", "sf")
+            )
+            R.id.groupCustomLlm -> VendorHint(
+                title = context.getString(R.string.llm_vendor_custom),
+                llmVendorId = "custom",
+                keywords = listOf("custom")
+            )
+            else -> null
+        }
     }
 }

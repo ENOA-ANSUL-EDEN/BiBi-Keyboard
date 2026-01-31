@@ -7,6 +7,7 @@ package com.brycewg.asrkb.ui.settings.asr
 
 import android.net.Uri
 import android.os.Bundle
+import android.widget.Toast
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.ViewModelProvider
@@ -81,6 +82,7 @@ class AsrSettingsActivity : BaseActivity() {
         prefs = Prefs(this)
         viewModel = ViewModelProvider(this)[AsrSettingsViewModel::class.java]
         viewModel.initialize(this)
+        consumeSearchForcedVendorIfNeeded()
 
         binding = AsrSettingsBinding(
             activity = this,
@@ -212,6 +214,40 @@ class AsrSettingsActivity : BaseActivity() {
                 sections.forEach { it.render(binding, state) }
             }
         }
+    }
+
+    private fun consumeSearchForcedVendorIfNeeded() {
+        val id = intent?.getStringExtra(SettingsSearchNavigator.EXTRA_FORCE_ASR_VENDOR_ID)?.trim().orEmpty()
+        if (id.isBlank()) return
+        val vendor = com.brycewg.asrkb.asr.AsrVendor.fromId(id)
+        val oldVendor = prefs.asrVendor
+        if (vendor != oldVendor) {
+            viewModel.updateVendor(vendor)
+            Toast.makeText(
+                this,
+                getString(R.string.toast_search_changed_asr_vendor, getAsrVendorLabel(vendor)),
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+        intent?.removeExtra(SettingsSearchNavigator.EXTRA_FORCE_ASR_VENDOR_ID)
+    }
+
+    private fun getAsrVendorLabel(vendor: com.brycewg.asrkb.asr.AsrVendor): String {
+        val resId = when (vendor) {
+            com.brycewg.asrkb.asr.AsrVendor.Volc -> R.string.vendor_volc
+            com.brycewg.asrkb.asr.AsrVendor.SiliconFlow -> R.string.vendor_sf
+            com.brycewg.asrkb.asr.AsrVendor.ElevenLabs -> R.string.vendor_eleven
+            com.brycewg.asrkb.asr.AsrVendor.OpenAI -> R.string.vendor_openai
+            com.brycewg.asrkb.asr.AsrVendor.DashScope -> R.string.vendor_dashscope
+            com.brycewg.asrkb.asr.AsrVendor.Gemini -> R.string.vendor_gemini
+            com.brycewg.asrkb.asr.AsrVendor.Soniox -> R.string.vendor_soniox
+            com.brycewg.asrkb.asr.AsrVendor.Zhipu -> R.string.vendor_zhipu
+            com.brycewg.asrkb.asr.AsrVendor.SenseVoice -> R.string.vendor_sensevoice
+            com.brycewg.asrkb.asr.AsrVendor.FunAsrNano -> R.string.vendor_funasr_nano
+            com.brycewg.asrkb.asr.AsrVendor.Telespeech -> R.string.vendor_telespeech
+            com.brycewg.asrkb.asr.AsrVendor.Paraformer -> R.string.vendor_paraformer
+        }
+        return getString(resId)
     }
 
     private companion object {
