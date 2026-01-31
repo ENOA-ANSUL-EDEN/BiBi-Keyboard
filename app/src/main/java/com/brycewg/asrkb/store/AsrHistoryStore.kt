@@ -49,7 +49,7 @@ class AsrHistoryStore(context: Context) {
     val totalElapsedMs: Long = 0,
     // 供应商处理耗时（非流式文件识别时有效，毫秒）。OSS 旧记录无该字段时视为 0。
     val procMs: Long = 0,
-    val source: String, // "ime" | "floating"
+    val source: String, // "ime" | "floating" | "external"
     val aiProcessed: Boolean,
     // AI 后处理耗时（毫秒）。未尝试或旧记录无该字段时视为 0。
     val aiPostMs: Long = 0,

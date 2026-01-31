@@ -848,43 +848,43 @@ class ExternalSpeechService : Service() {
                       typewriter?.cancel()
                     }
                     if (canceled) return@launch
-	                    // 记录使用统计与识别历史（来源标记为 ime；尊重开关）
-	                    try {
-	                        val audioMs = lastAudioMsForStats
-	                        val totalElapsedMs = popTotalElapsedMsForStats()
-	                        val procMs = computeProcMsForStats()
-	                        val chars = try { com.brycewg.asrkb.util.TextSanitizer.countEffectiveChars(out) } catch (_: Throwable) { out.length }
-	                        val vendorForRecord = resolveFinalVendorForRecord()
-	                        AnalyticsManager.recordAsrEvent(
-	                            context = context,
-	                            vendorId = vendorForRecord.id,
-	                            audioMs = audioMs,
-	                            procMs = procMs,
-	                            source = "ime",
-	                            aiProcessed = aiUsed,
-	                            charCount = chars
-	                        )
+                        // 记录使用统计与识别历史（来源标记为 external；尊重开关）
+                        try {
+                            val audioMs = lastAudioMsForStats
+                            val totalElapsedMs = popTotalElapsedMsForStats()
+                            val procMs = computeProcMsForStats()
+                            val chars = try { com.brycewg.asrkb.util.TextSanitizer.countEffectiveChars(out) } catch (_: Throwable) { out.length }
+                            val vendorForRecord = resolveFinalVendorForRecord()
+                            AnalyticsManager.recordAsrEvent(
+                                context = context,
+                                vendorId = vendorForRecord.id,
+                                audioMs = audioMs,
+                                procMs = procMs,
+                                source = "external",
+                                aiProcessed = aiUsed,
+                                charCount = chars
+                            )
                         if (!prefs.disableUsageStats) {
-                            prefs.recordUsageCommit("ime", vendorForRecord, audioMs, chars, procMs)
+                            prefs.recordUsageCommit("external", vendorForRecord, audioMs, chars, procMs)
                         }
                         if (!prefs.disableAsrHistory) {
                             val store = com.brycewg.asrkb.store.AsrHistoryStore(context)
-	                            store.add(
-	                                com.brycewg.asrkb.store.AsrHistoryStore.AsrHistoryRecord(
-	                                    timestamp = System.currentTimeMillis(),
-	                                    text = out,
-	                                    vendorId = vendorForRecord.id,
-	                                    audioMs = audioMs,
-	                                    totalElapsedMs = totalElapsedMs,
-	                                    procMs = procMs,
-	                                    source = "ime",
-	                                    aiProcessed = aiUsed,
-	                                    aiPostMs = aiPostMs,
-	                                    aiPostStatus = aiPostStatus,
-	                                    charCount = chars
-	                                )
-	                            )
-	                        }
+                                store.add(
+                                    com.brycewg.asrkb.store.AsrHistoryStore.AsrHistoryRecord(
+                                        timestamp = System.currentTimeMillis(),
+                                        text = out,
+                                        vendorId = vendorForRecord.id,
+                                        audioMs = audioMs,
+                                        totalElapsedMs = totalElapsedMs,
+                                        procMs = procMs,
+                                        source = "external",
+                                        aiProcessed = aiUsed,
+                                        aiPostMs = aiPostMs,
+                                        aiPostStatus = aiPostStatus,
+                                        charCount = chars
+                                    )
+                                )
+                            }
                     } catch (e: Exception) {
                         Log.e(TAG, "Failed to add ASR history (external, ai)", e)
                     }
@@ -902,41 +902,41 @@ class ExternalSpeechService : Service() {
                     Log.w(TAG, "applySimple failed, fallback to raw text", t)
                     text
                 }
-	                // 记录使用统计与识别历史（来源标记为 ime；尊重开关）
-	                try {
-	                    val audioMs = lastAudioMsForStats
-	                    val totalElapsedMs = popTotalElapsedMsForStats()
-	                    val procMs = computeProcMsForStats()
-	                    val chars = try { com.brycewg.asrkb.util.TextSanitizer.countEffectiveChars(out) } catch (_: Throwable) { out.length }
-	                    val vendorForRecord = resolveFinalVendorForRecord()
+                    // 记录使用统计与识别历史（来源标记为 external；尊重开关）
+                    try {
+                        val audioMs = lastAudioMsForStats
+                        val totalElapsedMs = popTotalElapsedMsForStats()
+                        val procMs = computeProcMsForStats()
+                        val chars = try { com.brycewg.asrkb.util.TextSanitizer.countEffectiveChars(out) } catch (_: Throwable) { out.length }
+                        val vendorForRecord = resolveFinalVendorForRecord()
                     AnalyticsManager.recordAsrEvent(
                         context = context,
                         vendorId = vendorForRecord.id,
                         audioMs = audioMs,
                         procMs = procMs,
-                        source = "ime",
+                        source = "external",
                         aiProcessed = false,
                         charCount = chars
                     )
                     if (!prefs.disableUsageStats) {
-                        prefs.recordUsageCommit("ime", vendorForRecord, audioMs, chars, procMs)
+                        prefs.recordUsageCommit("external", vendorForRecord, audioMs, chars, procMs)
                     }
                     if (!prefs.disableAsrHistory) {
                         val store = com.brycewg.asrkb.store.AsrHistoryStore(context)
-	                        store.add(
-	                            com.brycewg.asrkb.store.AsrHistoryStore.AsrHistoryRecord(
-	                                timestamp = System.currentTimeMillis(),
-	                                text = out,
-	                                vendorId = vendorForRecord.id,
-	                                audioMs = audioMs,
-	                                totalElapsedMs = totalElapsedMs,
-	                                procMs = procMs,
-	                                source = "ime",
-	                                aiProcessed = false,
-	                                charCount = chars
-	                            )
-	                        )
-	                    }
+                            store.add(
+                                com.brycewg.asrkb.store.AsrHistoryStore.AsrHistoryRecord(
+                                    timestamp = System.currentTimeMillis(),
+                                    text = out,
+                                    vendorId = vendorForRecord.id,
+                                    audioMs = audioMs,
+                                    totalElapsedMs = totalElapsedMs,
+                                    procMs = procMs,
+                                    source = "external",
+                                    aiProcessed = false,
+                                    charCount = chars
+                                )
+                            )
+                        }
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to add ASR history (external, simple)", e)
                 }

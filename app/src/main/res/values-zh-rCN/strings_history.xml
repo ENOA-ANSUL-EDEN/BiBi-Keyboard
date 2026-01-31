@@ -15,8 +15,10 @@
     <string name="label_source">来源</string>
     <string name="source_ime">键盘</string>
     <string name="source_floating">悬浮球</string>
+    <string name="source_external">外部</string>
     <string name="source_ime_full">键盘输入</string>
     <string name="source_floating_full">悬浮球输入</string>
+    <string name="source_external_full">外部输入</string>
     <string name="label_ai_processed">AI 处理</string>
     <string name="label_chars_count">字数:%1$d</string>
     <string name="label_audio_duration_s">用时:%1$.1f 秒</string>

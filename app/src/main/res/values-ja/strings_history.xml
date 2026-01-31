@@ -16,8 +16,10 @@
     <string name="label_source">ソース</string>
     <string name="source_ime">キーボード</string>
     <string name="source_floating">フローティング</string>
+    <string name="source_external">外部</string>
     <string name="source_ime_full">キーボード入力</string>
     <string name="source_floating_full">フローティング入力</string>
+    <string name="source_external_full">外部入力</string>
     <string name="label_ai_processed">AI処理済み</string>
     <string name="label_chars_count">テキスト：%1$d</string>
     <string name="label_audio_duration_s">時間：%1$.1f秒</string>

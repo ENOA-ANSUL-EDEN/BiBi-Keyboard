@@ -15,8 +15,10 @@
     <string name="label_source">Source</string>
     <string name="source_ime">Keyboard</string>
     <string name="source_floating">Floating</string>
+    <string name="source_external">External</string>
     <string name="source_ime_full">Keyboard input</string>
     <string name="source_floating_full">Floating input</string>
+    <string name="source_external_full">External input</string>
     <string name="label_ai_processed">AI Processed</string>
     <string name="label_chars_count">Text:%1$d</string>
     <string name="label_audio_duration_s">Duration:%1$.1f s</string>

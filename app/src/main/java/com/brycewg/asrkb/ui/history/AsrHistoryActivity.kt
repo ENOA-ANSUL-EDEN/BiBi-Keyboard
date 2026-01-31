@@ -68,7 +68,7 @@ class AsrHistoryActivity : BaseActivity() {
   // 全局已选ID集合（与当前筛选结果取交集用于显示与计数）
   private val selectedIdsGlobal: MutableSet<String> = mutableSetOf()
   private var activeVendorIds: Set<String> = emptySet() // 为空表示不过滤
-  private var activeSources: Set<String> = emptySet() // "ime"/"floating"；为空表示不过滤
+  private var activeSources: Set<String> = emptySet() // "ime"/"floating"/"external"；为空表示不过滤
   private var activeTimeFilter: TimeFilter = TimeFilter.ALL
   // 分页：默认一次加载 30 条，向下滚动加载更多；搜索时不分页
   private val pageSize: Int = 30
@@ -283,7 +283,11 @@ class AsrHistoryActivity : BaseActivity() {
     }
 
     // Sources
-    val sources = listOf("ime" to getString(R.string.source_ime), "floating" to getString(R.string.source_floating))
+    val sources = listOf(
+      "ime" to getString(R.string.source_ime),
+      "floating" to getString(R.string.source_floating),
+      "external" to getString(R.string.source_external),
+    )
     cgSources.isSingleSelection = true
     val allSrcChip = createChip(getString(R.string.filter_all), "ALL")
     val initialSrcTag = if (activeSources.isEmpty()) "ALL" else activeSources.first()
@@ -681,9 +685,12 @@ class AsrHistoryActivity : BaseActivity() {
         id
       }
 
-      private fun mapSourceFullName(src: String): String =
-        if (src == "floating") itemView.context.getString(R.string.source_floating_full)
-        else itemView.context.getString(R.string.source_ime_full)
+      private fun mapSourceFullName(src: String): String = when (src) {
+        "floating" -> itemView.context.getString(R.string.source_floating_full)
+        "external" -> itemView.context.getString(R.string.source_external_full)
+        "ime" -> itemView.context.getString(R.string.source_ime_full)
+        else -> src
+      }
     }
   }
 
