@@ -679,11 +679,6 @@ class DashscopeStreamAsrEngine(
       recognizer?.stop()
     } catch (t: Throwable) {
       Log.w(TAG, "recognizer stop failed", t)
-    }
-    try {
-      recognizer?.getDuplexApi()?.close(1000, "bye")
-    } catch (t: Throwable) {
-      Log.w(TAG, "recognizer close failed", t)
     } finally {
       recognizer = null
     }

@@ -720,6 +720,7 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
         val enabled = imm.enabledInputMethodList.any { it.id == targetId }
         if (!enabled) return false
         val token = window?.window?.attributes?.token ?: return false
+        @Suppress("DEPRECATION")
         imm.setInputMethod(token, targetId)
         return true
     }

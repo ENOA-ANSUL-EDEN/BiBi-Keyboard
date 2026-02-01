@@ -208,7 +208,7 @@ internal class ImeLayoutController(
 
         // 缩放中央按钮（仅高度，宽度由约束控制）
         run {
-            val v1 = refs?.btnExtCenter1 ?: root.findViewById(R.id.btnExtCenter1)
+            val v1: View? = refs?.btnExtCenter1 ?: root.findViewById(R.id.btnExtCenter1)
             if (v1 != null) {
                 val lp = v1.layoutParams
                 lp.height = dp(40f * scale)
@@ -218,7 +218,7 @@ internal class ImeLayoutController(
         }
 
         run {
-            val v2 = refs?.btnExtCenter2 ?: root.findViewById(R.id.btnExtCenter2)
+            val v2: View? = refs?.btnExtCenter2 ?: root.findViewById(R.id.btnExtCenter2)
             if (v2 != null) {
                 val lp = v2.layoutParams
                 lp.height = dp(40f * scale)
@@ -232,7 +232,7 @@ internal class ImeLayoutController(
 
         // 数字/符号面板：按主键盘网格对齐，避免切换时上下错位
         run {
-            val panel = refs?.layoutNumpadPanel ?: root.findViewById(R.id.layoutNumpadPanel)
+            val panel: View? = refs?.layoutNumpadPanel ?: root.findViewById(R.id.layoutNumpadPanel)
             if (panel != null) {
                 val extRowHeightPx = dp(50f * scale)
                 val keySizePx = dp(40f * scale)

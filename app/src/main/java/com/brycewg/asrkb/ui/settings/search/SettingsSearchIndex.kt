@@ -57,15 +57,15 @@ object SettingsSearchIndex {
     }
 
     private data class ScreenSpec(
-        @LayoutRes val layoutResId: Int,
-        @StringRes val screenTitleResId: Int,
+        @param:LayoutRes @field:LayoutRes val layoutResId: Int,
+        @param:StringRes @field:StringRes val screenTitleResId: Int,
         val activityClass: Class<out Activity>,
         val manualMappings: List<ManualMapping>
     )
 
     private data class ManualMapping(
-        @StringRes val labelResId: Int,
-        @IdRes val targetViewId: Int
+        @param:StringRes @field:StringRes val labelResId: Int,
+        @param:IdRes @field:IdRes val targetViewId: Int
     )
 
     private data class VendorHint(

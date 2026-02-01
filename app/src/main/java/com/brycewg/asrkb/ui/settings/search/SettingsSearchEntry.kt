@@ -17,9 +17,9 @@ data class SettingsSearchEntry(
      * 示例：["音频与联动"] 或 ["识别服务商", "豆包语音"]。
      */
     val sectionPath: List<String> = emptyList(),
-    @StringRes val screenTitleResId: Int,
+    @param:StringRes @field:StringRes val screenTitleResId: Int,
     val activityClass: Class<out Activity>,
-    @IdRes val targetViewId: Int,
+    @param:IdRes @field:IdRes val targetViewId: Int,
     val keywords: List<String> = emptyList(),
     /**
      * 搜索跳转时强制切换到指定 ASR 供应商（用于进入被隐藏的供应商配置分组）。
