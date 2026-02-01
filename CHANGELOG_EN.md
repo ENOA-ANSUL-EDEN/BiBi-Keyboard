@@ -1,5 +1,35 @@
 # Changelog
 
+## v3.13.0 (2025-02-01)
+
+### New Features
+
+- **Settings Search**: Added settings search functionality
+- **History Optimization**: Added external input source category identifier in history records with optimized time display
+- **AI Edit Panel Enhancement**: Added info bar and space key to AI edit panel with optimized layout
+- **Soniox Model Upgrade**: Updated Soniox ASR non-streaming engine model version to v4
+
+### Improvements
+
+- **Soniox Language Selector Optimization**: Optimized Soniox language selector UI
+- **UI Detail Optimization**: Optimized pasteboard panel icon and adjusted numeric keyboard panel height and margins
+- **Architecture Refactoring**: Refactored keyboard core, ASR settings, floating ball interaction and settings storage modules for better maintainability
+- **VAD Performance Optimization**: Implemented VAD instance pooling to improve performance and resource utilization
+- **RecognitionService Enhancement**: Improved security and compatibility of RecognitionService
+- **IME Tile Refactoring**: Refactored input method selector tile logic
+
+### Bug Fixes
+
+- Fixed floating ball error state animation and visual effect cleanup issues
+- Added VAD resource release logic for streaming ASR engines
+- Fixed recognition record handling when AI processing fails
+
+### Changes
+
+- Removed experimental features of Doubao voice bidirectional streaming and first-character acceleration
+
+---
+
 ## v3.12.1 (2025-01-27)
 
 ### New Features
