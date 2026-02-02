@@ -63,6 +63,7 @@ class FloatingBallViewManager(
     private var errorVisualActive: Boolean = false
     private var errorShakeAnimator: ValueAnimator? = null
     private var errorClearRunnable: Runnable? = null
+    private var recordingBreathAnimator: ValueAnimator? = null
     private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private var completionResetPosted: Boolean = false
     private var monetContext: Context? = null
@@ -271,15 +272,18 @@ class FloatingBallViewManager(
                 processingSpinner?.visibility = View.GONE
                 stopProcessingSpinner()
                 startRippleAnimation()
+                startRecordingBreathAnimation()
             }
             is FloatingBallState.Processing -> {
                 try { ballIcon?.setImageResource(R.drawable.microphone_floatingball) } catch (e: Throwable) { Log.w(TAG, "Failed to set ball icon (processing)", e) }
                 stopRippleAnimation()
+                stopRecordingBreathAnimation()
                 processingSpinner?.visibility = View.VISIBLE
                 startProcessingSpinner()
             }
             is FloatingBallState.Error -> {
                 stopRippleAnimation()
+                stopRecordingBreathAnimation()
                 processingSpinner?.visibility = View.GONE
                 stopProcessingSpinner()
                 if (enteringError) playErrorShakeAnimation()
@@ -288,6 +292,7 @@ class FloatingBallViewManager(
                 // Idle, MoveMode
                 try { ballIcon?.setImageResource(R.drawable.microphone_floatingball) } catch (e: Throwable) { Log.w(TAG, "Failed to set ball icon (idle/move)", e) }
                 stopRippleAnimation()
+                stopRecordingBreathAnimation()
                 processingSpinner?.visibility = View.GONE
                 stopProcessingSpinner()
                 resetIconScale()
@@ -409,6 +414,7 @@ class FloatingBallViewManager(
     /** 显示完成对勾 */
     fun showCompletionTick(durationMs: Long = 1000L) {
         val icon = ballIcon ?: return
+        stopRecordingBreathAnimation()
         try {
             icon.setImageResource(R.drawable.check_circle)
         } catch (e: Throwable) {
@@ -422,6 +428,9 @@ class FloatingBallViewManager(
                     ballIcon?.setImageResource(R.drawable.microphone_floatingball)
                 } catch (e: Throwable) {
                     Log.e(TAG, "Failed to reset icon", e)
+                }
+                if (currentState is FloatingBallState.Recording) {
+                    startRecordingBreathAnimation()
                 }
                 completionResetPosted = false
             }, durationMs)
@@ -522,6 +531,7 @@ class FloatingBallViewManager(
     fun cleanup() {
         stopRippleAnimation()
         stopProcessingSpinner()
+        stopRecordingBreathAnimation()
         edgeAnimator?.cancel()
         edgeAnimator = null
         cancelErrorVisual()
@@ -543,7 +553,7 @@ class FloatingBallViewManager(
 
     private fun setupRippleBackgrounds(color: Int) {
         val rippleStrokeColor = applyAlpha(color, 1.0f)
-        val strokeWidthPx = dp(4)
+        val strokeWidthPx = dp(3)
         val dashWidthPx = dp(8).toFloat()
         val dashGapPx = dp(6).toFloat()
         listOf(ripple1, ripple2, ripple3).forEach { ripple ->
@@ -1291,6 +1301,43 @@ class FloatingBallViewManager(
         } catch (e: Throwable) {
             Log.w(TAG, "Failed to stop processing spinner", e)
         }
+    }
+
+    private fun startRecordingBreathAnimation() {
+        val icon = ballIcon ?: return
+
+        stopRecordingBreathAnimation(resetVisual = false)
+
+        val minAlpha = 125
+        val maxAlpha = 255
+        val alphaRange = (maxAlpha - minAlpha).toFloat()
+
+        recordingBreathAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 700
+            repeatCount = ValueAnimator.INFINITE
+            repeatMode = ValueAnimator.REVERSE
+            interpolator = DecelerateInterpolator()
+            addUpdateListener { anim ->
+                val t = (anim.animatedValue as? Float) ?: return@addUpdateListener
+                icon.imageAlpha = (minAlpha + alphaRange * t).toInt().coerceIn(0, 255)
+            }
+            start()
+        }
+    }
+
+    private fun stopRecordingBreathAnimation(resetVisual: Boolean = true) {
+        try {
+            recordingBreathAnimator?.cancel()
+        } catch (e: Throwable) {
+            Log.w(TAG, "Failed to cancel recording breath animator", e)
+        }
+        recordingBreathAnimator = null
+
+        if (!resetVisual) return
+        val icon = ballIcon ?: return
+        icon.scaleX = 1.0f
+        icon.scaleY = 1.0f
+        icon.imageAlpha = 255
     }
 
     private fun resetIconScale() {
