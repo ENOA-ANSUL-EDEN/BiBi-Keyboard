@@ -12,6 +12,7 @@
     <string name="toast_need_overlay_perm">请在系统设置中授予"在其他应用上层显示"权限以启用悬浮球</string>
     <string name="label_floating_asr">使用悬浮球进行语音识别</string>
     <string name="label_floating_keep_alive_foreground">前台服务保活</string>
+    <string name="label_floating_keep_alive_privileged">Shizuku / Root 增强保活</string>
     <string name="label_request_battery_whitelist">申请电池优化白名单</string>
     <string name="label_floating_write_compat">悬浮球写入文字兼容性模式</string>
     <string name="desc_floating_write_compat">在部分应用中文本框会出现背景文字被误识别，导致通过无障碍服务插入文字时会附带背景文字的情况。开启此模式后，在目标软件中使用悬浮球时会尝试"全选+粘贴"写入一个不可见字符，以屏蔽背景文字。</string>
@@ -26,6 +27,12 @@
     <string name="cd_floating_edge_handle">展开悬浮球</string>
     <string name="toast_battery_whitelist_already">已在电池优化白名单中</string>
     <string name="toast_battery_whitelist_failed">申请电池优化白名单失败</string>
+    <string name="toast_need_floating_keep_alive_first">请先开启前台服务保活</string>
+    <string name="toast_shizuku_permission_requested">已发起 Shizuku 授权，请在 Shizuku 中确认</string>
+    <string name="toast_shizuku_permission_waiting">正在连接 Shizuku，连接后将弹出授权确认</string>
+    <string name="toast_shizuku_permission_request_failed">发起 Shizuku 授权失败</string>
+    <string name="toast_shizuku_or_root_unavailable">Shizuku 不可用且未检测到 root</string>
+    <string name="toast_floating_keep_alive_privileged_start_failed">通过 Shizuku / Root 启动保活失败</string>
 
     <!-- Floating ASR status messages -->
     <string name="floating_asr_error">识别失败: %1$s</string>
@@ -80,4 +87,6 @@
     <!-- 前台保活 -->
     <string name="feature_floating_keep_alive_off_desc">不开启前台服务，系统可能更容易回收后台进程。</string>
     <string name="feature_floating_keep_alive_on_desc">启动前台服务并显示常驻通知，强化后台保活能力。</string>
+    <string name="feature_floating_keep_alive_privileged_off_desc">仍按常规方式启动前台保活服务，部分系统可能限制后台拉起。</string>
+    <string name="feature_floating_keep_alive_privileged_on_desc">通过 Shizuku 或 root 定期以 shell 权限拉起前台保活服务，提高稳定性。需要 Shizuku 授权或 root。</string>
 </resources>

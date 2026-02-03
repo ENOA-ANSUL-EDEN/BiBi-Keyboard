@@ -1,3 +1,8 @@
+/**
+ * 应用入口：初始化主题、多语言、统计与部分后台能力。
+ *
+ * 归属模块：根目录与通用
+ */
 package com.brycewg.asrkb
 
 import android.app.Application
@@ -13,6 +18,8 @@ import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import com.brycewg.asrkb.ui.floating.FloatingAsrService
 import com.brycewg.asrkb.ui.floating.FloatingKeepAliveService
+import com.brycewg.asrkb.ui.floating.PrivilegedKeepAliveScheduler
+import com.brycewg.asrkb.ui.floating.PrivilegedKeepAliveStarter
 import com.brycewg.asrkb.asr.VadDetector
 import com.brycewg.asrkb.analytics.AnalyticsManager
 import kotlinx.coroutines.CoroutineScope
@@ -49,9 +56,12 @@ class App : Application() {
             Log.w("App", "Analytics init failed", t)
         }
 
+        PrivilegedKeepAliveStarter.initShizuku()
+
         // 若用户在设置中启用了悬浮球且已授予悬浮窗权限，则启动悬浮球服务
         try {
             val prefs = Prefs(this)
+            PrivilegedKeepAliveScheduler.update(this)
             val canOverlay = Settings.canDrawOverlays(this)
 
             // 启动语音识别悬浮球

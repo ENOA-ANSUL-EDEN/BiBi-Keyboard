@@ -1,0 +1,61 @@
+/**
+ * 通过 JobScheduler 周期性拉起前台保活服务，降低部分系统“后台不可启动前台服务”限制带来的失败概率。
+ *
+ * 归属模块：ui/floating
+ */
+package com.brycewg.asrkb.ui.floating
+
+import android.app.job.JobParameters
+import android.app.job.JobService
+import android.util.Log
+import com.brycewg.asrkb.store.Prefs
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.launch
+
+class PrivilegedKeepAliveJobService : JobService() {
+
+    companion object {
+        private const val TAG = "PrivKeepAlive"
+    }
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    override fun onStartJob(params: JobParameters?): Boolean {
+        if (params == null) return false
+        scope.launch {
+            try {
+                val prefs = Prefs(this@PrivilegedKeepAliveJobService)
+                if (!prefs.floatingKeepAliveEnabled || !prefs.floatingKeepAlivePrivilegedEnabled) {
+                    jobFinished(params, false)
+                    return@launch
+                }
+
+                val result = PrivilegedKeepAliveStarter.tryStartKeepAliveByShizuku(this@PrivilegedKeepAliveJobService)
+                    ?: PrivilegedKeepAliveStarter.tryStartKeepAliveByRoot(this@PrivilegedKeepAliveJobService)
+                    ?: PrivilegedKeepAliveStarter.startKeepAliveFallback(this@PrivilegedKeepAliveJobService)
+
+                if (!result.ok) {
+                    Log.w(TAG, "start keep-alive by ${result.method} failed: exit=${result.exitCode}, err=${result.stderr}")
+                }
+            } catch (t: Throwable) {
+                Log.w(TAG, "privileged keep-alive job failed", t)
+            } finally {
+                jobFinished(params, false)
+            }
+        }
+        return true
+    }
+
+    override fun onStopJob(params: JobParameters?): Boolean {
+        scope.coroutineContext.cancelChildren()
+        return true
+    }
+
+    override fun onDestroy() {
+        scope.coroutineContext.cancelChildren()
+        super.onDestroy()
+    }
+}

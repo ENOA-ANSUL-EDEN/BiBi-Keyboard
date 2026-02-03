@@ -28,6 +28,8 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- 若通过 ADB 授权可写入 Secure 设置，用于尝试自动开启无障碍（普通应用默认不会授予） -->
     <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" tools:ignore="ProtectedPermissions" />
+    <!-- Shizuku 权限：用于在已授权时以 shell 身份执行部分系统命令 -->
+    <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
 
     <application
         android:name=".App"
@@ -144,8 +146,14 @@
         <!-- 悬浮球前台保活服务 -->
         <service
             android:name=".ui.floating.FloatingKeepAliveService"
-            android:exported="false"
+            android:exported="true"
             android:foregroundServiceType="dataSync" />
+
+        <!-- Shizuku / root 增强保活：周期性拉起前台保活服务 -->
+        <service
+            android:name=".ui.floating.PrivilegedKeepAliveJobService"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            android:exported="false" />
 
         <!-- 模型下载/解压前台服务（支持并发任务） -->
         <service
@@ -194,6 +202,13 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
+        <!-- Shizuku Provider：用于接收 Shizuku Binder 并启用 API 调用 -->
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:exported="true"
+            android:multiprocess="false" />
+
         <service
             android:name=".api.ExternalSpeechService"
             android:exported="true" />
@@ -215,6 +230,8 @@
 
 
     <queries>
+        <package android:name="moe.shizuku.manager" />
+        <package android:name="moe.shizuku.privileged.api" />
         <intent>
             <action android:name="android.view.InputMethod" />
         </intent>

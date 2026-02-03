@@ -19,12 +19,15 @@ import android.widget.Toast
 import android.view.View
 import androidx.core.net.toUri
 import androidx.lifecycle.lifecycleScope
+import com.brycewg.asrkb.BuildConfig
 import com.brycewg.asrkb.ui.BaseActivity
 import com.brycewg.asrkb.R
 import com.brycewg.asrkb.store.Prefs
 import com.brycewg.asrkb.analytics.AnalyticsManager
 import com.brycewg.asrkb.ui.SettingsOptionSheet
 import com.brycewg.asrkb.ui.floating.FloatingServiceManager
+import com.brycewg.asrkb.ui.floating.PrivilegedKeepAliveScheduler
+import com.brycewg.asrkb.ui.floating.PrivilegedKeepAliveStarter
 import com.brycewg.asrkb.ui.installExplainedSwitch
 import com.brycewg.asrkb.ui.settings.search.SettingsSearchNavigator
 import com.brycewg.asrkb.util.HapticFeedbackHelper
@@ -34,6 +37,7 @@ import com.google.android.material.textfield.TextInputEditText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import rikka.shizuku.Shizuku
 
 class OtherSettingsActivity : BaseActivity() {
 
@@ -44,9 +48,23 @@ class OtherSettingsActivity : BaseActivity() {
     private lateinit var viewModel: OtherSettingsViewModel
     private lateinit var prefs: Prefs
     private lateinit var floatingServiceManager: FloatingServiceManager
+    private lateinit var switchPrivilegedKeepAlive: MaterialSwitch
 
     // Flag to prevent circular updates when programmatically setting text
     private var updatingFieldsFromViewModel = false
+    private var pendingEnablePrivilegedKeepAlive = false
+
+    private val shizukuPermissionResultListener = Shizuku.OnRequestPermissionResultListener { requestCode, grantResult ->
+        if (requestCode == PrivilegedKeepAliveStarter.SHIZUKU_REQUEST_CODE_KEEP_ALIVE) {
+            runOnUiThread {
+                if (grantResult == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    autoEnablePrivilegedKeepAliveAfterShizukuGranted()
+                } else {
+                    pendingEnablePrivilegedKeepAlive = false
+                }
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -65,6 +83,8 @@ class OtherSettingsActivity : BaseActivity() {
         toolbar.setTitle(R.string.title_other_settings)
         toolbar.setNavigationOnClickListener { finish() }
 
+        registerShizukuPermissionListener()
+
         setupKeepAlive()
         setupPunctuationButtons()
         setupSpeechPresets()
@@ -81,13 +101,36 @@ class OtherSettingsActivity : BaseActivity() {
         SettingsSearchNavigator.applyScrollAndHighlightIfNeeded(this)
     }
 
+    override fun onDestroy() {
+        unregisterShizukuPermissionListener()
+        super.onDestroy()
+    }
+
+    private fun registerShizukuPermissionListener() {
+        try {
+            Shizuku.addRequestPermissionResultListener(shizukuPermissionResultListener)
+        } catch (t: Throwable) {
+            if (BuildConfig.DEBUG) Log.d(TAG, "Failed to add Shizuku permission listener", t)
+        }
+    }
+
+    private fun unregisterShizukuPermissionListener() {
+        try {
+            Shizuku.removeRequestPermissionResultListener(shizukuPermissionResultListener)
+        } catch (t: Throwable) {
+            if (BuildConfig.DEBUG) Log.d(TAG, "Failed to remove Shizuku permission listener", t)
+        }
+    }
+
     // ========== General ==========
 
     private fun setupKeepAlive() {
         val switchKeepAlive = findViewById<MaterialSwitch>(R.id.switchFloatingKeepAlive)
+        switchPrivilegedKeepAlive = findViewById(R.id.switchFloatingKeepAlivePrivileged)
         val btnBatteryWhitelist = findViewById<MaterialButton>(R.id.btnRequestBatteryWhitelist)
 
         switchKeepAlive.isChecked = prefs.floatingKeepAliveEnabled
+        switchPrivilegedKeepAlive.isChecked = prefs.floatingKeepAlivePrivilegedEnabled
 
         switchKeepAlive.installExplainedSwitch(
             context = this,
@@ -103,6 +146,74 @@ class OtherSettingsActivity : BaseActivity() {
                 } else {
                     floatingServiceManager.stopKeepAliveService()
                 }
+                PrivilegedKeepAliveScheduler.update(this)
+            },
+            hapticFeedback = { hapticTapIfEnabled(it) }
+        )
+
+        switchPrivilegedKeepAlive.installExplainedSwitch(
+            context = this,
+            titleRes = R.string.label_floating_keep_alive_privileged,
+            offDescRes = R.string.feature_floating_keep_alive_privileged_off_desc,
+            onDescRes = R.string.feature_floating_keep_alive_privileged_on_desc,
+            preferenceKey = "floating_keep_alive_privileged_explained",
+            readPref = { prefs.floatingKeepAlivePrivilegedEnabled },
+            writePref = { enabled ->
+                prefs.floatingKeepAlivePrivilegedEnabled = enabled
+                PrivilegedKeepAliveScheduler.update(this)
+            },
+            onChanged = { enabled ->
+                if (!enabled) return@installExplainedSwitch
+                lifecycleScope.launch(Dispatchers.IO) {
+                    val result = PrivilegedKeepAliveStarter.tryStartKeepAliveByShizuku(this@OtherSettingsActivity)
+                        ?: PrivilegedKeepAliveStarter.tryStartKeepAliveByRoot(this@OtherSettingsActivity)
+                        ?: PrivilegedKeepAliveStarter.startKeepAliveFallback(this@OtherSettingsActivity)
+                    if (!result.ok) {
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(
+                                this@OtherSettingsActivity,
+                                R.string.toast_floating_keep_alive_privileged_start_failed,
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+                }
+            },
+	            preCheck = { target ->
+	                if (!target) return@installExplainedSwitch true
+	                pendingEnablePrivilegedKeepAlive = false
+	                if (!prefs.floatingKeepAliveEnabled) {
+	                    Toast.makeText(this, R.string.toast_need_floating_keep_alive_first, Toast.LENGTH_SHORT).show()
+	                    return@installExplainedSwitch false
+	                }
+
+                val rootAvailable = PrivilegedKeepAliveStarter.isRootProbablyAvailable()
+                if (rootAvailable) return@installExplainedSwitch true
+
+                if (PrivilegedKeepAliveStarter.isShizukuGranted(this)) return@installExplainedSwitch true
+
+	                when (PrivilegedKeepAliveStarter.requestShizukuPermission(this)) {
+	                    PrivilegedKeepAliveStarter.ShizukuPermissionRequestResult.AlreadyGranted -> Unit
+	                    PrivilegedKeepAliveStarter.ShizukuPermissionRequestResult.Requested -> {
+	                        pendingEnablePrivilegedKeepAlive = true
+	                        Toast.makeText(this, R.string.toast_shizuku_permission_requested, Toast.LENGTH_SHORT).show()
+	                        return@installExplainedSwitch false
+	                    }
+	                    PrivilegedKeepAliveStarter.ShizukuPermissionRequestResult.WaitingForBinder -> {
+	                        pendingEnablePrivilegedKeepAlive = true
+	                        Toast.makeText(this, R.string.toast_shizuku_permission_waiting, Toast.LENGTH_SHORT).show()
+	                        return@installExplainedSwitch false
+	                    }
+                    PrivilegedKeepAliveStarter.ShizukuPermissionRequestResult.NotInstalled -> {
+                        Toast.makeText(this, R.string.toast_shizuku_or_root_unavailable, Toast.LENGTH_SHORT).show()
+                        return@installExplainedSwitch false
+                    }
+                    PrivilegedKeepAliveStarter.ShizukuPermissionRequestResult.Failed -> {
+                        Toast.makeText(this, R.string.toast_shizuku_permission_request_failed, Toast.LENGTH_SHORT).show()
+                        return@installExplainedSwitch false
+                    }
+                }
+                true
             },
             hapticFeedback = { hapticTapIfEnabled(it) }
         )
@@ -110,6 +221,35 @@ class OtherSettingsActivity : BaseActivity() {
         btnBatteryWhitelist.setOnClickListener { v ->
             hapticTapIfEnabled(v)
             requestBatteryOptimizationWhitelist()
+        }
+    }
+
+    private fun autoEnablePrivilegedKeepAliveAfterShizukuGranted() {
+        if (!pendingEnablePrivilegedKeepAlive) return
+        pendingEnablePrivilegedKeepAlive = false
+
+        if (!this::switchPrivilegedKeepAlive.isInitialized) return
+        if (!prefs.floatingKeepAliveEnabled) return
+        if (prefs.floatingKeepAlivePrivilegedEnabled) return
+        if (!PrivilegedKeepAliveStarter.isShizukuGranted(this)) return
+
+        prefs.floatingKeepAlivePrivilegedEnabled = true
+        PrivilegedKeepAliveScheduler.update(this)
+        switchPrivilegedKeepAlive.isChecked = true
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val result = PrivilegedKeepAliveStarter.tryStartKeepAliveByShizuku(this@OtherSettingsActivity)
+                ?: PrivilegedKeepAliveStarter.tryStartKeepAliveByRoot(this@OtherSettingsActivity)
+                ?: PrivilegedKeepAliveStarter.startKeepAliveFallback(this@OtherSettingsActivity)
+            if (!result.ok) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(
+                        this@OtherSettingsActivity,
+                        R.string.toast_floating_keep_alive_privileged_start_failed,
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
         }
     }
 

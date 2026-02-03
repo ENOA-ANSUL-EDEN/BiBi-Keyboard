@@ -37,6 +37,12 @@
           android:layout_marginTop="0dp"
           android:text="@string/label_floating_keep_alive_foreground" />
 
+        <com.google.android.material.materialswitch.MaterialSwitch
+          android:id="@+id/switchFloatingKeepAlivePrivileged"
+          style="@style/SettingsSwitch"
+          android:layout_marginTop="4dp"
+          android:text="@string/label_floating_keep_alive_privileged" />
+
         <com.google.android.material.button.MaterialButton
           android:id="@+id/btnRequestBatteryWhitelist"
           android:layout_width="match_parent"

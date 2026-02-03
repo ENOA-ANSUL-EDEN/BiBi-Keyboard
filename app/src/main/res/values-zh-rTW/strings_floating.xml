@@ -12,6 +12,7 @@
     <string name="toast_need_overlay_perm">請在系統設定中授予「在其他應用程式上層顯示」權限以啟用懸浮球</string>
     <string name="label_floating_asr">使用懸浮球進行語音識別</string>
     <string name="label_floating_keep_alive_foreground">前台服務保活</string>
+    <string name="label_floating_keep_alive_privileged">Shizuku / Root 增強保活</string>
     <string name="label_request_battery_whitelist">申請電池最佳化白名單</string>
     <string name="label_floating_write_compat">懸浮球寫入文字相容性模式</string>
     <string name="desc_floating_write_compat">部分應用程式會向無障礙服務暴露背景預留位置文字，這會污染最終插入。啟用後，在目標應用程式中，懸浮球會切換為全選 + 貼上並使用不可見標記來避免預留位置問題。剪貼簿可能會暫時被使用（盡力恢復）。適用於 Telegram、抖音等。</string>
@@ -26,6 +27,12 @@
     <string name="cd_floating_edge_handle">展開懸浮球</string>
     <string name="toast_battery_whitelist_already">已在電池最佳化白名單中</string>
     <string name="toast_battery_whitelist_failed">申請電池最佳化白名單失敗</string>
+    <string name="toast_need_floating_keep_alive_first">請先啟用前台服務保活</string>
+    <string name="toast_shizuku_permission_requested">已發起 Shizuku 授權，請在 Shizuku 中確認</string>
+    <string name="toast_shizuku_permission_waiting">正在連線 Shizuku，連線後將彈出授權確認</string>
+    <string name="toast_shizuku_permission_request_failed">發起 Shizuku 授權失敗</string>
+    <string name="toast_shizuku_or_root_unavailable">Shizuku 不可用且未偵測到 root</string>
+    <string name="toast_floating_keep_alive_privileged_start_failed">透過 Shizuku / Root 啟動保活失敗</string>
 
     <!-- Floating ASR status messages -->
     <string name="floating_asr_error">識別失敗：%1$s</string>
@@ -80,4 +87,6 @@
     <!-- 前台保活 -->
     <string name="feature_floating_keep_alive_off_desc">不啟用前台服務，系統可能更容易回收背景程序。</string>
     <string name="feature_floating_keep_alive_on_desc">啟動前台服務並顯示常駐通知，強化背景保活能力。</string>
+    <string name="feature_floating_keep_alive_privileged_off_desc">仍以一般方式啟動前台保活服務，部分系統可能限制背景拉起。</string>
+    <string name="feature_floating_keep_alive_privileged_on_desc">透過 Shizuku 或 root 定期以 shell 權限拉起前台保活服務，提高穩定性。需要 Shizuku 授權或 root。</string>
 </resources>

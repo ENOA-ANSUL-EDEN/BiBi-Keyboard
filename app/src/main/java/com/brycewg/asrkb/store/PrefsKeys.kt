@@ -1,3 +1,8 @@
+/**
+ * Prefs Key 常量定义。
+ *
+ * 归属模块：store
+ */
 package com.brycewg.asrkb.store
 
 /**
@@ -40,6 +45,7 @@ internal const val KEY_FLOATING_WRITE_PASTE_ENABLED = "floating_write_paste_enab
 internal const val KEY_FLOATING_ASR_ENABLED = "floating_asr_enabled"
 internal const val KEY_FLOATING_ONLY_WHEN_IME_VISIBLE = "floating_only_when_ime_visible"
 internal const val KEY_FLOATING_KEEP_ALIVE_ENABLED = "floating_keep_alive_enabled"
+internal const val KEY_FLOATING_KEEP_ALIVE_PRIVILEGED_ENABLED = "floating_keep_alive_privileged_enabled"
 internal const val KEY_FLOATING_WRITE_COMPAT_PACKAGES = "floating_write_compat_packages"
 internal const val KEY_FLOATING_WRITE_PASTE_PACKAGES = "floating_write_paste_packages"
 internal const val KEY_EXTERNAL_AIDL_ENABLED = "external_aidl_enabled"

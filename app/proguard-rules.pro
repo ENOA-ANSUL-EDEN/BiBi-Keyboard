@@ -134,3 +134,8 @@
 
 # BuildConfig
 -keep class com.brycewg.asrkb.BuildConfig { *; }
+
+# Shizuku：PrivilegedKeepAliveStarter 通过反射调用 Shizuku.newProcess
+-keepclassmembers class rikka.shizuku.Shizuku {
+    *** newProcess(java.lang.String[], java.lang.String[], java.lang.String);
+}

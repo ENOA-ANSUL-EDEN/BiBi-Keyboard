@@ -12,6 +12,7 @@
     <string name="toast_need_overlay_perm">Please grant "Display over other apps" in system settings to enable the floating ball</string>
     <string name="label_floating_asr">Use floating ball for voice recognition</string>
     <string name="label_floating_keep_alive_foreground">Keep alive with a foreground service</string>
+    <string name="label_floating_keep_alive_privileged">Keep alive via Shizuku / root</string>
     <string name="label_request_battery_whitelist">Request battery optimization whitelist</string>
     <string name="label_floating_write_compat">Floating write-text compatibility mode</string>
     <string name="desc_floating_write_compat">Some apps expose background placeholder text to Accessibility, which contaminates final insertion. When enabled, in target apps the floating ball switches to Select-All + Paste with an invisible marker to avoid placeholder issues. The clipboard may be used temporarily (best-effort restore). Works for Telegram, Douyin, etc.</string>
@@ -26,6 +27,12 @@
     <string name="cd_floating_edge_handle">Show floating ball</string>
     <string name="toast_battery_whitelist_already">Already ignoring battery optimizations</string>
     <string name="toast_battery_whitelist_failed">Failed to request battery whitelist</string>
+    <string name="toast_need_floating_keep_alive_first">Enable foreground keep-alive first</string>
+    <string name="toast_shizuku_permission_requested">Shizuku permission requested. Please grant it in Shizuku.</string>
+    <string name="toast_shizuku_permission_waiting">Connecting to Shizuku. Permission prompt will appear once connected.</string>
+    <string name="toast_shizuku_permission_request_failed">Failed to request Shizuku permission</string>
+    <string name="toast_shizuku_or_root_unavailable">Shizuku is unavailable and root is not detected</string>
+    <string name="toast_floating_keep_alive_privileged_start_failed">Failed to start keep-alive via Shizuku / root</string>
 
     <!-- Floating ASR status messages -->
     <string name="floating_asr_error">Recognition failed: %1$s</string>
@@ -80,4 +87,6 @@
     <!-- Floating keep alive -->
     <string name="feature_floating_keep_alive_off_desc">No foreground service is kept. The system may reclaim the app more aggressively in background.</string>
     <string name="feature_floating_keep_alive_on_desc">Starts a foreground service with a persistent notification to strengthen background keep-alive.</string>
+    <string name="feature_floating_keep_alive_privileged_off_desc">Starts the foreground keep-alive service normally. Some systems may block background restarts.</string>
+    <string name="feature_floating_keep_alive_privileged_on_desc">Uses Shizuku (or root) to periodically start the foreground keep-alive service with shell privileges to improve reliability. Requires Shizuku authorization or root.</string>
 </resources>

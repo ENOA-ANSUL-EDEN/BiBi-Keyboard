@@ -1,3 +1,8 @@
+/**
+ * 偏好设置存取入口（SharedPreferences facade）。
+ *
+ * 归属模块：store
+ */
 package com.brycewg.asrkb.store
 
 import android.content.Context
@@ -262,6 +267,11 @@ class Prefs(context: Context) {
     var floatingKeepAliveEnabled: Boolean
         get() = sp.getBoolean(KEY_FLOATING_KEEP_ALIVE_ENABLED, false)
         set(value) = sp.edit { putBoolean(KEY_FLOATING_KEEP_ALIVE_ENABLED, value) }
+
+    // 悬浮球：Shizuku / root 增强保活（用于辅助后台重新拉起前台保活服务）
+    var floatingKeepAlivePrivilegedEnabled: Boolean
+        get() = sp.getBoolean(KEY_FLOATING_KEEP_ALIVE_PRIVILEGED_ENABLED, false)
+        set(value) = sp.edit { putBoolean(KEY_FLOATING_KEEP_ALIVE_PRIVILEGED_ENABLED, value) }
 
     // 悬浮球：写入文字兼容性模式（统一控制使用“全选+粘贴”等策略），默认开启
     var floatingWriteTextCompatEnabled: Boolean

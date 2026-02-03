@@ -129,6 +129,10 @@ dependencies {
     implementation("org.apache.commons:commons-compress:1.28.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.0")
     implementation("com.alibaba:dashscope-sdk-java:2.22.3")
+
+    // Shizuku：用于在已授权时执行部分 shell 级操作（增强后台保活）
+    implementation("dev.rikka.shizuku:api:13.1.5")
+    implementation("dev.rikka.shizuku:provider:13.1.5")
     implementation("com.github.thegrizzlylabs:sardine-android:0.9") {
         // 避免 xpp3 中的 org.xmlpull.v1.XmlPullParser 与 Android SDK 冲突
         exclude(module = "xpp3")

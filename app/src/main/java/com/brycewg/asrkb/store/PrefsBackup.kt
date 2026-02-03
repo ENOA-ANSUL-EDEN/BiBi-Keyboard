@@ -1,3 +1,8 @@
+/**
+ * 设置备份与导入导出实现。
+ *
+ * 归属模块：store
+ */
 package com.brycewg.asrkb.store
 
 import android.util.Log
@@ -52,6 +57,7 @@ internal object PrefsBackup {
         o.put(KEY_FLOATING_ASR_ENABLED, floatingAsrEnabled)
         o.put(KEY_FLOATING_ONLY_WHEN_IME_VISIBLE, floatingSwitcherOnlyWhenImeVisible)
         o.put(KEY_FLOATING_KEEP_ALIVE_ENABLED, floatingKeepAliveEnabled)
+        o.put(KEY_FLOATING_KEEP_ALIVE_PRIVILEGED_ENABLED, floatingKeepAlivePrivilegedEnabled)
 
         o.put(KEY_POSTPROC_ENABLED, postProcessEnabled)
         o.put(KEY_POSTPROC_TYPEWRITER_ENABLED, postprocTypewriterEnabled)
@@ -313,6 +319,7 @@ internal object PrefsBackup {
             optBool(KEY_FLOATING_ASR_ENABLED)?.let { floatingAsrEnabled = it }
             optBool(KEY_FLOATING_ONLY_WHEN_IME_VISIBLE)?.let { floatingSwitcherOnlyWhenImeVisible = it }
             optBool(KEY_FLOATING_KEEP_ALIVE_ENABLED)?.let { floatingKeepAliveEnabled = it }
+            optBool(KEY_FLOATING_KEEP_ALIVE_PRIVILEGED_ENABLED)?.let { floatingKeepAlivePrivilegedEnabled = it }
 
             optBool(KEY_FLOATING_WRITE_COMPAT_ENABLED)?.let { floatingWriteTextCompatEnabled = it }
             optString(KEY_FLOATING_WRITE_COMPAT_PACKAGES)?.let { floatingWriteCompatPackages = it }

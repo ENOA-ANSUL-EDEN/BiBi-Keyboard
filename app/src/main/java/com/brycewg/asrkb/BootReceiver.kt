@@ -1,3 +1,8 @@
+/**
+ * 开机自启广播接收器：按偏好恢复悬浮球与后台保活相关能力。
+ *
+ * 归属模块：根目录与通用
+ */
 package com.brycewg.asrkb
 
 import android.content.BroadcastReceiver
@@ -13,6 +18,7 @@ import com.brycewg.asrkb.store.Prefs
 import com.brycewg.asrkb.ui.AsrAccessibilityService
 import com.brycewg.asrkb.ui.floating.FloatingAsrService
 import com.brycewg.asrkb.ui.floating.FloatingKeepAliveService
+import com.brycewg.asrkb.ui.floating.PrivilegedKeepAliveScheduler
 
 /**
  * 开机自启广播接收器：
@@ -35,6 +41,7 @@ class BootReceiver : BroadcastReceiver() {
     private fun tryStartOverlayServices(context: Context) {
         try {
             val prefs = Prefs(context)
+            PrivilegedKeepAliveScheduler.update(context)
             if (prefs.floatingKeepAliveEnabled) {
                 FloatingKeepAliveService.start(context)
             }

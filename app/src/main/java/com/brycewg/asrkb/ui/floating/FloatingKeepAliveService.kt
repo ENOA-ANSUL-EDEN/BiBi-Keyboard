@@ -1,3 +1,8 @@
+/**
+ * 悬浮球前台保活服务：通过常驻通知维持进程优先级。
+ *
+ * 归属模块：ui/floating
+ */
 package com.brycewg.asrkb.ui.floating
 
 import android.app.NotificationChannel
@@ -12,6 +17,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.brycewg.asrkb.LocaleHelper
 import com.brycewg.asrkb.R
+import com.brycewg.asrkb.store.Prefs
 import com.brycewg.asrkb.ui.settings.floating.FloatingSettingsActivity
 
 class FloatingKeepAliveService : Service() {
@@ -60,6 +66,13 @@ class FloatingKeepAliveService : Service() {
         return START_NOT_STICKY
       }
       else -> {
+        // 该服务可能因 exported 或系统重启策略被外部/系统拉起：开关关闭时立即退出，避免误保活造成耗电。
+        val prefs = try { Prefs(this) } catch (_: Throwable) { null }
+        if (prefs != null && !prefs.floatingKeepAliveEnabled) {
+          stopForegroundSafely()
+          stopSelf()
+          return START_NOT_STICKY
+        }
         startForegroundWithNotification()
         return START_STICKY
       }
