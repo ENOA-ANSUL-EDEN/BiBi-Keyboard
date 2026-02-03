@@ -6,7 +6,7 @@
     <string name="label_llm_endpoint">OpenAIエンドポイント（例：https://api.openai.com/v1 または /chat/completionsを含む）</string>
     <string name="label_llm_api_key">APIキー</string>
     <string name="label_llm_model">モデル名（任意）</string>
-    <string name="label_llm_temperature">温度（0.0 – 2.0）</string>
+    <string name="label_llm_temperature">温度</string>
     <string name="label_llm_prompt">後処理プロンプト（処理されたテキストのみ出力）</string>
     <string name="label_llm_prompt_title">プロンプトプリセットタイトル</string>
     <string name="label_llm_prompt_presets">プロンプトプリセットを選択</string>

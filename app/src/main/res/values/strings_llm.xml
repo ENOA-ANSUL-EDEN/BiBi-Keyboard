@@ -5,7 +5,7 @@
     <string name="label_llm_endpoint">OpenAI Endpoint (e.g., https://api.openai.com/v1 or includes /chat/completions)</string>
     <string name="label_llm_api_key">API Key</string>
     <string name="label_llm_model">Model Name (optional)</string>
-    <string name="label_llm_temperature">Temperature (0.0 – 2.0)</string>
+    <string name="label_llm_temperature">Temperature</string>
     <string name="label_llm_prompt">Post-processing prompt (output only the processed text)</string>
     <string name="label_llm_prompt_title">Prompt Preset Title</string>
     <string name="label_llm_prompt_presets">Choose Prompt Preset</string>

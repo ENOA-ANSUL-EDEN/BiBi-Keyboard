@@ -5,7 +5,7 @@
     <string name="label_llm_endpoint">OpenAI 端點（例如：https://api.openai.com/v1 或包含 /chat/completions）</string>
     <string name="label_llm_api_key">API Key</string>
     <string name="label_llm_model">模型名稱（可選）</string>
-    <string name="label_llm_temperature">溫度（0.0 – 2.0）</string>
+    <string name="label_llm_temperature">溫度</string>
     <string name="label_llm_prompt">後處理提示詞內容（僅輸出處理後的文字）</string>
     <string name="label_llm_prompt_title">提示詞預設標題</string>
     <string name="label_llm_prompt_presets">選擇提示詞預設</string>

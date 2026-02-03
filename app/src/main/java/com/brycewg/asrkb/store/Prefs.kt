@@ -1170,7 +1170,7 @@ class Prefs(context: Context) {
         // 合理的OpenAI格式默认值
         const val DEFAULT_LLM_ENDPOINT = "https://api.openai.com/v1"
         const val DEFAULT_LLM_MODEL = "gpt-4o-mini"
-        const val DEFAULT_LLM_TEMPERATURE = 0.2f
+        const val DEFAULT_LLM_TEMPERATURE = 1.0f
         const val DEFAULT_CUSTOM_REASONING_PARAMS_ON_JSON = "{}"
         const val DEFAULT_CUSTOM_REASONING_PARAMS_OFF_JSON = "{}"
 
