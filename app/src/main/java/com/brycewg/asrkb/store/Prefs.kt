@@ -6,8 +6,13 @@
 package com.brycewg.asrkb.store
 
 import android.content.Context
+import android.content.res.Configuration
+import android.os.LocaleList
 import android.util.Log
+import androidx.annotation.StringRes
 import androidx.core.content.edit
+import androidx.core.os.LocaleListCompat
+import com.brycewg.asrkb.R
 import com.brycewg.asrkb.asr.AsrVendor
 import com.brycewg.asrkb.asr.LlmVendor
 import kotlinx.serialization.Serializable
@@ -46,6 +51,41 @@ class Prefs(context: Context) {
 
     internal fun setPrefString(key: String, value: String) {
         sp.edit { putString(key, value.trim()) }
+    }
+
+    private fun normalizeAppLanguageTag(tag: String): String {
+        return when (tag.trim().lowercase()) {
+            "zh", "zh-cn", "zh-hans" -> "zh-CN"
+            "zh-tw", "zh-hant" -> "zh-TW"
+            else -> tag.trim()
+        }
+    }
+
+    private fun createContextForLanguageTag(languageTag: String): Context {
+        val normalizedTag = normalizeAppLanguageTag(languageTag)
+        if (normalizedTag.isBlank()) return appContext
+        val locales = LocaleListCompat.forLanguageTags(normalizedTag)
+        if (locales.isEmpty) return appContext
+        val tags = locales.toLanguageTags()
+        if (tags.isBlank()) return appContext
+        val localeList = LocaleList.forLanguageTags(tags)
+        if (localeList.isEmpty) return appContext
+        val config = Configuration(appContext.resources.configuration)
+        config.setLocales(localeList)
+        return appContext.createConfigurationContext(config)
+    }
+
+    private fun createContextForAppLanguage(): Context = createContextForLanguageTag(appLanguageTag)
+
+    internal fun getLocalizedString(@StringRes resId: Int): String {
+        return createContextForAppLanguage().getString(resId)
+    }
+
+    private fun buildKnownDefaultPromptPresetVariants(): List<List<PromptPreset>> {
+        val tags = listOf("en", "zh-CN", "zh-TW", "ja")
+        return tags
+            .map { buildDefaultPromptPresets(createContextForLanguageTag(it)) }
+            .distinctBy { list -> list.map { it.title to it.content } }
     }
 
     // 火山引擎凭证
@@ -369,24 +409,55 @@ class Prefs(context: Context) {
 
     fun getPromptPresets(): List<PromptPreset> {
         val legacyPrompt = llmPrompt.trim()
+        val defaults = buildDefaultPromptPresets(createContextForAppLanguage())
+        val knownDefaultVariants = buildKnownDefaultPromptPresetVariants()
         var initializedFromDefaults = false
         // 如果未设置预设，初始化默认预设
         if (promptPresetsJson.isBlank()) {
             initializedFromDefaults = true
-            val defaults = buildDefaultPromptPresets()
             setPromptPresets(defaults)
             // 将第一个设为活动状态
             if (activePromptId.isBlank()) activePromptId = defaults.firstOrNull()?.id ?: ""
-            return PromptPresetMigrations.migrateLegacyPromptIfNeeded(this, defaults, legacyPrompt, initializedFromDefaults)
+            return PromptPresetMigrations.migrateLegacyPromptIfNeeded(
+                prefs = this,
+                current = defaults,
+                localizedDefaults = defaults,
+                knownDefaultVariants = knownDefaultVariants,
+                legacyPrompt = legacyPrompt,
+                initializedFromDefaults = initializedFromDefaults
+            )
         }
         val parsed = try {
             val list = json.decodeFromString<List<PromptPreset>>(promptPresetsJson)
-            list.ifEmpty { buildDefaultPromptPresets() }
+            list.ifEmpty { defaults }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to parse PromptPresets JSON", e)
-            buildDefaultPromptPresets()
+            defaults
         }
-        return PromptPresetMigrations.migrateLegacyPromptIfNeeded(this, parsed, legacyPrompt, initializedFromDefaults)
+        val remapped = PromptPresetMigrations.remapLegacyDefaultPresetIdsIfNeeded(
+            prefs = this,
+            current = parsed,
+            localizedDefaults = defaults,
+            knownDefaultVariants = knownDefaultVariants
+        )
+        val migrated = PromptPresetMigrations.migrateLegacyPromptIfNeeded(
+            prefs = this,
+            current = remapped,
+            localizedDefaults = defaults,
+            knownDefaultVariants = knownDefaultVariants,
+            legacyPrompt = legacyPrompt,
+            initializedFromDefaults = initializedFromDefaults
+        )
+        val synced = PromptPresetMigrations.syncDefaultsForLanguageIfNeeded(
+            prefs = this,
+            current = migrated,
+            localizedDefaults = defaults,
+            knownDefaultVariants = knownDefaultVariants
+        )
+        if (synced != parsed) {
+            setPromptPresets(synced)
+        }
+        return synced
     }
 
     fun setPromptPresets(list: List<PromptPreset>) {
@@ -444,7 +515,10 @@ class Prefs(context: Context) {
 
     // SiliconFlow：多模态识别提示词（chat/completions 文本部分）
     var sfOmniPrompt: String
-        get() = sp.getString(KEY_SF_OMNI_PROMPT, DEFAULT_SF_OMNI_PROMPT) ?: DEFAULT_SF_OMNI_PROMPT
+        get() {
+            val fallback = getLocalizedString(R.string.prompt_default_sf_omni)
+            return sp.getString(KEY_SF_OMNI_PROMPT, fallback) ?: fallback
+        }
         set(value) = sp.edit { putString(KEY_SF_OMNI_PROMPT, value) }
 
     // SiliconFlow 免费服务：是否启用免费 ASR 服务（新用户默认启用）
@@ -668,7 +742,10 @@ class Prefs(context: Context) {
     var gemModel: String by stringPref(KEY_GEM_MODEL, DEFAULT_GEM_MODEL)
 
     var gemPrompt: String
-        get() = sp.getString(KEY_GEM_PROMPT, DEFAULT_GEM_PROMPT) ?: DEFAULT_GEM_PROMPT
+        get() {
+            val fallback = getLocalizedString(R.string.prompt_default_gem)
+            return sp.getString(KEY_GEM_PROMPT, fallback) ?: fallback
+        }
         set(value) = sp.edit { putString(KEY_GEM_PROMPT, value) }
 
     var geminiDisableThinking: Boolean
@@ -1141,8 +1218,6 @@ class Prefs(context: Context) {
         const val SF_CHAT_COMPLETIONS_ENDPOINT = "https://api.siliconflow.cn/v1/chat/completions"
         const val DEFAULT_SF_MODEL = "FunAudioLLM/SenseVoiceSmall"
         const val DEFAULT_SF_OMNI_MODEL = "Qwen/Qwen3-Omni-30B-A3B-Instruct"
-        const val DEFAULT_SF_OMNI_PROMPT = "请将以下音频逐字转写为文本，不要输出解释或前后缀。输入语言可能是中文、英文或其他语言"
-
         // SiliconFlow 免费服务模型配置
         const val DEFAULT_SF_FREE_ASR_MODEL = "FunAudioLLM/SenseVoiceSmall"  // 免费 ASR 默认模型
         const val DEFAULT_SF_FREE_LLM_MODEL = "Qwen/Qwen3-8B"  // 免费 LLM 默认模型
@@ -1162,8 +1237,6 @@ class Prefs(context: Context) {
         // Gemini 默认
         const val DEFAULT_GEM_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta"
         const val DEFAULT_GEM_MODEL = "gemini-2.5-flash"
-        const val DEFAULT_GEM_PROMPT = "请将以下音频逐字转写为文本，不要输出解释或前后缀。"
-
         // Zhipu GLM ASR 默认
         const val DEFAULT_ZHIPU_TEMPERATURE = 0.95f
 

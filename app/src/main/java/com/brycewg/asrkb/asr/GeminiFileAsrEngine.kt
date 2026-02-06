@@ -1,3 +1,8 @@
+/**
+ * Gemini 文件转写引擎实现。
+ *
+ * 归属模块：asr
+ */
 package com.brycewg.asrkb.asr
 
 import android.content.Context
@@ -27,7 +32,6 @@ class GeminiFileAsrEngine(
 
     companion object {
         private const val TAG = "GeminiFileAsrEngine"
-        private const val DEFAULT_GEM_PROMPT = "请将以下音频逐字转写为文本，不要输出解释或前后缀。输入语言可能是中文、英文或其他语言"
     }
 
     // Gemini：官方约 9.5 小时，本地限制为 4 小时
@@ -54,7 +58,7 @@ class GeminiFileAsrEngine(
             val apiKey = apiKeys.random()
             val endpoint = prefs.gemEndpoint
             val model = prefs.gemModel.ifBlank { Prefs.DEFAULT_GEM_MODEL }
-            val basePrompt = prefs.gemPrompt.ifBlank { DEFAULT_GEM_PROMPT }
+            val basePrompt = prefs.gemPrompt.ifBlank { context.getString(R.string.prompt_default_gem) }
             val prompt = basePrompt
 
             val body = buildGeminiRequestBody(b64, prompt, model)

@@ -1,3 +1,8 @@
+/**
+ * SiliconFlow 文件转写引擎实现。
+ *
+ * 归属模块：asr
+ */
 package com.brycewg.asrkb.asr
 
 import android.content.Context
@@ -154,7 +159,7 @@ class SiliconFlowFileAsrEngine(
             val b64 = Base64.encodeToString(wav, Base64.NO_WRAP)
             // Qwen3-Omni 通过 chat/completions，支持提示词
             val model = if (selectedModel.isNotBlank()) selectedModel else Prefs.DEFAULT_SF_OMNI_MODEL
-            val basePrompt = prefs.sfOmniPrompt.ifBlank { Prefs.DEFAULT_SF_OMNI_PROMPT }
+            val basePrompt = prefs.sfOmniPrompt.ifBlank { context.getString(R.string.prompt_default_sf_omni) }
             val prompt = basePrompt
             val body = buildSfChatCompletionsBody(model, b64, prompt)
             val request = Request.Builder()

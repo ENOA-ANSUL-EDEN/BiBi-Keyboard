@@ -42,7 +42,7 @@ internal object PrefsAsrVendorFields {
             VendorField(KEY_GEM_ENDPOINT, required = true, default = Prefs.DEFAULT_GEM_ENDPOINT),
             VendorField(KEY_GEM_API_KEY, required = true),
             VendorField(KEY_GEM_MODEL, required = true, default = Prefs.DEFAULT_GEM_MODEL),
-            VendorField(KEY_GEM_PROMPT, default = Prefs.DEFAULT_GEM_PROMPT)
+            VendorField(KEY_GEM_PROMPT, default = "")
         ),
         AsrVendor.Soniox to listOf(
             VendorField(KEY_SONIOX_API_KEY, required = true)
@@ -66,4 +66,3 @@ internal data class VendorField(
     val required: Boolean = false,
     val default: String = ""
 )
-

@@ -1,7 +1,13 @@
+/**
+ * LLM 后处理与 AI 编辑调用入口。
+ *
+ * 归属模块：asr
+ */
 package com.brycewg.asrkb.asr
 
 import android.util.Log
 import com.brycewg.asrkb.BuildConfig
+import com.brycewg.asrkb.R
 import com.brycewg.asrkb.store.Prefs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -96,11 +102,6 @@ class LlmPostProcessor(private val client: OkHttpClient? = null) {
     /** 首 token 超时（秒）- streaming 模式下等待首个数据块的最大时间 */
     private const val FIRST_TOKEN_TIMEOUT_SECONDS = 60L
 
-    /**
-     * 用于包装用户输入文本的前缀。
-     * System prompt 应该已经独立完整，这个包装仅用于明确标识待处理内容。
-     */
-    private const val USER_INPUT_PREFIX = "待处理文本:\n"
   }
 
   private fun buildRequestConfig(
@@ -851,7 +852,8 @@ class LlmPostProcessor(private val client: OkHttpClient? = null) {
 
     val config = getActiveConfig(prefs)
     val systemPrompt = (promptOverride ?: prefs.activePromptContent)
-    val userContent = "$USER_INPUT_PREFIX$input"
+    val userInputPrefix = prefs.getLocalizedString(R.string.llm_prompt_user_input_prefix)
+    val userContent = "$userInputPrefix$input"
 
     val messages = JSONArray().apply {
       put(JSONObject().apply {
@@ -902,40 +904,15 @@ class LlmPostProcessor(private val client: OkHttpClient? = null) {
 
     val config = getActiveConfig(prefs)
 
-    val systemPrompt = """
-      你是一个精确的中文文本编辑助手。你的任务是根据"编辑指令"对"原文"进行最小必要修改。
-      规则：
-      - 只输出最终结果文本，不要输出任何解释、前后缀或引号。
-      - 如指令含糊、矛盾或不可执行，原样返回原文。
-      - 不要编造内容；除非指令明确要求，否则不要增删信息、不要改变语气与长度。
-      - 保留原有段落、换行、空白与标点格式（除非指令要求变更）。
-      - 保持语言/文字风格与原文一致；中文按原文简繁体维持不变。
-      - 涉及脱敏时，仅将需脱敏片段替换为『[REDACTED]』，其余保持不变。
-      - Output must be ONLY the edited text.
-
-      示例（仅用于学习风格，不要照搬示例文本）：
-      1) 指令：将口语化改为书面语；保留含义
-         原文：我今天有点事儿，可能晚点到，你们先开始别等我
-         输出：我今天有事，可能会晚到，请先开始，无需等待我。
-      2) 指令：纠正错别字
-         原文：这个方案挺好得，就是数据那块需要再核实一下
-         输出：这个方案挺好的，就是数据那块需要再核实一下。
-      3) 指令：把 comet 更改为 Kotlin
-         原文：最近高强度写 comet,感觉效果还不错
-         输出：最近高强度写 Kotlin,感觉效果还不错
-      4) 指令：把列表换成逗号分隔的一行
-         原文：苹果\n香蕉\n葡萄
-         输出：苹果，香蕉，葡萄。
-      5) 指令：脱敏姓名与电话
-         原文：联系人张三，电话 13800000000
-         输出：联系人[REDACTED]，电话[REDACTED]
-    """.trimIndent()
+    val systemPrompt = prefs.getLocalizedString(R.string.llm_edit_system_prompt)
+    val instructionLabel = prefs.getLocalizedString(R.string.llm_edit_instruction_label)
+    val originalLabel = prefs.getLocalizedString(R.string.llm_edit_original_label)
 
     val userContent = """
-      【编辑指令】
+      $instructionLabel
       $instruction
 
-      【原文】
+      $originalLabel
       $original
     """.trimIndent()
 
