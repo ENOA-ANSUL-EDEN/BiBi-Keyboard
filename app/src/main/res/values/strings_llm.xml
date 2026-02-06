@@ -28,6 +28,7 @@
     <string name="llm_test_failed_title">Test Failed</string>
     <string name="llm_test_failed_reason">Reason: %1$s</string>
     <string name="llm_test_failed_generic">Call failed</string>
+    <string name="llm_test_cancelled">Test canceled</string>
     <string name="llm_test_missing_params">Please fill API endpoint</string>
     <string name="llm_models_fetching">Fetching model list…</string>
     <string name="llm_models_fetch_failed_title">Fetch Failed</string>

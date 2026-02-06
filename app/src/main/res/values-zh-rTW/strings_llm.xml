@@ -28,6 +28,7 @@
     <string name="llm_test_failed_title">測試失敗</string>
     <string name="llm_test_failed_reason">原因：%1$s</string>
     <string name="llm_test_failed_generic">呼叫失敗</string>
+    <string name="llm_test_cancelled">測試已取消</string>
     <string name="llm_test_missing_params">請填寫 API 位址</string>
     <string name="llm_models_fetching">正在取得模型清單…</string>
     <string name="llm_models_fetch_failed_title">取得失敗</string>

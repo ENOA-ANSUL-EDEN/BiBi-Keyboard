@@ -17,6 +17,7 @@ import android.widget.EditText
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import com.brycewg.asrkb.ui.BaseActivity
@@ -35,7 +36,10 @@ import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.slider.Slider
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
@@ -58,6 +62,7 @@ class AiPostSettingsActivity : BaseActivity() {
     private lateinit var etSfApiKey: EditText
     private lateinit var tvSfFreeLlmModel: TextView
     private lateinit var btnSfFreeLlmFetchModels: Button
+    private lateinit var btnSfFreeLlmTestCall: Button
     private lateinit var tilSfCustomModelId: View
     private lateinit var etSfCustomModelId: EditText
     private lateinit var layoutSfReasoningMode: View
@@ -125,6 +130,10 @@ class AiPostSettingsActivity : BaseActivity() {
     private var isUpdatingProgrammatically = false
     private var isCustomModelInputVisible = false
     private var lastCustomProfileId: String? = null
+    private var llmTestJob: Job? = null
+    private var llmTestProgressDialog: AlertDialog? = null
+    private var llmTestProcessor: LlmPostProcessor? = null
+    private var llmTestSessionId: Long = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -150,6 +159,11 @@ class AiPostSettingsActivity : BaseActivity() {
     override fun onPostResume() {
         super.onPostResume()
         SettingsSearchNavigator.applyScrollAndHighlightIfNeeded(this)
+    }
+
+    override fun onDestroy() {
+        cancelRunningLlmTest(showToast = false, reason = "Activity destroyed")
+        super.onDestroy()
     }
 
     private fun consumeSearchForcedVendorIfNeeded() {
@@ -252,6 +266,7 @@ class AiPostSettingsActivity : BaseActivity() {
         etSfApiKey = findViewById(R.id.etSfApiKey)
         tvSfFreeLlmModel = findViewById(R.id.tvSfFreeLlmModel)
         btnSfFreeLlmFetchModels = findViewById(R.id.btnSfFreeLlmFetchModels)
+        btnSfFreeLlmTestCall = findViewById(R.id.btnSfFreeLlmTestCall)
         tilSfCustomModelId = findViewById(R.id.tilSfCustomModelId)
         etSfCustomModelId = findViewById(R.id.etSfCustomModelId)
         layoutSfReasoningMode = findViewById(R.id.layoutSfReasoningMode)
@@ -328,7 +343,7 @@ class AiPostSettingsActivity : BaseActivity() {
         }
 
         // SF test call button
-        findViewById<com.google.android.material.button.MaterialButton>(R.id.btnSfFreeLlmTestCall).setOnClickListener { v ->
+        btnSfFreeLlmTestCall.setOnClickListener { v ->
             hapticTapIfEnabled(v)
             handleTestLlmCall()
         }
@@ -1161,20 +1176,64 @@ class AiPostSettingsActivity : BaseActivity() {
         }
     }
 
+    private fun setLlmTestButtonsEnabled(enabled: Boolean) {
+        if (!::btnSfFreeLlmTestCall.isInitialized || !::btnBuiltinTestCall.isInitialized || !::btnLlmTestCall.isInitialized) {
+            return
+        }
+        btnSfFreeLlmTestCall.isEnabled = enabled
+        btnBuiltinTestCall.isEnabled = enabled
+        btnLlmTestCall.isEnabled = enabled
+    }
+
+    private fun cancelRunningLlmTest(showToast: Boolean, reason: String) {
+        llmTestSessionId++
+        llmTestProcessor?.cancelActiveRequest()
+        llmTestProcessor = null
+        llmTestJob?.cancel(CancellationException(reason))
+        llmTestJob = null
+        llmTestProgressDialog?.setOnDismissListener(null)
+        llmTestProgressDialog?.dismiss()
+        llmTestProgressDialog = null
+        setLlmTestButtonsEnabled(true)
+        if (showToast && !isFinishing && !isDestroyed) {
+            Toast.makeText(this, getString(R.string.llm_test_cancelled), Toast.LENGTH_SHORT).show()
+        }
+    }
+
     private fun handleTestLlmCall() {
+        if (llmTestJob?.isActive == true) {
+            return
+        }
+
+        val sessionId = llmTestSessionId + 1L
+        llmTestSessionId = sessionId
+
         val progressDialog = MaterialAlertDialogBuilder(this)
             .setMessage(R.string.llm_test_running)
             .setCancelable(false)
+            .setNegativeButton(R.string.btn_cancel) { _, _ ->
+                cancelRunningLlmTest(showToast = true, reason = "User canceled LLM test")
+            }
             .create()
+        llmTestProgressDialog = progressDialog
+        setLlmTestButtonsEnabled(false)
         progressDialog.show()
+        progressDialog.setOnDismissListener {
+            if (llmTestJob?.isActive == true && sessionId == llmTestSessionId) {
+                cancelRunningLlmTest(showToast = false, reason = "LLM test dialog dismissed")
+            }
+        }
 
-        lifecycleScope.launch {
+        llmTestJob = lifecycleScope.launch {
             try {
                 val processor = LlmPostProcessor()
+                llmTestProcessor = processor
                 val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                     processor.testConnectivity(prefs)
                 }
-                progressDialog.dismiss()
+                if (sessionId != llmTestSessionId || !isActive) {
+                    return@launch
+                }
 
                 if (result.ok) {
                     val preview = result.contentPreview ?: ""
@@ -1198,13 +1257,28 @@ class AiPostSettingsActivity : BaseActivity() {
                         .setPositiveButton(android.R.string.ok, null)
                         .show()
                 }
+            } catch (_: CancellationException) {
             } catch (e: Exception) {
-                progressDialog.dismiss()
+                if (sessionId != llmTestSessionId || !isActive) {
+                    return@launch
+                }
                 MaterialAlertDialogBuilder(this@AiPostSettingsActivity)
                     .setTitle(R.string.llm_test_failed_title)
                     .setMessage(getString(R.string.llm_test_failed_reason, e.message ?: "unknown"))
                     .setPositiveButton(android.R.string.ok, null)
                     .show()
+            } finally {
+                if (sessionId != llmTestSessionId) {
+                    return@launch
+                }
+                llmTestProcessor = null
+                llmTestJob = null
+                setLlmTestButtonsEnabled(true)
+                llmTestProgressDialog?.setOnDismissListener(null)
+                if (!isDestroyed) {
+                    llmTestProgressDialog?.dismiss()
+                }
+                llmTestProgressDialog = null
             }
         }
     }

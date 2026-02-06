@@ -6,6 +6,7 @@ import com.brycewg.asrkb.store.Prefs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.Call
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -21,6 +22,8 @@ import java.util.concurrent.TimeUnit
  */
 class LlmPostProcessor(private val client: OkHttpClient? = null) {
   private val jsonMedia = "application/json; charset=utf-8".toMediaType()
+  @Volatile
+  private var activeCall: Call? = null
 
   /**
    * LLM 测试结果
@@ -642,9 +645,14 @@ class LlmPostProcessor(private val client: OkHttpClient? = null) {
     }
 
     val http = getHttpClient()
+    val call = http.newCall(req)
+    activeCall = call
     val resp = try {
-      http.newCall(req).execute()
+      call.execute()
     } catch (t: Throwable) {
+      if (activeCall === call) {
+        activeCall = null
+      }
       Log.e(TAG, "HTTP request failed", t)
       return RawCallResult(false, error = t.message ?: "Network error")
     }
@@ -652,6 +660,9 @@ class LlmPostProcessor(private val client: OkHttpClient? = null) {
     if (!resp.isSuccessful) {
       val code = resp.code
       val err = try { resp.body?.string() } catch (_: Throwable) { null } finally { resp.close() }
+      if (activeCall === call) {
+        activeCall = null
+      }
       return RawCallResult(false, httpCode = code, error = err?.take(256) ?: "HTTP $code")
     }
 
@@ -685,9 +696,25 @@ class LlmPostProcessor(private val client: OkHttpClient? = null) {
       } catch (closeErr: Throwable) {
         Log.w(TAG, "Close response failed", closeErr)
       }
+      if (activeCall === call) {
+        activeCall = null
+      }
     }
 
     return RawCallResult(true, text = text)
+  }
+
+  /**
+   * 取消当前进行中的 LLM 请求。
+   */
+  fun cancelActiveRequest() {
+    val call = activeCall
+    if (call == null) return
+    try {
+      call.cancel()
+    } catch (t: Throwable) {
+      Log.w(TAG, "Cancel active request failed", t)
+    }
   }
 
   /**

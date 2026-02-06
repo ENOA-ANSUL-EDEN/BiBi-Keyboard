@@ -29,6 +29,7 @@
     <string name="llm_test_failed_title">テスト失敗</string>
     <string name="llm_test_failed_reason">理由：%1$s</string>
     <string name="llm_test_failed_generic">呼び出し失敗</string>
+    <string name="llm_test_cancelled">テストをキャンセルしました</string>
     <string name="llm_test_missing_params">APIエンドポイントを入力してください</string>
     <string name="llm_models_fetching">モデル一覧を取得中…</string>
     <string name="llm_models_fetch_failed_title">取得失敗</string>
