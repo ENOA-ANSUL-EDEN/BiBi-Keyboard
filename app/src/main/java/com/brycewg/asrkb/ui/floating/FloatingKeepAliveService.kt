@@ -19,20 +19,37 @@ import com.brycewg.asrkb.LocaleHelper
 import com.brycewg.asrkb.R
 import com.brycewg.asrkb.store.Prefs
 import com.brycewg.asrkb.ui.settings.floating.FloatingSettingsActivity
+import java.util.UUID
 
 class FloatingKeepAliveService : Service() {
+
+  private var keepAliveStarted = false
 
   companion object {
     private const val TAG = "FloatingKeepAliveSvc"
     private const val CHANNEL_ID = "floating_keep_alive"
     private const val NOTIFICATION_ID = 4101
+    private const val TOKEN_PREFS = "floating_keep_alive_auth"
+    private const val TOKEN_KEY = "caller_token"
+    const val EXTRA_CALLER_TOKEN = "com.brycewg.asrkb.extra.FLOATING_KEEP_ALIVE_TOKEN"
 
     const val ACTION_START = "com.brycewg.asrkb.action.FLOATING_KEEP_ALIVE_START"
     const val ACTION_STOP = "com.brycewg.asrkb.action.FLOATING_KEEP_ALIVE_STOP"
 
+    @Synchronized
+    internal fun getOrCreateCallerToken(context: Context): String {
+      val prefs = context.applicationContext.getSharedPreferences(TOKEN_PREFS, Context.MODE_PRIVATE)
+      val existing = prefs.getString(TOKEN_KEY, null)
+      if (!existing.isNullOrBlank()) return existing
+      val generated = UUID.randomUUID().toString()
+      prefs.edit().putString(TOKEN_KEY, generated).apply()
+      return generated
+    }
+
     fun start(context: Context) {
       val intent = Intent(context, FloatingKeepAliveService::class.java).apply {
         action = ACTION_START
+        putExtra(EXTRA_CALLER_TOKEN, getOrCreateCallerToken(context))
       }
       ContextCompat.startForegroundService(context, intent)
     }
@@ -40,6 +57,7 @@ class FloatingKeepAliveService : Service() {
     fun stop(context: Context) {
       val intent = Intent(context, FloatingKeepAliveService::class.java).apply {
         action = ACTION_STOP
+        putExtra(EXTRA_CALLER_TOKEN, getOrCreateCallerToken(context))
       }
       context.startService(intent)
     }
@@ -59,6 +77,14 @@ class FloatingKeepAliveService : Service() {
   }
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+    if (intent != null && !isTrustedCaller(intent)) {
+      Log.w(TAG, "Ignore unauthorized keep-alive request")
+      if (!keepAliveStarted) {
+        stopSelf()
+      }
+      return START_NOT_STICKY
+    }
+
     when (intent?.action) {
       ACTION_STOP -> {
         stopForegroundSafely()
@@ -66,7 +92,7 @@ class FloatingKeepAliveService : Service() {
         return START_NOT_STICKY
       }
       else -> {
-        // 该服务可能因 exported 或系统重启策略被外部/系统拉起：开关关闭时立即退出，避免误保活造成耗电。
+        // 系统重启后可能以空 intent 触发重建：开关关闭时立即退出，避免误保活造成耗电。
         val prefs = try { Prefs(this) } catch (_: Throwable) { null }
         if (prefs != null && !prefs.floatingKeepAliveEnabled) {
           stopForegroundSafely()
@@ -74,6 +100,7 @@ class FloatingKeepAliveService : Service() {
           return START_NOT_STICKY
         }
         startForegroundWithNotification()
+        keepAliveStarted = true
         return START_STICKY
       }
     }
@@ -82,8 +109,15 @@ class FloatingKeepAliveService : Service() {
   override fun onBind(intent: Intent?): IBinder? = null
 
   override fun onDestroy() {
+    keepAliveStarted = false
     stopForegroundSafely()
     super.onDestroy()
+  }
+
+  private fun isTrustedCaller(intent: Intent): Boolean {
+    val expected = getOrCreateCallerToken(this)
+    val provided = intent.getStringExtra(EXTRA_CALLER_TOKEN)
+    return !provided.isNullOrBlank() && provided == expected
   }
 
   private fun startForegroundWithNotification() {

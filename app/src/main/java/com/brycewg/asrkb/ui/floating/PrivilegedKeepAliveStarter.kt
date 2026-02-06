@@ -174,19 +174,26 @@ internal object PrivilegedKeepAliveStarter {
     }
 
     fun startKeepAliveServiceIntent(context: Context): Intent {
+        val token = FloatingKeepAliveService.getOrCreateCallerToken(context)
         return Intent(context, FloatingKeepAliveService::class.java).apply {
             action = FloatingKeepAliveService.ACTION_START
+            putExtra(FloatingKeepAliveService.EXTRA_CALLER_TOKEN, token)
         }
     }
 
     fun startKeepAliveForegroundServiceCommand(context: Context): String {
         val component = "${context.packageName}/${FloatingKeepAliveService::class.java.name}"
+        val token = FloatingKeepAliveService.getOrCreateCallerToken(context)
         return buildString {
             append("am start-foreground-service")
             append(" -n ")
             append(component)
             append(" -a ")
             append(FloatingKeepAliveService.ACTION_START)
+            append(" --es ")
+            append(FloatingKeepAliveService.EXTRA_CALLER_TOKEN)
+            append(" ")
+            append(token)
         }
     }
 
