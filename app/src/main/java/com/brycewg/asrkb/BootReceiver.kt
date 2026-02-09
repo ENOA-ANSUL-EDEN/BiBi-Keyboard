@@ -19,6 +19,8 @@ import com.brycewg.asrkb.ui.AsrAccessibilityService
 import com.brycewg.asrkb.ui.floating.FloatingAsrService
 import com.brycewg.asrkb.ui.floating.FloatingKeepAliveService
 import com.brycewg.asrkb.ui.floating.PrivilegedKeepAliveScheduler
+import com.brycewg.asrkb.ui.floating.PrivilegedKeepAliveStarter
+import java.util.concurrent.Executors
 
 /**
  * 开机自启广播接收器：
@@ -42,8 +44,17 @@ class BootReceiver : BroadcastReceiver() {
         try {
             val prefs = Prefs(context)
             PrivilegedKeepAliveScheduler.update(context)
+
             if (prefs.floatingKeepAliveEnabled) {
-                FloatingKeepAliveService.start(context)
+                // 如果启用了增强保活，尝试使用 Shizuku/Root 方式启动
+                if (prefs.floatingKeepAlivePrivilegedEnabled) {
+                    // 在后台线程执行 Shizuku/Root 启动，避免阻塞主线程
+                    Executors.newSingleThreadExecutor().execute {
+                        tryStartKeepAlivePrivileged(context)
+                    }
+                } else {
+                    FloatingKeepAliveService.start(context)
+                }
             }
 
             val canOverlay = Settings.canDrawOverlays(context)
@@ -55,6 +66,30 @@ class BootReceiver : BroadcastReceiver() {
             }
         } catch (t: Throwable) {
             Log.w("BootReceiver", "Failed to start overlay services on boot", t)
+        }
+    }
+
+    /**
+     * 尝试使用 Shizuku/Root 方式启动保活服务，失败时回退到普通方式。
+     */
+    private fun tryStartKeepAlivePrivileged(context: Context) {
+        try {
+            val result = PrivilegedKeepAliveStarter.tryStartKeepAliveByShizuku(context)
+                ?: PrivilegedKeepAliveStarter.tryStartKeepAliveByRoot(context)
+                ?: PrivilegedKeepAliveStarter.startKeepAliveFallback(context)
+
+            if (result.ok) {
+                Log.d("BootReceiver", "Started keep-alive service via ${result.method}")
+            } else {
+                Log.w("BootReceiver", "Privileged keep-alive start failed: ${result.method}, exit=${result.exitCode}, err=${result.stderr}")
+            }
+        } catch (t: Throwable) {
+            Log.w("BootReceiver", "tryStartKeepAlivePrivileged failed, falling back", t)
+            try {
+                FloatingKeepAliveService.start(context)
+            } catch (t2: Throwable) {
+                Log.e("BootReceiver", "Fallback keep-alive start also failed", t2)
+            }
         }
     }
 

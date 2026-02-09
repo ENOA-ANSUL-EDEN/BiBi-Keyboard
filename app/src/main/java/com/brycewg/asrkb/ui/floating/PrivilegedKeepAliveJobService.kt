@@ -12,6 +12,7 @@ import com.brycewg.asrkb.store.Prefs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.launch
 
@@ -21,7 +22,8 @@ class PrivilegedKeepAliveJobService : JobService() {
         private const val TAG = "PrivKeepAlive"
     }
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val supervisorJob = SupervisorJob()
+    private val scope = CoroutineScope(supervisorJob + Dispatchers.IO)
 
     override fun onStartJob(params: JobParameters?): Boolean {
         if (params == null) return false
@@ -55,7 +57,8 @@ class PrivilegedKeepAliveJobService : JobService() {
     }
 
     override fun onDestroy() {
-        scope.coroutineContext.cancelChildren()
+        // 取消整个协程作用域，而不仅仅是子协程
+        scope.cancel()
         super.onDestroy()
     }
 }

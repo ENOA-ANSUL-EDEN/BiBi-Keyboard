@@ -241,19 +241,23 @@ internal object PrivilegedKeepAliveStarter {
         }
     }
 
+    /**
+     * 使用反射调用 Shizuku 私有 API 创建进程执行命令。
+     * 注：Shizuku.newProcess() 是私有方法，必须通过反射访问。
+     */
     @Suppress("PrivateApi")
     private fun createShizukuProcess(cmd: Array<String>): Process? {
         return try {
-            val m = Shizuku::class.java.getDeclaredMethod(
+            val method = Shizuku::class.java.getDeclaredMethod(
                 "newProcess",
                 Array<String>::class.java,
                 Array<String>::class.java,
                 String::class.java
             )
-            m.isAccessible = true
-            m.invoke(null, cmd, null, null) as? Process
+            method.isAccessible = true
+            method.invoke(null, cmd, null, null) as? Process
         } catch (t: Throwable) {
-            if (BuildConfig.DEBUG) Log.d(TAG, "createShizukuProcess failed", t)
+            if (BuildConfig.DEBUG) Log.d(TAG, "Shizuku.newProcess reflection failed", t)
             null
         }
     }

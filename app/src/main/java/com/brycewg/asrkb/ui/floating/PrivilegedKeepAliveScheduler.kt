@@ -34,6 +34,10 @@ internal object PrivilegedKeepAliveScheduler {
         val info = JobInfo.Builder(JOB_ID, component)
             .setPersisted(true)
             .setPeriodic(PERIOD_MS)
+            // 确保在各种条件下都能执行，不受电量和设备空闲状态限制
+            .setRequiresBatteryNotLow(false)
+            .setRequiresDeviceIdle(false)
+            .setRequiresCharging(false)
             .build()
 
         val result = try {
