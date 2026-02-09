@@ -18,6 +18,7 @@ import androidx.core.content.ContextCompat
 import com.brycewg.asrkb.LocaleHelper
 import com.brycewg.asrkb.R
 import com.brycewg.asrkb.store.Prefs
+import com.brycewg.asrkb.store.debug.DebugLogManager
 import com.brycewg.asrkb.ui.settings.floating.FloatingSettingsActivity
 import java.util.UUID
 
@@ -79,6 +80,7 @@ class FloatingKeepAliveService : Service() {
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
     if (intent != null && !isTrustedCaller(intent)) {
       Log.w(TAG, "Ignore unauthorized keep-alive request")
+      DebugLogManager.logPersistent(this, "keepalive", "service_reject", mapOf("reason" to "token_mismatch"))
       if (!keepAliveStarted) {
         stopSelf()
       }
@@ -87,6 +89,7 @@ class FloatingKeepAliveService : Service() {
 
     when (intent?.action) {
       ACTION_STOP -> {
+        DebugLogManager.logPersistent(this, "keepalive", "service_stop")
         stopForegroundSafely()
         stopSelf()
         return START_NOT_STICKY
@@ -95,12 +98,18 @@ class FloatingKeepAliveService : Service() {
         // 系统重启后可能以空 intent 触发重建：开关关闭时立即退出，避免误保活造成耗电。
         val prefs = try { Prefs(this) } catch (_: Throwable) { null }
         if (prefs != null && !prefs.floatingKeepAliveEnabled) {
+          DebugLogManager.logPersistent(this, "keepalive", "service_skip", mapOf("reason" to "pref_disabled"))
           stopForegroundSafely()
           stopSelf()
           return START_NOT_STICKY
         }
+        if (keepAliveStarted && intent?.action == ACTION_START) {
+          DebugLogManager.logPersistent(this, "keepalive", "service_skip", mapOf("reason" to "already_started"))
+          return START_STICKY
+        }
         startForegroundWithNotification()
         keepAliveStarted = true
+        DebugLogManager.logPersistent(this, "keepalive", "service_start", mapOf("action" to (intent?.action ?: "null")))
         return START_STICKY
       }
     }

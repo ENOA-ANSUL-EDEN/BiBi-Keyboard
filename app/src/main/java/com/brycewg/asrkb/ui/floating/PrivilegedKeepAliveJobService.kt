@@ -9,6 +9,7 @@ import android.app.job.JobParameters
 import android.app.job.JobService
 import android.util.Log
 import com.brycewg.asrkb.store.Prefs
+import com.brycewg.asrkb.store.debug.DebugLogManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -27,10 +28,16 @@ class PrivilegedKeepAliveJobService : JobService() {
 
     override fun onStartJob(params: JobParameters?): Boolean {
         if (params == null) return false
+        DebugLogManager.logPersistent(this, "keepalive", "job_start")
+        if (!PrivilegedKeepAliveStarter.tryAcquirePrivilegedStartWindow(this, "job")) {
+            jobFinished(params, false)
+            return false
+        }
         scope.launch {
             try {
                 val prefs = Prefs(this@PrivilegedKeepAliveJobService)
                 if (!prefs.floatingKeepAliveEnabled || !prefs.floatingKeepAlivePrivilegedEnabled) {
+                    DebugLogManager.logPersistent(this@PrivilegedKeepAliveJobService, "keepalive", "job_skip", mapOf("reason" to "pref_disabled"))
                     jobFinished(params, false)
                     return@launch
                 }
@@ -42,8 +49,15 @@ class PrivilegedKeepAliveJobService : JobService() {
                 if (!result.ok) {
                     Log.w(TAG, "start keep-alive by ${result.method} failed: exit=${result.exitCode}, err=${result.stderr}")
                 }
+                DebugLogManager.logPersistent(
+                    this@PrivilegedKeepAliveJobService,
+                    "keepalive",
+                    "job_result",
+                    mapOf("method" to result.method.name.lowercase(), "ok" to result.ok, "exit" to result.exitCode)
+                )
             } catch (t: Throwable) {
                 Log.w(TAG, "privileged keep-alive job failed", t)
+                DebugLogManager.logPersistent(this@PrivilegedKeepAliveJobService, "keepalive", "job_error", mapOf("msg" to t.message))
             } finally {
                 jobFinished(params, false)
             }
@@ -53,6 +67,7 @@ class PrivilegedKeepAliveJobService : JobService() {
 
     override fun onStopJob(params: JobParameters?): Boolean {
         scope.coroutineContext.cancelChildren()
+        DebugLogManager.logPersistent(this, "keepalive", "job_stop")
         return true
     }
 

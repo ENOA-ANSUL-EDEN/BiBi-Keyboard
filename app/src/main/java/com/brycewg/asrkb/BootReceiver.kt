@@ -15,6 +15,7 @@ import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import com.brycewg.asrkb.store.Prefs
+import com.brycewg.asrkb.store.debug.DebugLogManager
 import com.brycewg.asrkb.ui.AsrAccessibilityService
 import com.brycewg.asrkb.ui.floating.FloatingAsrService
 import com.brycewg.asrkb.ui.floating.FloatingKeepAliveService
@@ -31,6 +32,7 @@ class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         val action = intent?.action ?: return
         if (action != Intent.ACTION_BOOT_COMPLETED && action != Intent.ACTION_LOCKED_BOOT_COMPLETED) return
+        DebugLogManager.logPersistent(context, "keepalive", "boot_received", mapOf("action" to action))
 
         val handler = Handler(Looper.getMainLooper())
         // 略微延迟，等系统服务就绪
@@ -49,11 +51,14 @@ class BootReceiver : BroadcastReceiver() {
                 // 如果启用了增强保活，尝试使用 Shizuku/Root 方式启动
                 if (prefs.floatingKeepAlivePrivilegedEnabled) {
                     // 在后台线程执行 Shizuku/Root 启动，避免阻塞主线程
-                    Executors.newSingleThreadExecutor().execute {
+                    val executor = Executors.newSingleThreadExecutor()
+                    executor.execute {
                         tryStartKeepAlivePrivileged(context)
+                        executor.shutdown()
                     }
                 } else {
                     FloatingKeepAliveService.start(context)
+                    DebugLogManager.logPersistent(context, "keepalive", "boot_start_normal")
                 }
             }
 
@@ -74,21 +79,34 @@ class BootReceiver : BroadcastReceiver() {
      */
     private fun tryStartKeepAlivePrivileged(context: Context) {
         try {
+            if (!PrivilegedKeepAliveStarter.tryAcquirePrivilegedStartWindow(context, "boot")) {
+                return
+            }
             val result = PrivilegedKeepAliveStarter.tryStartKeepAliveByShizuku(context)
                 ?: PrivilegedKeepAliveStarter.tryStartKeepAliveByRoot(context)
                 ?: PrivilegedKeepAliveStarter.startKeepAliveFallback(context)
 
             if (result.ok) {
                 Log.d("BootReceiver", "Started keep-alive service via ${result.method}")
+                DebugLogManager.logPersistent(context, "keepalive", "boot_start_result", mapOf("ok" to true, "method" to result.method.name.lowercase()))
             } else {
                 Log.w("BootReceiver", "Privileged keep-alive start failed: ${result.method}, exit=${result.exitCode}, err=${result.stderr}")
+                DebugLogManager.logPersistent(
+                    context,
+                    "keepalive",
+                    "boot_start_result",
+                    mapOf("ok" to false, "method" to result.method.name.lowercase(), "exit" to result.exitCode)
+                )
             }
         } catch (t: Throwable) {
             Log.w("BootReceiver", "tryStartKeepAlivePrivileged failed, falling back", t)
+            DebugLogManager.logPersistent(context, "keepalive", "boot_start_exception", mapOf("msg" to t.message))
             try {
                 FloatingKeepAliveService.start(context)
+                DebugLogManager.logPersistent(context, "keepalive", "boot_start_fallback")
             } catch (t2: Throwable) {
                 Log.e("BootReceiver", "Fallback keep-alive start also failed", t2)
+                DebugLogManager.logPersistent(context, "keepalive", "boot_start_fallback_failed", mapOf("msg" to t2.message))
             }
         }
     }

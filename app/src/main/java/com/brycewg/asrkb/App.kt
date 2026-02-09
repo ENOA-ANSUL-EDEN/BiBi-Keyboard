@@ -56,7 +56,7 @@ class App : Application() {
             Log.w("App", "Analytics init failed", t)
         }
 
-        PrivilegedKeepAliveStarter.initShizuku()
+        PrivilegedKeepAliveStarter.initShizuku(this)
 
         // 若用户在设置中启用了悬浮球且已授予悬浮窗权限，则启动悬浮球服务
         try {

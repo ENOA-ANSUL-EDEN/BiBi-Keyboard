@@ -40,6 +40,15 @@ object DebugLogManager {
   private var output: BufferedOutputStream? = null
   private var logFile: File? = null
 
+  private data class PersistentLogEntry(
+    val context: Context,
+    val line: String
+  )
+  private val persistentScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+  private val persistentChannel = Channel<PersistentLogEntry>(capacity = 256)
+  @Volatile
+  private var persistentWriterStarted: Boolean = false
+
   fun isRecording(): Boolean = recording
 
   @Synchronized
@@ -141,6 +150,68 @@ object DebugLogManager {
       ch.trySend(line).isSuccess
     } catch (e: Throwable) {
       Log.e(TAG, "Failed to enqueue log", e)
+    }
+  }
+
+  /**
+   * 无需手动开始录制也可写入导出日志；若正在录制则复用录制通道。
+   */
+  fun logPersistent(context: Context, category: String, event: String, data: Map<String, Any?> = emptyMap()) {
+    if (recording) {
+      log(category, event, data)
+      return
+    }
+    try {
+      val line = buildJsonLine(category, event, data)
+      ensurePersistentWriter()
+      val queued = persistentChannel.trySend(PersistentLogEntry(context.applicationContext, line)).isSuccess
+      if (!queued) {
+        // 队列瞬时拥塞时，降级到 IO 协程直写，避免主线程阻塞
+        persistentScope.launch {
+          appendPersistentLine(context.applicationContext, line)
+        }
+      }
+    } catch (e: Throwable) {
+      Log.e(TAG, "Failed to append persistent log", e)
+    }
+  }
+
+  @Synchronized
+  private fun ensurePersistentWriter() {
+    if (persistentWriterStarted) return
+    persistentWriterStarted = true
+    persistentScope.launch {
+      try {
+        for (entry in persistentChannel) {
+          appendPersistentLine(entry.context, entry.line)
+        }
+      } catch (e: Throwable) {
+        Log.e(TAG, "Persistent writer loop error", e)
+        persistentWriterStarted = false
+      }
+    }
+  }
+
+  @Synchronized
+  private fun appendPersistentLine(context: Context, line: String) {
+    try {
+      val dir = File(context.noBackupFilesDir, DIR_NAME)
+      if (!dir.exists()) dir.mkdirs()
+      val file = File(dir, FILE_NAME)
+      if (!file.exists()) {
+        file.createNewFile()
+      }
+      if (file.length() > MAX_BYTES) {
+        truncateKeepTail(file, keepBytes = 2L * 1024L * 1024L)
+      }
+      FileOutputStream(file, true).use { out ->
+        out.write(line.toByteArray(Charsets.UTF_8))
+        out.write('\n'.code)
+        out.flush()
+      }
+      logFile = file
+    } catch (e: Throwable) {
+      Log.e(TAG, "Failed writing persistent log line", e)
     }
   }
 

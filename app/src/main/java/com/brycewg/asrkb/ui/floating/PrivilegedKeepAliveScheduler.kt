@@ -11,6 +11,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.util.Log
 import com.brycewg.asrkb.store.Prefs
+import com.brycewg.asrkb.store.debug.DebugLogManager
 
 internal object PrivilegedKeepAliveScheduler {
 
@@ -21,6 +22,16 @@ internal object PrivilegedKeepAliveScheduler {
     fun update(context: Context) {
         val prefs = Prefs(context)
         val enabled = prefs.floatingKeepAliveEnabled && prefs.floatingKeepAlivePrivilegedEnabled
+        DebugLogManager.logPersistent(
+            context,
+            "keepalive",
+            "scheduler_update",
+            mapOf(
+                "enabled" to enabled,
+                "keepAlive" to prefs.floatingKeepAliveEnabled,
+                "privileged" to prefs.floatingKeepAlivePrivilegedEnabled
+            )
+        )
         if (enabled) {
             schedule(context)
         } else {
@@ -49,6 +60,7 @@ internal object PrivilegedKeepAliveScheduler {
         if (result != JobScheduler.RESULT_SUCCESS) {
             Log.w(TAG, "schedule privileged keep-alive job not success: $result")
         }
+        DebugLogManager.logPersistent(context, "keepalive", "scheduler_schedule", mapOf("result" to result))
     }
 
     fun cancel(context: Context) {
@@ -58,6 +70,6 @@ internal object PrivilegedKeepAliveScheduler {
         } catch (t: Throwable) {
             Log.w(TAG, "cancel privileged keep-alive job failed", t)
         }
+        DebugLogManager.logPersistent(context, "keepalive", "scheduler_cancel")
     }
 }
-
