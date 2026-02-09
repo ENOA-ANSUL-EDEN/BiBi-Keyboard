@@ -1,5 +1,22 @@
 # Changelog
 
+## v3.13.1 (2025-02-09)
+
+### New Features
+
+- **Shizuku/Root Enhanced Keep-Alive**: Added Shizuku/Root enhanced keep-alive feature for improved background stability
+- **Built-in Prompts Multilingual Support**: Implemented multilingual support for built-in prompts, enhancing user experience for different language speakers
+- **LLM Test Cancellation**: Added LLM test cancellation feature
+- **[Pro] New AI Assistant Feature**: Added AI assistant feature in Pro version, triggered by keywords
+- **[Pro] Hotword Injection Optimization**: When enabling hotword injection AI post-processing
+
+### Improvements
+
+- **Floating Ball Recording Animation**: Optimized floating ball recording breathing animation effect
+- **LLM Temperature Settings**: Updated default temperature value
+
+---
+
 ## v3.13.0 (2025-02-01)
 
 ### New Features
