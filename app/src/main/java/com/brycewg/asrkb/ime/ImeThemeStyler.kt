@@ -4,7 +4,6 @@ import android.content.Context
 import android.view.View
 import android.view.Window
 import androidx.core.graphics.ColorUtils
-import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.ViewCompat
 import com.brycewg.asrkb.UiColorTokens
@@ -38,10 +37,9 @@ internal class ImeThemeStyler {
         onSystemBarsBottomInsetChanged: (bottom: Int) -> Unit
     ) {
         ViewCompat.setOnApplyWindowInsetsListener(rootView) { _, windowInsets ->
-            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
-            onSystemBarsBottomInsetChanged(insets.bottom)
+            val bottom = ImeInsetsResolver.resolveBottomInset(windowInsets, rootView.resources)
+            onSystemBarsBottomInsetChanged(bottom)
             windowInsets
         }
     }
 }
-

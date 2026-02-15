@@ -7,7 +7,6 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
 import com.brycewg.asrkb.R
 import com.brycewg.asrkb.store.Prefs
 import com.brycewg.asrkb.store.debug.DebugLogManager
@@ -71,8 +70,8 @@ internal class ImeLayoutController(
         // 同步一次当前 RootWindowInsets，避免首次缩放时 bottom inset 尚未写入导致底部裁剪
         run {
             val rw = ViewCompat.getRootWindowInsets(root) ?: return@run
-            val b = rw.getInsets(WindowInsetsCompat.Type.systemBars()).bottom
-            if (b > 0) systemNavBarBottomInset = b
+            val b = ImeInsetsResolver.resolveBottomInset(rw, root.resources)
+            systemNavBarBottomInset = b
         }
 
         // 应用底部间距（无论是否缩放都需要）
@@ -365,23 +364,29 @@ internal class ImeLayoutController(
 
         val beforeContentTop = outInsets.contentTopInsets
         val beforeVisibleTop = outInsets.visibleTopInsets
-        if (beforeContentTop > 0) return
 
-        var top = 0
+        val topByHeight = (decorH - inputH).coerceIn(0, decorH)
+        var locationTop = -1
         run {
             try {
                 val loc = IntArray(2)
                 input.getLocationInWindow(loc)
-                if (loc[1] > 0) top = loc[1]
+                locationTop = loc[1]
             } catch (t: Throwable) {
                 android.util.Log.w("AsrKeyboardService", "fixImeInsets getLocationInWindow failed", t)
             }
         }
-        if (top <= 0) top = decorH - inputH
-        top = top.coerceIn(0, decorH)
+        val top = if (locationTop in 0 until decorH) {
+            minOf(locationTop, topByHeight)
+        } else {
+            topByHeight
+        }
 
-        // window 明显高于 inputView，但系统仍认为 contentTopInsets=0 -> 典型异常场景
-        val needsFix = top > 0 && decorH > inputH
+        val correctionThresholdPx = (decor.resources.displayMetrics.density * 2f + 0.5f).toInt().coerceAtLeast(1)
+        val needsColdStartFix = beforeContentTop <= 0
+        // 系统给出的 contentTopInsets 偏大时会导致宿主上移不足，出现输入框被键盘遮挡。
+        val needsOverlapFix = beforeContentTop > top + correctionThresholdPx
+        val needsFix = top > 0 && decorH > inputH && (needsColdStartFix || needsOverlapFix)
         if (!needsFix) return
 
         outInsets.contentTopInsets = top
@@ -399,6 +404,11 @@ internal class ImeLayoutController(
                 "inputH" to inputH,
                 "beforeContentTop" to beforeContentTop,
                 "beforeVisibleTop" to beforeVisibleTop,
+                "topByHeight" to topByHeight,
+                "locationTop" to locationTop,
+                "needsColdStartFix" to needsColdStartFix,
+                "needsOverlapFix" to needsOverlapFix,
+                "correctionThresholdPx" to correctionThresholdPx,
                 "afterTop" to top
             )
         )
