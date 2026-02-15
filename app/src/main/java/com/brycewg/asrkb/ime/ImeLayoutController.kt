@@ -69,9 +69,15 @@ internal class ImeLayoutController(
 
         // 同步一次当前 RootWindowInsets，避免首次缩放时 bottom inset 尚未写入导致底部裁剪
         run {
-            val rw = ViewCompat.getRootWindowInsets(root) ?: return@run
-            val b = ImeInsetsResolver.resolveBottomInset(rw, root.resources)
-            systemNavBarBottomInset = b
+            val rw = ViewCompat.getRootWindowInsets(root)
+            var b = if (rw != null) ImeInsetsResolver.resolveBottomInset(rw, root.resources) else 0
+            if (b <= 0) {
+                val decor = root.rootView
+                b = decor.findViewById<View>(android.R.id.navigationBarBackground)?.height ?: 0
+            }
+            if (b > 0) {
+                systemNavBarBottomInset = b
+            }
         }
 
         // 应用底部间距（无论是否缩放都需要）
@@ -333,6 +339,8 @@ internal class ImeLayoutController(
         // 确保麦克风容器在最上层，避免被其它 overlay 遮挡
         refs?.groupMicStatus?.bringToFront()
     }
+
+    fun hasResolvedBottomInset(): Boolean = systemNavBarBottomInset > 0
 
     fun fixImeInsetsIfNeeded(
         imeViewVisible: Boolean,

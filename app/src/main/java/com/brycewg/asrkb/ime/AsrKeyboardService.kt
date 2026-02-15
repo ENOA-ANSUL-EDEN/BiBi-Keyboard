@@ -51,6 +51,7 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
 
     companion object {
         const val ACTION_REFRESH_IME_UI = "com.brycewg.asrkb.action.REFRESH_IME_UI"
+        private val INSETS_WARMUP_DELAYS_MS = longArrayOf(32L, 96L, 220L)
     }
 
     override fun attachBaseContext(newBase: android.content.Context?) {
@@ -226,7 +227,10 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
         layoutController?.applyKeyboardHeightScale()
         rootView?.requestLayout()
         // 冷启动首帧偶现 system insets 迟到/不稳定：主动触发一次重新分发，降低高度异常概率
-        rootView?.let { androidx.core.view.ViewCompat.requestApplyInsets(it) }
+        rootView?.let {
+            androidx.core.view.ViewCompat.requestApplyInsets(it)
+            scheduleInsetsWarmup(it)
+        }
         DebugLogManager.log(
             category = "ime",
             event = "start_input_view",
@@ -518,6 +522,19 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
         micGestureController?.bindOverlayButtons()
         mainKeyboardBinder?.bind()
         extensionButtonsController?.bindListeners()
+    }
+
+    private fun scheduleInsetsWarmup(view: View) {
+        INSETS_WARMUP_DELAYS_MS.forEach { delayMs ->
+            view.postDelayed({
+                if (!imeViewVisible) return@postDelayed
+                if (rootView !== view) return@postDelayed
+                if (layoutController?.hasResolvedBottomInset() == true) return@postDelayed
+                androidx.core.view.ViewCompat.requestApplyInsets(view)
+                layoutController?.applyKeyboardHeightScale()
+                view.requestLayout()
+            }, delayMs)
+        }
     }
 
     private fun showAiEditPanel() {
