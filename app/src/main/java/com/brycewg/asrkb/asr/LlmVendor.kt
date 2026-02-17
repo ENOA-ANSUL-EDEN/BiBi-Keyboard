@@ -321,6 +321,29 @@ enum class LlmVendor(
         )
     ),
 
+    /** Alibaba DashScope - 阿里云百炼 */
+    DASHSCOPE(
+        id = "dashscope",
+        displayNameResId = R.string.llm_vendor_dashscope,
+        endpoint = "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        defaultModel = "qwen3.5-plus",
+        models = listOf(
+            "qwen3.5-plus",
+            "qwen3.5-397b-a17b",
+            "qwen3-max"
+        ),
+        registerUrl = "https://dashscope.aliyun.com/",
+        guideUrl = "https://help.aliyun.com/zh/dashscope/",
+        temperatureMin = 0f,
+        temperatureMax = 2f,
+        reasoningMode = ReasoningMode.ENABLE_THINKING,
+        reasoningModels = setOf(
+            "qwen3.5-plus",
+            "qwen3.5-397b-a17b",
+            "qwen3-max"
+        )
+    ),
+
     /** Custom - user-defined OpenAI-compatible API */
     CUSTOM(
         id = "custom",
@@ -362,6 +385,7 @@ enum class LlmVendor(
             CEREBRAS.id -> CEREBRAS
             OHMYGPT.id -> OHMYGPT
             FIREWORKS.id -> FIREWORKS
+            DASHSCOPE.id -> DASHSCOPE
             CUSTOM.id -> CUSTOM
             else -> SF_FREE
         }
@@ -376,13 +400,14 @@ enum class LlmVendor(
             ZHIPU,        // 3. Domestic
             MOONSHOT,     // 4. Domestic
             VOLCENGINE,   // 5. Domestic
-            OPENAI,       // 6. International
-            GEMINI,       // 7. International
-            GROQ,         // 8. International - free tier
-            CEREBRAS,     // 9. International - free tier
-            FIREWORKS,    // 10. International - fast inference
-            OHMYGPT,      // 11. Relay platform
-            CUSTOM        // 12. Custom
+            DASHSCOPE,    // 6. Domestic - Alibaba
+            OPENAI,       // 7. International
+            GEMINI,       // 8. International
+            GROQ,         // 9. International - free tier
+            CEREBRAS,     // 10. International - free tier
+            FIREWORKS,    // 11. International - fast inference
+            OHMYGPT,      // 12. Relay platform
+            CUSTOM        // 13. Custom
         )
 
         /** Get built-in vendors (excluding custom) */
