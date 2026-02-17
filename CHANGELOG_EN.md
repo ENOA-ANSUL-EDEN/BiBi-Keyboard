@@ -1,5 +1,20 @@
 # Changelog
 
+## v3.13.2 (2025-02-17)
+
+### New Features
+
+- **Alibaba Dashscope LLM Provider**: Added Alibaba Dashscope as a new LLM provider option
+- **[Pro] Hotword Trigger Frequency Statistics**: Added hotword trigger count in hotword management interface to help users optimize their hotword list
+
+### Improvements
+
+- **Shizuku/Root Privilege Manager**: Refactored Shizuku/Root privilege manager for improved stability and maintainability
+- **Keyboard Panel Stability**: Unified IME bottom inset resolution logic across different ROMs, added bottom inset warm-up mechanism to improve keyboard panel stability
+- **Soniox Model Update**: Updated Soniox streaming engine model version to stt-rt-v4
+
+---
+
 ## v3.13.1 (2025-02-09)
 
 ### New Features
