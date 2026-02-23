@@ -300,7 +300,7 @@ class Prefs(context: Context) {
 
     // 悬浮球语音识别模式开关
     var floatingAsrEnabled: Boolean
-        get() = sp.getBoolean(KEY_FLOATING_ASR_ENABLED, true)
+        get() = sp.getBoolean(KEY_FLOATING_ASR_ENABLED, false)
         set(value) = sp.edit { putBoolean(KEY_FLOATING_ASR_ENABLED, value) }
 
     // 悬浮球：前台保活开关
