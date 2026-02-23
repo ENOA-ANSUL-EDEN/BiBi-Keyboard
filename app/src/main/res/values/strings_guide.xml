@@ -28,4 +28,51 @@
     <string name="guide_mic_icon_desc">Microphone icon</string>
     <string name="guide_ai_icon_desc">AI processing icon</string>
     <string name="guide_floating_icon_desc">Floating ball icon</string>
+
+    <!-- Onboarding V2 -->
+    <string name="onboarding_title">Getting Started</string>
+    <string name="onboarding_page_indicator">Page %1$d/%2$d</string>
+    <string name="onboarding_btn_skip">Skip</string>
+    <string name="onboarding_btn_prev">Back</string>
+    <string name="onboarding_btn_next">Next</string>
+    <string name="onboarding_btn_finish">Finish</string>
+
+    <string name="onboarding_permissions_title">Permissions Setup</string>
+    <string name="onboarding_permissions_desc">Enable permissions as needed. You can skip any item now and configure it later.</string>
+    <string name="onboarding_permissions_required_title">Required for Core Usage</string>
+    <string name="onboarding_permissions_required_desc">These are recommended for basic voice input workflow.</string>
+    <string name="onboarding_permissions_optional_title">Optional Permissions</string>
+    <string name="onboarding_permissions_optional_desc">These improve compatibility and stability in specific scenarios.</string>
+    <string name="onboarding_permission_ime_enable_title">Enable BiBi Keyboard</string>
+    <string name="onboarding_permission_ime_enable_desc">Enable BiBi Keyboard in system input-method settings.</string>
+    <string name="onboarding_permission_ime_switch_title">Switch to BiBi Keyboard</string>
+    <string name="onboarding_permission_ime_switch_desc">Open input-method picker and switch current keyboard to BiBi Keyboard.</string>
+    <string name="onboarding_permission_mic_title">Microphone Permission</string>
+    <string name="onboarding_permission_mic_desc">Required to record audio for speech recognition.</string>
+    <string name="onboarding_permission_overlay_title">Overlay Permission</string>
+    <string name="onboarding_permission_overlay_desc">Required when using floating-ball voice input.</string>
+    <string name="onboarding_permission_a11y_title">Accessibility Service</string>
+    <string name="onboarding_permission_a11y_desc">Improves text insertion compatibility for floating-ball mode.</string>
+    <string name="onboarding_permission_notif_title">Notification Permission</string>
+    <string name="onboarding_permission_notif_desc">Used for background service and download notifications.</string>
+    <string name="onboarding_permission_status_granted">Status: Enabled</string>
+    <string name="onboarding_permission_status_missing">Status: Not enabled</string>
+    <string name="onboarding_permission_btn_go_enable">Enable</string>
+    <string name="onboarding_permission_btn_enabled">Enabled</string>
+
+    <string name="onboarding_asr_title">Choose Speech Recognition Service</string>
+    <string name="onboarding_asr_desc">Pick a mode that fits your needs. You can change it later in settings.</string>
+    <string name="onboarding_asr_btn_apply">Apply Choice</string>
+    <string name="onboarding_asr_btn_skip">Set up later</string>
+
+    <string name="onboarding_privacy_title">Privacy &amp; Data</string>
+    <string name="onboarding_privacy_desc">You can choose whether to enable anonymous analytics for product improvement.</string>
+    <string name="onboarding_privacy_hint">No recognition text or personal content will be uploaded. This can be changed anytime.</string>
+
+    <string name="onboarding_links_title">Related Information</string>
+    <string name="onboarding_links_desc">Learn more about the project and available editions.</string>
+    <string name="onboarding_links_project">Open Project Page</string>
+    <string name="onboarding_links_website">Open Project Website</string>
+    <string name="onboarding_links_docs">Open Documentation</string>
+    <string name="onboarding_links_pro">Learn About Pro</string>
 </resources>

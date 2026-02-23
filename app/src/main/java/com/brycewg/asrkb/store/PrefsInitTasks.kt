@@ -38,9 +38,24 @@ internal object PrefsInitTasks {
 
     fun run(appContext: Context, sp: SharedPreferences) {
         registerGlobalToggleListenerIfNeeded(sp)
+        migrateOnboardingGuideStateIfNeeded(sp)
         migrateFunAsrFromSenseVoiceIfNeeded(sp)
         normalizeFunAsrVariantIfNeeded(sp)
         cleanupLegacyFunAsrModelsIfNeeded(appContext, sp)
+    }
+
+    private fun migrateOnboardingGuideStateIfNeeded(sp: SharedPreferences) {
+        try {
+            if (sp.getBoolean(KEY_SHOWN_ONBOARDING_GUIDE_V2_ONCE, false)) return
+
+            val shownQuickGuide = sp.getBoolean(KEY_SHOWN_QUICK_GUIDE_ONCE, false)
+            val shownModelGuide = sp.getBoolean(KEY_SHOWN_MODEL_GUIDE_ONCE, false)
+            if (shownQuickGuide || shownModelGuide) {
+                sp.edit { putBoolean(KEY_SHOWN_ONBOARDING_GUIDE_V2_ONCE, true) }
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "Failed to migrate onboarding guide state", t)
+        }
     }
 
     private fun registerGlobalToggleListenerIfNeeded(sp: SharedPreferences) {
@@ -127,4 +142,3 @@ internal object PrefsInitTasks {
         }
     }
 }
-

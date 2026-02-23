@@ -46,6 +46,8 @@ import com.brycewg.asrkb.ui.settings.other.OtherSettingsActivity
 import com.brycewg.asrkb.ui.settings.floating.FloatingSettingsActivity
 import com.brycewg.asrkb.ui.settings.backup.BackupSettingsActivity
 import com.brycewg.asrkb.ui.settings.search.SettingsSearchActivity
+import com.brycewg.asrkb.ui.setup.OnboardingActionExecutor
+import com.brycewg.asrkb.ui.setup.OnboardingGuideActivity
 import com.brycewg.asrkb.analytics.AnalyticsManager
 import com.brycewg.asrkb.util.HapticFeedbackHelper
 import com.google.android.material.bottomsheet.BottomSheetDialog
@@ -167,15 +169,13 @@ class SettingsActivity : BaseActivity() {
         // 若处于一键设置流程中，返回后继续推进
         advanceSetupIfInProgress()
 
-        // 首次进入时自动展示快速上手指南（首次需等待 5s 才能关闭）
-        // 使用指南关闭后会自动显示模型选择引导
-        maybeAutoShowQuickGuideOnFirstOpen()
+        // 首次进入时自动展示新手引导页（仅一次）
+        maybeAutoShowOnboardingGuideOnFirstOpen()
 
         // 版本升级后显示 Pro 版宣传弹窗（仅显示一次，且不与其他引导弹窗冲突）
         maybeShowProPromoOnUpgrade()
 
-        // 版本升级后首次进入设置，显示匿名数据采集同意弹窗（仅一次）
-        maybeShowDataCollectionConsentOnUpgrade()
+        // 匿名数据采集选择已整合进新手引导页，此处不再自动弹窗
     }
 
     override fun onStop() {
@@ -263,7 +263,7 @@ class SettingsActivity : BaseActivity() {
         // 快速指南
         findViewById<Button>(R.id.btnShowGuide)?.setOnClickListener { v ->
             hapticTapIfEnabled(v)
-            showQuickGuide()
+            openOnboardingGuide()
         }
 
         // 手动检查更新入口
@@ -978,6 +978,29 @@ class SettingsActivity : BaseActivity() {
     // ==================== 其他辅助功能 ====================
 
     /**
+     * 打开新手引导页（支持左右滑动）。
+     */
+    private fun openOnboardingGuide() {
+        startActivity(Intent(this, OnboardingGuideActivity::class.java))
+    }
+
+    /**
+     * 首次进入设置页时自动展示新手引导页（仅一次）。
+     */
+    private fun maybeAutoShowOnboardingGuideOnFirstOpen() {
+        try {
+            val prefs = Prefs(this)
+            if (!prefs.hasShownOnboardingGuideV2Once) {
+                // 进入即标记，避免因中途返回导致重复弹出
+                prefs.hasShownOnboardingGuideV2Once = true
+                openOnboardingGuide()
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "Failed to maybe auto show onboarding guide", t)
+        }
+    }
+
+    /**
      * 显示快速指南对话框
      */
     private fun showQuickGuide(minCloseDelayMs: Long = 0L) {
@@ -1217,6 +1240,7 @@ class SettingsActivity : BaseActivity() {
         val cardSfFree = dialogView.findViewById<com.google.android.material.card.MaterialCardView>(R.id.cardSiliconFlowFree)
         val cardLocal = dialogView.findViewById<com.google.android.material.card.MaterialCardView>(R.id.cardLocalModel)
         val cardOnline = dialogView.findViewById<com.google.android.material.card.MaterialCardView>(R.id.cardOnlineModel)
+        val actionExecutor = OnboardingActionExecutor(this)
 
         // 设置初始选中状态（硅基流动免费服务为默认）
         cardSfFree.isChecked = true
@@ -1255,37 +1279,18 @@ class SettingsActivity : BaseActivity() {
                 when {
                     cardSfFree.isChecked -> {
                         // 选择硅基流动免费服务：设置 vendor 和启用免费服务
-                        val prefs = Prefs(this)
-                        prefs.asrVendor = com.brycewg.asrkb.asr.AsrVendor.SiliconFlow
-                        prefs.sfFreeAsrEnabled = true
-                        prefs.sfFreeLlmEnabled = true
+                        actionExecutor.applySiliconFlowFree()
                         dialog.dismiss()
-                        Toast.makeText(
-                            this,
-                            getString(R.string.model_guide_sf_free_ready),
-                            Toast.LENGTH_SHORT
-                        ).show()
                     }
                     cardLocal.isChecked -> {
                         // 选择本地模型：先切换 vendor，然后显示镜像源选择
-                        val prefs = Prefs(this)
-                        prefs.asrVendor = com.brycewg.asrkb.asr.AsrVendor.SenseVoice
-                        prefs.svModelVariant = "small-int8"
-                        prefs.sfFreeAsrEnabled = false
-                        prefs.sfFreeLlmEnabled = false
-
                         dialog.dismiss()
-
-                        // 显示镜像源选择对话框
-                        showModelDownloadSourceDialog()
+                        actionExecutor.applyLocalModel()
                     }
                     cardOnline.isChecked -> {
                         // 选择在线模型：禁用免费服务，显示配置指南对话框
-                        val prefs = Prefs(this)
-                        prefs.sfFreeAsrEnabled = false
-                        prefs.sfFreeLlmEnabled = false
                         dialog.dismiss()
-                        showOnlineModelConfigGuide()
+                        actionExecutor.applyOnlineCustom()
                     }
                     else -> {
                         // 未选择任何选项，提示用户

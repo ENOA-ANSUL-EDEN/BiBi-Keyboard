@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/onboarding_asr_title"
+            android:textColor="?attr/colorOnSurface"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="@string/onboarding_asr_desc"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textSize="14sp" />
+
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardOnboardingSiliconFlowFree"
+            style="@style/DialogSelectionCard"
+            android:layout_marginTop="12dp"
+            android:checked="true">
+
+            <LinearLayout
+                style="@style/DialogCardContent">
+
+                <TextView
+                    style="@style/DialogCardTitle"
+                    android:text="@string/model_guide_option_sf_free" />
+
+                <TextView
+                    style="@style/DialogCardDesc"
+                    android:text="@string/model_guide_option_sf_free_desc" />
+
+                <TextView
+                    style="@style/DialogCardAction"
+                    android:text="@string/model_guide_option_sf_free_action" />
+
+            </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardOnboardingLocalModel"
+            style="@style/DialogSelectionCard"
+            android:checked="false">
+
+            <LinearLayout
+                style="@style/DialogCardContent">
+
+                <TextView
+                    style="@style/DialogCardTitle"
+                    android:text="@string/model_guide_option_local" />
+
+                <TextView
+                    style="@style/DialogCardDesc"
+                    android:text="@string/model_guide_option_local_desc" />
+
+                <TextView
+                    style="@style/DialogCardAction"
+                    android:text="@string/model_guide_option_local_action" />
+
+            </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardOnboardingOnlineModel"
+            style="@style/DialogSelectionCard"
+            android:checked="false">
+
+            <LinearLayout
+                style="@style/DialogCardContent">
+
+                <TextView
+                    style="@style/DialogCardTitle"
+                    android:text="@string/model_guide_option_online" />
+
+                <TextView
+                    style="@style/DialogCardDesc"
+                    android:text="@string/model_guide_option_online_desc" />
+
+                <TextView
+                    style="@style/DialogCardAction"
+                    android:text="@string/model_guide_option_online_action" />
+
+            </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
+
+    </LinearLayout>
+
+</ScrollView>

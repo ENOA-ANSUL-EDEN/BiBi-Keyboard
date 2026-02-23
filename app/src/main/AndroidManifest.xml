@@ -53,6 +53,11 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".ui.setup.OnboardingGuideActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
         
         <!-- 直接子设置页（无中间层） -->
 

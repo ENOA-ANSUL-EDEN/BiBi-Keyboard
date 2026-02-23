@@ -148,6 +148,11 @@ internal object PrefsBackup {
         } catch (t: Throwable) {
             Log.w(TAG, "Failed to export first use date", t)
         }
+        try {
+            o.put(KEY_SHOWN_ONBOARDING_GUIDE_V2_ONCE, hasShownOnboardingGuideV2Once)
+        } catch (t: Throwable) {
+            Log.w(TAG, "Failed to export onboarding guide state", t)
+        }
         // 写入兼容/粘贴方案
         o.put(KEY_FLOATING_WRITE_COMPAT_ENABLED, floatingWriteTextCompatEnabled)
         o.put(KEY_FLOATING_WRITE_COMPAT_PACKAGES, floatingWriteCompatPackages)
@@ -419,6 +424,7 @@ internal object PrefsBackup {
             // 历史记录纳入恢复范围
             optString(KEY_ASR_HISTORY_JSON)?.let { setPrefString(KEY_ASR_HISTORY_JSON, it) }
             optString(KEY_FIRST_USE_DATE)?.let { firstUseDate = it }
+            optBool(KEY_SHOWN_ONBOARDING_GUIDE_V2_ONCE)?.let { hasShownOnboardingGuideV2Once = it }
             // SenseVoice（本地 ASR）
             optString(KEY_SV_MODEL_DIR)?.let { svModelDir = it }
             optString(KEY_SV_MODEL_VARIANT)?.let { svModelVariant = it }

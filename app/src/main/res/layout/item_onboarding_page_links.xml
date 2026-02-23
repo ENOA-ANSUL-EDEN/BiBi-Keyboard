@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/onboarding_links_title"
+            android:textColor="?attr/colorOnSurface"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="@string/onboarding_links_desc"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textSize="14sp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnOnboardingOpenProject"
+            style="@style/SettingsTonalButton"
+            android:layout_marginTop="14dp"
+            android:text="@string/onboarding_links_project" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnOnboardingOpenWebsite"
+            style="@style/SettingsTonalButton"
+            android:text="@string/onboarding_links_website" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnOnboardingOpenDocs"
+            style="@style/SettingsTonalButton"
+            android:text="@string/onboarding_links_docs" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnOnboardingLearnPro"
+            style="@style/Widget.Material3.Button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/onboarding_links_pro" />
+
+    </LinearLayout>
+
+</ScrollView>

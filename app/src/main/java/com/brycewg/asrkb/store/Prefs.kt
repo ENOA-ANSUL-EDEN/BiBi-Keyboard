@@ -1065,6 +1065,11 @@ class Prefs(context: Context) {
         get() = sp.getBoolean(KEY_SHOWN_MODEL_GUIDE_ONCE, false)
         set(value) = sp.edit { putBoolean(KEY_SHOWN_MODEL_GUIDE_ONCE, value) }
 
+    // 新手引导页（V2）是否已展示
+    var hasShownOnboardingGuideV2Once: Boolean
+        get() = sp.getBoolean(KEY_SHOWN_ONBOARDING_GUIDE_V2_ONCE, false)
+        set(value) = sp.edit { putBoolean(KEY_SHOWN_ONBOARDING_GUIDE_V2_ONCE, value) }
+
     // Pro 版宣传弹窗是否已显示过
     var proPromoShown: Boolean
         get() = sp.getBoolean(KEY_PRO_PROMO_SHOWN, false)

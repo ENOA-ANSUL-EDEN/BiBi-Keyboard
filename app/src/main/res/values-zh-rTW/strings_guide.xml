@@ -28,4 +28,51 @@
     <string name="guide_mic_icon_desc">麥克風圖示</string>
     <string name="guide_ai_icon_desc">AI 處理圖示</string>
     <string name="guide_floating_icon_desc">懸浮球圖示</string>
+
+    <!-- Onboarding V2 -->
+    <string name="onboarding_title">新手引導</string>
+    <string name="onboarding_page_indicator">第 %1$d/%2$d 頁</string>
+    <string name="onboarding_btn_skip">跳過</string>
+    <string name="onboarding_btn_prev">上一步</string>
+    <string name="onboarding_btn_next">下一步</string>
+    <string name="onboarding_btn_finish">完成</string>
+
+    <string name="onboarding_permissions_title">權限申請</string>
+    <string name="onboarding_permissions_desc">你可以按需逐項開啟權限，這裡所有權限都可先跳過，之後再設定。</string>
+    <string name="onboarding_permissions_required_title">必要應用權限</string>
+    <string name="onboarding_permissions_required_desc">建議優先開啟，可確保語音輸入核心流程穩定可用。</string>
+    <string name="onboarding_permissions_optional_title">可選權限</string>
+    <string name="onboarding_permissions_optional_desc">用於提升相容性與後台體驗，可依使用情境選擇是否開啟。</string>
+    <string name="onboarding_permission_ime_enable_title">啟用說點啥輸入法</string>
+    <string name="onboarding_permission_ime_enable_desc">在系統輸入法設定中啟用說點啥輸入法。</string>
+    <string name="onboarding_permission_ime_switch_title">切換到說點啥輸入法</string>
+    <string name="onboarding_permission_ime_switch_desc">開啟輸入法選擇器，將目前輸入法切換為說點啥。</string>
+    <string name="onboarding_permission_mic_title">麥克風權限</string>
+    <string name="onboarding_permission_mic_desc">用於錄音並執行語音辨識，是語音輸入的基礎權限。</string>
+    <string name="onboarding_permission_overlay_title">懸浮窗權限</string>
+    <string name="onboarding_permission_overlay_desc">使用懸浮球語音輸入時需要此權限。</string>
+    <string name="onboarding_permission_a11y_title">無障礙服務</string>
+    <string name="onboarding_permission_a11y_desc">用於提升懸浮球模式下的文字寫入相容性。</string>
+    <string name="onboarding_permission_notif_title">通知權限</string>
+    <string name="onboarding_permission_notif_desc">用於後台保活與模型下載等通知提醒。</string>
+    <string name="onboarding_permission_status_granted">狀態：已開啟</string>
+    <string name="onboarding_permission_status_missing">狀態：未開啟</string>
+    <string name="onboarding_permission_btn_go_enable">去開啟</string>
+    <string name="onboarding_permission_btn_enabled">已開啟</string>
+
+    <string name="onboarding_asr_title">語音辨識服務選擇</string>
+    <string name="onboarding_asr_desc">選擇你偏好的辨識模式，後續可在設定中隨時切換。</string>
+    <string name="onboarding_asr_btn_apply">套用選擇</string>
+    <string name="onboarding_asr_btn_skip">稍後設定</string>
+
+    <string name="onboarding_privacy_title">隱私與資料</string>
+    <string name="onboarding_privacy_desc">你可以決定是否啟用匿名資料蒐集來幫助改善產品體驗。</string>
+    <string name="onboarding_privacy_hint">不會上傳辨識文字與個人內容，之後可隨時在設定中調整。</string>
+
+    <string name="onboarding_links_title">相關資訊</string>
+    <string name="onboarding_links_desc">查看專案首頁、文件與 Pro 版本介紹。</string>
+    <string name="onboarding_links_project">查看專案首頁</string>
+    <string name="onboarding_links_website">查看專案官網</string>
+    <string name="onboarding_links_docs">查看專案文件</string>
+    <string name="onboarding_links_pro">了解 Pro</string>
 </resources>
