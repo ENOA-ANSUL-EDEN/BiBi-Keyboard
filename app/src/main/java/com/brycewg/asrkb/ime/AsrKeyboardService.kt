@@ -17,6 +17,7 @@ import com.brycewg.asrkb.R
 import com.brycewg.asrkb.asr.AsrVendor
 import com.brycewg.asrkb.asr.BluetoothRouteManager
 import com.brycewg.asrkb.asr.LlmPostProcessor
+import com.brycewg.asrkb.asr.partitionAsrVendorsByConfigured
 import com.brycewg.asrkb.store.Prefs
 import com.brycewg.asrkb.util.HapticFeedbackHelper
 import com.brycewg.asrkb.ui.SettingsActivity
@@ -773,12 +774,12 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
     }
 
     private fun showVendorPicker(anchor: View) {
-        val vendors = AsrVendorUi.ordered()
-        val names = AsrVendorUi.names(this)
+        val vendors = partitionAsrVendorsByConfigured(this, prefs, AsrVendorUi.ordered()).configured
+        if (vendors.isEmpty()) return
         val popup = PopupMenu(anchor.context, anchor)
         val cur = prefs.asrVendor
         vendors.forEachIndexed { idx, v ->
-            val item = popup.menu.add(0, idx, idx, names[idx])
+            val item = popup.menu.add(0, idx, idx, AsrVendorUi.name(this, v))
             item.isCheckable = true
             if (v == cur) item.isChecked = true
         }

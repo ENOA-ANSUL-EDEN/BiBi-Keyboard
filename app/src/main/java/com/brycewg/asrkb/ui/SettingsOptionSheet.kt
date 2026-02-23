@@ -36,6 +36,16 @@ object SettingsOptionSheet {
     val tags: List<Tag>
   )
 
+  data class TaggedIndexedItem(
+    val originalIndex: Int,
+    val item: TaggedItem
+  )
+
+  data class TaggedGroup(
+    val label: String,
+    val items: List<TaggedIndexedItem>
+  )
+
   fun showSingleChoice(
     context: Context,
     @StringRes titleResId: Int,
@@ -119,6 +129,54 @@ object SettingsOptionSheet {
       HapticFeedbackHelper.performTap(context, prefs, view)
       dialog.dismiss()
       context.mainExecutor.execute { onSelected(position) }
+    }
+
+    dialog.setContentView(contentView)
+    dialog.setOnShowListener {
+      listView.post { adjustBottomSheetHeight(dialog, contentView, listView) }
+    }
+    dialog.show()
+  }
+
+  fun showSingleChoiceTaggedGrouped(
+    context: Context,
+    @StringRes titleResId: Int,
+    groups: List<TaggedGroup>,
+    selectedIndex: Int,
+    onSelected: (Int) -> Unit
+  ) {
+    val visibleGroups = groups.filter { it.items.isNotEmpty() }
+    if (visibleGroups.isEmpty()) {
+      return
+    }
+
+    val dialog = BottomSheetDialog(context, R.style.SettingsBottomSheetDialog)
+    val contentView = LayoutInflater.from(context)
+      .inflate(R.layout.bottom_sheet_single_choice, null, false)
+    val titleView = contentView.findViewById<TextView>(R.id.tvBottomSheetTitle)
+    val listView = contentView.findViewById<ListView>(R.id.listBottomSheetOptions)
+    val prefs = Prefs(context)
+    var selectionHandled = false
+
+    titleView.setText(titleResId)
+    val adapter = GroupedTaggedChoiceAdapter(context, visibleGroups, selectedIndex)
+    listView.adapter = adapter
+    listView.choiceMode = ListView.CHOICE_MODE_SINGLE
+    capListHeightToMaxSheetHeight(contentView, listView)
+
+    val selectedPosition = adapter.positionOfOriginalIndex(selectedIndex)
+    if (selectedPosition >= 0) {
+      listView.setItemChecked(selectedPosition, true)
+      listView.setSelection(selectedPosition)
+    }
+
+    listView.setOnItemClickListener { _, view, position, _ ->
+      if (selectionHandled) return@setOnItemClickListener
+      val originalIndex = adapter.getOriginalIndex(position) ?: return@setOnItemClickListener
+      selectionHandled = true
+      HapticFeedbackHelper.performTap(context, prefs, view)
+      dialog.dismiss()
+      context.mainExecutor.execute { onSelected(originalIndex) }
     }
 
     dialog.setContentView(contentView)
@@ -239,6 +297,142 @@ object SettingsOptionSheet {
       val fg = ContextCompat.getColor(tagView.context, tag.textColorResId)
       tagView.backgroundTintList = ColorStateList.valueOf(bg)
       tagView.setTextColor(fg)
+    }
+  }
+
+  private sealed interface GroupedTaggedRow {
+    data class Divider(val label: String) : GroupedTaggedRow
+    data class Option(val originalIndex: Int, val item: TaggedItem) : GroupedTaggedRow
+  }
+
+  private class GroupedTaggedChoiceAdapter(
+    context: Context,
+    groups: List<TaggedGroup>,
+    private val selectedIndex: Int
+  ) : ArrayAdapter<GroupedTaggedRow>(context, 0) {
+    private val inflater = LayoutInflater.from(context)
+    private val rows: List<GroupedTaggedRow> = buildRows(groups)
+
+    init {
+      addAll(rows)
+    }
+
+    override fun areAllItemsEnabled(): Boolean = false
+
+    override fun isEnabled(position: Int): Boolean {
+      return getItem(position) is GroupedTaggedRow.Option
+    }
+
+    override fun getItemViewType(position: Int): Int {
+      return when (getItem(position)) {
+        is GroupedTaggedRow.Divider -> VIEW_TYPE_DIVIDER
+        is GroupedTaggedRow.Option -> VIEW_TYPE_OPTION
+        null -> VIEW_TYPE_OPTION
+      }
+    }
+
+    override fun getViewTypeCount(): Int = 2
+
+    override fun getCount(): Int = rows.size
+
+    override fun getItem(position: Int): GroupedTaggedRow? {
+      return rows.getOrNull(position)
+    }
+
+    override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+      return when (val row = getItem(position)) {
+        is GroupedTaggedRow.Divider -> {
+          val view = convertView
+            ?: inflater.inflate(R.layout.item_settings_bottom_sheet_section_divider, parent, false)
+          val title = view.findViewById<TextView>(R.id.tvSectionDividerLabel)
+          title.text = row.label
+          view
+        }
+
+        is GroupedTaggedRow.Option -> {
+          val view = convertView
+            ?: inflater.inflate(R.layout.item_settings_bottom_sheet_single_choice_tagged, parent, false)
+          val titleView = view.findViewById<CheckedTextView>(android.R.id.text1)
+          val tagGroup = view.findViewById<ChipGroup>(R.id.cgOptionTags)
+          val listView = parent as? ListView
+          view.setOnClickListener {
+            listView?.performItemClick(view, position, getItemId(position))
+          }
+
+          titleView.text = row.item.title
+          titleView.isChecked = row.originalIndex == selectedIndex
+          tagGroup.isClickable = false
+          tagGroup.isFocusable = false
+          tagGroup.isFocusableInTouchMode = false
+          tagGroup.isLongClickable = false
+
+          val tags = row.item.tags.filter { it.label.isNotBlank() }
+          if (tags.isEmpty()) {
+            tagGroup.visibility = View.GONE
+            if (tagGroup.childCount > 0) {
+              tagGroup.removeAllViews()
+            }
+          } else {
+            tagGroup.visibility = View.VISIBLE
+            while (tagGroup.childCount > tags.size) {
+              tagGroup.removeViewAt(tagGroup.childCount - 1)
+            }
+            while (tagGroup.childCount < tags.size) {
+              val tagView =
+                inflater.inflate(R.layout.item_settings_tag_chip, tagGroup, false) as TextView
+              tagGroup.addView(tagView)
+            }
+            for (index in tags.indices) {
+              val tag = tags[index]
+              val tagView = tagGroup.getChildAt(index) as TextView
+              tagView.text = tag.label
+              applyTagColors(tagView, tag)
+            }
+          }
+          view
+        }
+
+        null -> {
+          convertView
+            ?: inflater.inflate(R.layout.item_settings_bottom_sheet_single_choice_tagged, parent, false)
+        }
+      }
+    }
+
+    fun getOriginalIndex(position: Int): Int? {
+      return (getItem(position) as? GroupedTaggedRow.Option)?.originalIndex
+    }
+
+    fun positionOfOriginalIndex(originalIndex: Int): Int {
+      return rows.indexOfFirst { row ->
+        (row as? GroupedTaggedRow.Option)?.originalIndex == originalIndex
+      }
+    }
+
+    private fun applyTagColors(tagView: TextView, tag: Tag) {
+      val bg = ContextCompat.getColor(tagView.context, tag.bgColorResId)
+      val fg = ContextCompat.getColor(tagView.context, tag.textColorResId)
+      tagView.backgroundTintList = ColorStateList.valueOf(bg)
+      tagView.setTextColor(fg)
+    }
+
+    private fun buildRows(groups: List<TaggedGroup>): List<GroupedTaggedRow> {
+      return buildList {
+        groups.forEachIndexed { groupIndex, group ->
+          if (group.items.isEmpty()) return@forEachIndexed
+          if (groupIndex > 0) {
+            add(GroupedTaggedRow.Divider(group.label))
+          }
+          group.items.forEach { item ->
+            add(GroupedTaggedRow.Option(item.originalIndex, item.item))
+          }
+        }
+      }
+    }
+
+    companion object {
+      private const val VIEW_TYPE_DIVIDER = 0
+      private const val VIEW_TYPE_OPTION = 1
     }
   }
 
