@@ -1,5 +1,20 @@
 # Changelog
 
+## v3.13.3 (2025-02-23)
+
+### New Features
+
+- **Initial Setup Guide**: Refactored initial configuration guide page for first-time users
+- **Keyboard Button Long-Press Hints**: Added long-press hint feature for keyboard buttons
+- **Provider Configuration Grouping**: Separated configured and unconfigured ASR and LLM providers into different groups
+- **Backup ASR Engine Timeout Sensitivity Setting**: Added timeout threshold sensitivity setting for backup ASR engine
+
+### Improvements
+
+- **SyncClipboard Compatibility**: Added support for new SyncClipboard version (v3.11.1 and above)
+
+---
+
 ## v3.13.2 (2025-02-17)
 
 ### New Features
