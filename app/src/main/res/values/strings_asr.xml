@@ -24,5 +24,5 @@
     <string name="asr_vendor_tag_chinese_dialect">Chinese dialects</string>
     <string name="asr_vendor_tag_accurate">Accurate</string>
     <string name="asr_vendor_group_configured">Configured</string>
-    <string name="asr_vendor_group_unconfigured">↓Not configured↓</string>
+    <string name="asr_vendor_group_unconfigured">Not configured</string>
 </resources>
