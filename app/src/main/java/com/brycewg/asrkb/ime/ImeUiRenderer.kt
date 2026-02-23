@@ -23,6 +23,7 @@ internal class ImeUiRenderer(
     private val copyTextToSystemClipboard: (label: String, text: String) -> Boolean,
 ) {
     private var clipboardPreviewTimeout: Runnable? = null
+    private var aiEditHintResetRunnable: Runnable? = null
 
     fun render(state: KeyboardState) {
         when (state) {
@@ -93,6 +94,17 @@ internal class ImeUiRenderer(
 
     fun updatePostprocIcon() {
         views.btnPostproc?.setImageResource(if (prefs.postProcessEnabled) R.drawable.magic_wand_fill else R.drawable.magic_wand)
+    }
+
+    fun showAiEditFunctionHint(message: String, autoHideMs: Long = 1500L) {
+        if (!isAiEditPanelVisible()) return
+        val tv = views.txtAiEditInfo ?: return
+        applyInfoBarMarquee(tv, enabled = true)
+        tv.text = message
+        aiEditHintResetRunnable?.let(tv::removeCallbacks)
+        val restoreRunnable = Runnable { render(actionHandler.getCurrentState()) }
+        aiEditHintResetRunnable = restoreRunnable
+        tv.postDelayed(restoreRunnable, autoHideMs)
     }
 
     fun showClipboardPreview(preview: ClipboardPreview) {

@@ -5,7 +5,9 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup
+import androidx.annotation.StringRes
 import androidx.appcompat.widget.PopupMenu
 import com.brycewg.asrkb.R
 import com.brycewg.asrkb.store.Prefs
@@ -18,6 +20,7 @@ internal class AiEditPanelController(
     private val actionHandler: KeyboardActionHandler,
     private val backspaceGestureHandler: BackspaceGestureHandler,
     private val performKeyHaptic: (View?) -> Unit,
+    private val showAiEditHint: (String) -> Unit,
     private val showPopupMenuKeepingIme: (PopupMenu) -> Unit,
     private val inputConnectionProvider: () -> android.view.inputmethod.InputConnection?,
     private val onRequestShowNumpad: (returnToAiPanel: Boolean) -> Unit,
@@ -32,6 +35,9 @@ internal class AiEditPanelController(
 
     private var repeatLeftRunnable: Runnable? = null
     private var repeatRightRunnable: Runnable? = null
+    private var undoHintRunnable: Runnable? = null
+    private var leftHintRunnable: Runnable? = null
+    private var rightHintRunnable: Runnable? = null
 
     fun bindListeners() {
         // AI 编辑面板返回按钮
@@ -96,9 +102,6 @@ internal class AiEditPanelController(
             performKeyHaptic(v)
             inputHelper.sendBackspace(inputConnectionProvider())
         }
-        views.btnAiPanelUndo?.setOnTouchListener { v, event ->
-            backspaceGestureHandler.handleTouchEvent(v, event, inputConnectionProvider())
-        }
 
         // AI 编辑面板：数字小键盘
         views.btnAiPanelNumpad?.setOnClickListener { v ->
@@ -106,6 +109,7 @@ internal class AiEditPanelController(
             onRequestShowNumpad(true)
         }
 
+        bindLongPressHints()
         setupCursorRepeatHandlers()
         applySelectionUi()
     }
@@ -286,12 +290,17 @@ internal class AiEditPanelController(
     private fun setupCursorRepeatHandlers() {
         val initialDelay = 350L
         val repeatInterval = 50L
+        val longPressTimeout = ViewConfiguration.getLongPressTimeout().toLong()
 
         views.btnAiPanelCursorLeft?.setOnTouchListener { v, ev ->
             when (ev.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     performKeyHaptic(v)
                     moveCursorBy(-1)
+                    leftHintRunnable?.let { v.removeCallbacks(it) }
+                    val hint = Runnable { showAiEditHint(context.getString(R.string.cd_cursor_left)) }
+                    leftHintRunnable = hint
+                    v.postDelayed(hint, longPressTimeout)
                     repeatLeftRunnable?.let { v.removeCallbacks(it) }
                     val r = Runnable {
                         moveCursorBy(-1)
@@ -302,6 +311,8 @@ internal class AiEditPanelController(
                     true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    leftHintRunnable?.let { v.removeCallbacks(it) }
+                    leftHintRunnable = null
                     repeatLeftRunnable?.let { v.removeCallbacks(it) }
                     repeatLeftRunnable = null
                     true
@@ -315,6 +326,10 @@ internal class AiEditPanelController(
                 MotionEvent.ACTION_DOWN -> {
                     performKeyHaptic(v)
                     moveCursorBy(1)
+                    rightHintRunnable?.let { v.removeCallbacks(it) }
+                    val hint = Runnable { showAiEditHint(context.getString(R.string.cd_cursor_right)) }
+                    rightHintRunnable = hint
+                    v.postDelayed(hint, longPressTimeout)
                     repeatRightRunnable?.let { v.removeCallbacks(it) }
                     val r = Runnable {
                         moveCursorBy(1)
@@ -325,6 +340,8 @@ internal class AiEditPanelController(
                     true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    rightHintRunnable?.let { v.removeCallbacks(it) }
+                    rightHintRunnable = null
                     repeatRightRunnable?.let { v.removeCallbacks(it) }
                     repeatRightRunnable = null
                     true
@@ -335,10 +352,16 @@ internal class AiEditPanelController(
     }
 
     private fun releaseCursorRepeatCallbacks() {
+        leftHintRunnable?.let { views.btnAiPanelCursorLeft?.removeCallbacks(it) }
+        leftHintRunnable = null
         repeatLeftRunnable?.let { views.btnAiPanelCursorLeft?.removeCallbacks(it) }
         repeatLeftRunnable = null
+        rightHintRunnable?.let { views.btnAiPanelCursorRight?.removeCallbacks(it) }
+        rightHintRunnable = null
         repeatRightRunnable?.let { views.btnAiPanelCursorRight?.removeCallbacks(it) }
         repeatRightRunnable = null
+        undoHintRunnable?.let { views.btnAiPanelUndo?.removeCallbacks(it) }
+        undoHintRunnable = null
     }
 
     private fun currentCursorPosition(): Int? {
@@ -384,5 +407,47 @@ internal class AiEditPanelController(
         views.btnAiPanelSelect?.isSelected = selectMode
         views.btnAiPanelSelect?.setImageResource(if (selectMode) R.drawable.selection_fill else R.drawable.selection_toggle)
         applySelectExtButtonsUi()
+    }
+
+    private fun bindLongPressHints() {
+        registerLongPressHint(views.btnAiEditPanelBack, R.string.cd_return_main)
+        registerLongPressHint(views.btnAiPanelApplyPreset, R.string.cd_apply_preset_prompt)
+        registerLongPressHint(views.btnAiPanelSpace, R.string.cd_space)
+        registerLongPressHint(views.btnAiPanelMoveStart, R.string.cd_move_home)
+        registerLongPressHint(views.btnAiPanelMoveEnd, R.string.cd_move_end)
+        registerLongPressHint(views.btnAiPanelSelect, R.string.cd_select_toggle)
+        registerLongPressHint(views.btnAiPanelSelectAll, R.string.cd_select_all)
+        registerLongPressHint(views.btnAiPanelCopy, R.string.cd_copy)
+        registerLongPressHint(views.btnAiPanelPaste, R.string.cd_paste)
+        registerLongPressHint(views.btnAiPanelNumpad, R.string.cd_numpad)
+        bindUndoTouchHint()
+    }
+
+    private fun registerLongPressHint(view: View?, @StringRes hintRes: Int) {
+        view?.setOnLongClickListener { v ->
+            performKeyHaptic(v)
+            showAiEditHint(context.getString(hintRes))
+            true
+        }
+    }
+
+    private fun bindUndoTouchHint() {
+        val longPressTimeout = ViewConfiguration.getLongPressTimeout().toLong()
+        views.btnAiPanelUndo?.setOnTouchListener { v, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    undoHintRunnable?.let { v.removeCallbacks(it) }
+                    val hint = Runnable { showAiEditHint(context.getString(R.string.cd_backspace)) }
+                    undoHintRunnable = hint
+                    v.postDelayed(hint, longPressTimeout)
+                }
+
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    undoHintRunnable?.let { v.removeCallbacks(it) }
+                    undoHintRunnable = null
+                }
+            }
+            backspaceGestureHandler.handleTouchEvent(v, event, inputConnectionProvider())
+        }
     }
 }

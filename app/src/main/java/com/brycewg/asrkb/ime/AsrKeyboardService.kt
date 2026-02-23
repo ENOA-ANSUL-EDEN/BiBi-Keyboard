@@ -427,6 +427,7 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
             actionHandler = actionHandler,
             backspaceGestureHandler = backspaceGestureHandler,
             performKeyHaptic = ::performKeyHaptic,
+            showAiEditHint = { message -> uiRenderer?.showAiEditFunctionHint(message) ?: Unit },
             showPopupMenuKeepingIme = ::showPopupMenuKeepingIme,
             inputConnectionProvider = { currentInputConnection },
             onRequestShowNumpad = { returnToAiPanel -> showNumpadPanel(returnToAiPanel) },
