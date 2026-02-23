@@ -31,7 +31,7 @@ internal class ZhipuAsrSettingsSection : AsrSettingsSection {
 
         binding.view<MaterialButton>(R.id.btnZhipuGetKey).setOnClickListener { v ->
             binding.hapticTapIfEnabled(v)
-            binding.openUrlSafely("https://bigmodel.cn/usercenter/proj-mgmt/apikeys")
+            binding.openUrlSafely("https://bibidocs.brycewg.com/getting-started/asr-providers.html#%E6%99%BA%E8%B0%B1-glm")
         }
     }
 }

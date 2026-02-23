@@ -44,7 +44,7 @@ internal class GeminiAsrSettingsSection : AsrSettingsSection {
 
         binding.view<MaterialButton>(R.id.btnGeminiGetKey).setOnClickListener { v ->
             binding.hapticTapIfEnabled(v)
-            binding.openUrlSafely("https://brycewg.notion.site/bibi-keyboard-providers-guide")
+            binding.openUrlSafely("https://bibidocs.brycewg.com/getting-started/asr-providers.html#gemini")
         }
     }
 }

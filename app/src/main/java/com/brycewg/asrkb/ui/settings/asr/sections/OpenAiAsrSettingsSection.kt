@@ -47,7 +47,7 @@ internal class OpenAiAsrSettingsSection : AsrSettingsSection {
 
         binding.view<MaterialButton>(R.id.btnOpenAiGetKey).setOnClickListener { v ->
             binding.hapticTapIfEnabled(v)
-            binding.openUrlSafely("https://brycewg.notion.site/bibi-keyboard-providers-guide")
+            binding.openUrlSafely("https://bibidocs.brycewg.com/getting-started/asr-providers.html#openai-%E5%85%BC%E5%AE%B9%E6%8E%A5%E5%8F%A3")
         }
     }
 

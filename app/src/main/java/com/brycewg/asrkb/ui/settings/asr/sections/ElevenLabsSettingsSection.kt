@@ -35,7 +35,7 @@ internal class ElevenLabsSettingsSection : AsrSettingsSection {
 
         binding.view<MaterialButton>(R.id.btnElevenGetKey).setOnClickListener { v ->
             binding.hapticTapIfEnabled(v)
-            binding.openUrlSafely("https://brycewg.notion.site/bibi-keyboard-providers-guide")
+            binding.openUrlSafely("https://bibidocs.brycewg.com/getting-started/asr-providers.html#elevenlabs")
         }
     }
 
