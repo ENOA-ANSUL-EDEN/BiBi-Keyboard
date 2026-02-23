@@ -1283,7 +1283,7 @@ class Prefs(context: Context) {
 
         // DashScope 默认
         const val DEFAULT_DASH_MODEL = "qwen3-asr-flash"
-        const val DASH_MODEL_QWEN3_REALTIME = "qwen3-asr-flash-realtime"
+        const val DASH_MODEL_QWEN3_REALTIME = "qwen3-asr-flash-realtime-2026-02-10"
         const val DASH_MODEL_FUN_ASR_REALTIME = "fun-asr-realtime"
         // Gemini 默认
         const val DEFAULT_GEM_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta"
