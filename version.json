@@ -1,11 +1,11 @@
 {
-  "version": "3.13.2",
-  "version_code": 145,
-  "download_url": "https://github.com/BryceWG/BiBi-Keyboard/releases/tag/v3.13.2",
-  "release_notes": "### 新增功能\n\n- **阿里云百炼 LLM 供应商**: 添加阿里云百炼作为新的后处理模型供应商选项\n- **[Pro]热词触发频率统计**: 在热词管理界面添加热词触发计数，帮助用户优化热词列表\n\n### 改进优化\n\n- **Shizuku/Root 权限管理器**: 重构 Shizuku/Root 权限管理器，提升稳定性和可维护性\n- **键盘面板稳定性**: 统一不同 ROM 的输入法底部间距解析逻辑，添加底部间距预热机制以提高键盘面板的稳定性\n- **Soniox 模型更新**: 更新 Soniox 流式引擎模型版本至 stt-rt-v4",
-  "release_notes_en": "### New Features\n\n- **Alibaba Dashscope LLM Provider**: Added Alibaba Dashscope as a new LLM provider option\n- **[Pro] Hotword Trigger Frequency Statistics**: Added hotword trigger count in hotword management interface to help users optimize their hotword list\n\n### Improvements\n\n- **Shizuku/Root Privilege Manager**: Refactored Shizuku/Root privilege manager for improved stability and maintainability\n- **Keyboard Panel Stability**: Unified IME bottom inset resolution logic across different ROMs, added bottom inset warm-up mechanism to improve keyboard panel stability\n- **Soniox Model Update**: Updated Soniox streaming engine model version to stt-rt-v4",
+  "version": "3.13.3",
+  "version_code": 146,
+  "download_url": "https://github.com/BryceWG/BiBi-Keyboard/releases/tag/v3.13.3",
+  "release_notes": "### 新增功能\n\n- **初始配置引导页**: 重构首次使用的初始配置引导页\n- **键盘按钮长按提示**: 添加键盘按钮长按提示功能\n- **供应商配置分组**: 已配置和未配置的 ASR 和 LLM 供应商分开显示\n- **备用ASR引擎超时阈值敏感度设置**: 添加备用ASR引擎超时阈值敏感度设置\n\n### 改进优化\n\n- **SyncClipboard兼容性**: 支持新版SyncClipboard(v3.11.1以上)",
+  "release_notes_en": "### New Features\n\n- **Initial Setup Guide**: Refactored initial configuration guide page for first-time users\n- **Keyboard Button Long-Press Hints**: Added long-press hint feature for keyboard buttons\n- **Provider Configuration Grouping**: Separated configured and unconfigured ASR and LLM providers into different groups\n- **Backup ASR Engine Timeout Sensitivity Setting**: Added timeout threshold sensitivity setting for backup ASR engine\n\n### Improvements\n\n- **SyncClipboard Compatibility**: Added support for new SyncClipboard version (v3.11.1 and above)",
   "important_notice": "0. 3.13.0版本迎来大量重构，已经过初步测试，如果您有疑虑可以暂不更新\n1. 已支持通过同文输入法与说点啥进行联动，具体操作步骤见https://github.com/BryceWG/trime-bibi-keyboard/releases\n2. BiBi Keyboard Pro版本已上架，欢迎在3.8.6后版本-关于页面中了解详情。\n3. 官方网站和使用文档均已上线,网址分别为: bibi.brycewg.com bibidocs.brycewg.com",
   "notice_level": "info",
   "min_supported_version": "2.6.5",
-  "update_time": "2026-02-17T04:12:11Z"
+  "update_time": "2026-02-23T09:24:58Z"
 }
