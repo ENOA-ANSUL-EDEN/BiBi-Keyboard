@@ -67,6 +67,8 @@
 
     <!-- LLM 供应商选择 -->
     <string name="label_llm_vendor">LLM 供应商</string>
+    <string name="llm_vendor_group_configured">已配置</string>
+    <string name="llm_vendor_group_unconfigured">↓未配置↓</string>
     <string name="label_llm_model_select">选择模型</string>
     <string name="btn_llm_register">注册账号</string>
     <string name="btn_llm_guide">配置教程</string>

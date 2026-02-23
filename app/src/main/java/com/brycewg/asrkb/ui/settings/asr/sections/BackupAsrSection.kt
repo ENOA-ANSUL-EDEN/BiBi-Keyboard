@@ -4,6 +4,7 @@ import android.view.View
 import android.widget.TextView
 import com.brycewg.asrkb.R
 import com.brycewg.asrkb.asr.AsrVendor
+import com.brycewg.asrkb.asr.partitionAsrVendorsByConfigured
 import com.brycewg.asrkb.ui.AsrVendorUi
 import com.brycewg.asrkb.ui.SettingsOptionSheet
 import com.brycewg.asrkb.ui.settings.asr.AsrSettingsBinding
@@ -54,10 +55,41 @@ internal class BackupAsrSection : AsrSettingsSection {
                 )
             }
             val curIdx = vendorOrder.indexOf(binding.prefs.backupAsrVendor).coerceAtLeast(0)
-            SettingsOptionSheet.showSingleChoiceTagged(
+            val indexByVendor = vendorOrder.withIndex().associate { it.value to it.index }
+            val partition = partitionAsrVendorsByConfigured(
+                context = binding.activity,
+                prefs = binding.prefs,
+                vendors = vendorOrder
+            )
+            val configuredItems = partition.configured.mapNotNull { vendor ->
+                indexByVendor[vendor]?.let { idx ->
+                    SettingsOptionSheet.TaggedIndexedItem(
+                        originalIndex = idx,
+                        item = vendorItems[idx]
+                    )
+                }
+            }
+            val unconfiguredItems = partition.unconfigured.mapNotNull { vendor ->
+                indexByVendor[vendor]?.let { idx ->
+                    SettingsOptionSheet.TaggedIndexedItem(
+                        originalIndex = idx,
+                        item = vendorItems[idx]
+                    )
+                }
+            }
+            SettingsOptionSheet.showSingleChoiceTaggedGrouped(
                 context = binding.activity,
                 titleResId = R.string.label_backup_asr_vendor,
-                items = vendorItems,
+                groups = listOf(
+                    SettingsOptionSheet.TaggedGroup(
+                        label = binding.activity.getString(R.string.asr_vendor_group_configured),
+                        items = configuredItems
+                    ),
+                    SettingsOptionSheet.TaggedGroup(
+                        label = binding.activity.getString(R.string.asr_vendor_group_unconfigured),
+                        items = unconfiguredItems
+                    )
+                ),
                 selectedIndex = curIdx
             ) { selectedIdx ->
                 val vendor = vendorOrder.getOrNull(selectedIdx) ?: AsrVendor.SiliconFlow
