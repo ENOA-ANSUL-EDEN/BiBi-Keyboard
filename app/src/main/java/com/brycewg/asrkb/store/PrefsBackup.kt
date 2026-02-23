@@ -115,6 +115,7 @@ internal object PrefsBackup {
         o.put(KEY_ASR_VENDOR, asrVendor.id)
         o.put(KEY_BACKUP_ASR_ENABLED, backupAsrEnabled)
         o.put(KEY_BACKUP_ASR_VENDOR, backupAsrVendor.id)
+        o.put(KEY_BACKUP_ASR_TIMEOUT_SENSITIVITY, backupAsrTimeoutSensitivity)
         // 遍历所有供应商字段，统一导出，避免逐个硬编码
         vendorFields.values.flatten().forEach { f ->
             o.put(f.key, getPrefString(f.key, f.default))
@@ -393,6 +394,7 @@ internal object PrefsBackup {
             optString(KEY_ASR_VENDOR)?.let { asrVendor = AsrVendor.fromId(it) }
             optBool(KEY_BACKUP_ASR_ENABLED)?.let { backupAsrEnabled = it }
             optString(KEY_BACKUP_ASR_VENDOR)?.let { backupAsrVendor = AsrVendor.fromId(it) }
+            optInt(KEY_BACKUP_ASR_TIMEOUT_SENSITIVITY)?.let { backupAsrTimeoutSensitivity = it }
             // 供应商设置（通用导入）
             vendorFields.values.flatten().forEach { f ->
                 optString(f.key)?.let { v ->

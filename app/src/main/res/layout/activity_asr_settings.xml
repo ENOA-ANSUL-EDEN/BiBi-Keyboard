@@ -1084,6 +1084,20 @@
           <Spinner style="@style/SettingsHiddenSpinner" />
 
           <TextView
+            style="@style/SettingsLabel"
+            android:text="@string/label_backup_asr_timeout_sensitivity" />
+
+          <TextView
+            android:id="@+id/tvBackupAsrTimeoutSensitivityValue"
+            style="@style/SettingsClickableValue.Dropdown"
+            android:text="@string/option_backup_asr_timeout_sensitivity_balanced" />
+          <Spinner style="@style/SettingsHiddenSpinner" />
+
+          <TextView
+            style="@style/SettingsHint"
+            android:text="@string/hint_backup_asr_timeout_sensitivity" />
+
+          <TextView
             style="@style/SettingsHint"
             android:text="@string/hint_backup_asr_uses_existing_config" />
         </LinearLayout>

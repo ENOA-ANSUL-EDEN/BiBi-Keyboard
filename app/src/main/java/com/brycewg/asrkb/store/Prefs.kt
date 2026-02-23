@@ -841,6 +841,31 @@ class Prefs(context: Context) {
         }
         set(value) = sp.edit { putString(KEY_BACKUP_ASR_VENDOR, value.id) }
 
+    // 备用 ASR 引擎：主引擎超时阈值敏感度（0/1/2，默认 1=均衡）
+    var backupAsrTimeoutSensitivity: Int
+        get() {
+            try {
+                return sp.getInt(KEY_BACKUP_ASR_TIMEOUT_SENSITIVITY, 1).coerceIn(0, 2)
+            } catch (t: ClassCastException) {
+                val parsed = try {
+                    sp.getString(KEY_BACKUP_ASR_TIMEOUT_SENSITIVITY, null)?.toIntOrNull()
+                } catch (_: Throwable) {
+                    null
+                }
+                val normalized = (parsed ?: 1).coerceIn(0, 2)
+                try {
+                    sp.edit {
+                        if (parsed == null) remove(KEY_BACKUP_ASR_TIMEOUT_SENSITIVITY)
+                        putInt(KEY_BACKUP_ASR_TIMEOUT_SENSITIVITY, normalized)
+                    }
+                } catch (_: Throwable) {
+                    // ignore: best-effort normalization
+                }
+                return normalized
+            }
+        }
+        set(value) = sp.edit { putInt(KEY_BACKUP_ASR_TIMEOUT_SENSITIVITY, value.coerceIn(0, 2)) }
+
     // ElevenLabs：语言代码（空=自动识别）
     var elevenLanguageCode: String
         get() = sp.getString(KEY_ELEVEN_LANGUAGE_CODE, "") ?: ""

@@ -69,7 +69,12 @@
   <string name="label_backup_asr_engine">備用語音識別引擎</string>
   <string name="label_backup_asr_enabled">啟用備用引擎</string>
   <string name="label_backup_asr_vendor">備用服務商</string>
+  <string name="label_backup_asr_timeout_sensitivity">逾時閾值敏感度</string>
   <string name="hint_backup_asr_uses_existing_config">直接使用本頁已有的服務商設定，無需額外設定</string>
+  <string name="hint_backup_asr_timeout_sensitivity">敏感度越高，主引擎越容易被判定逾時並更快切換到備用結果</string>
+  <string name="option_backup_asr_timeout_sensitivity_relaxed">寬鬆</string>
+  <string name="option_backup_asr_timeout_sensitivity_balanced">均衡（推薦）</string>
+  <string name="option_backup_asr_timeout_sensitivity_sensitive">敏感</string>
 
   <!-- ============================================== -->
   <!-- 自定義標點 -->

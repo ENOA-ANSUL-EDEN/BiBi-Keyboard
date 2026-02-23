@@ -15,6 +15,7 @@ internal class BackupAsrSection : AsrSettingsSection {
         val switchBackupAsrEnabled = binding.view<MaterialSwitch>(R.id.switchBackupAsrEnabled)
         val groupBackupAsr = binding.view<View>(R.id.groupBackupAsr)
         val tvBackupAsrVendor = binding.view<TextView>(R.id.tvBackupAsrVendorValue)
+        val tvBackupAsrTimeoutSensitivity = binding.view<TextView>(R.id.tvBackupAsrTimeoutSensitivityValue)
 
         fun updateVendorSummary() {
             val vendorOrder = AsrVendorUi.ordered()
@@ -23,10 +24,20 @@ internal class BackupAsrSection : AsrSettingsSection {
             tvBackupAsrVendor.text = vendorItems[idx]
         }
 
+        fun updateTimeoutSensitivitySummary() {
+            val resId = when (binding.prefs.backupAsrTimeoutSensitivity) {
+                0 -> R.string.option_backup_asr_timeout_sensitivity_relaxed
+                2 -> R.string.option_backup_asr_timeout_sensitivity_sensitive
+                else -> R.string.option_backup_asr_timeout_sensitivity_balanced
+            }
+            tvBackupAsrTimeoutSensitivity.text = binding.activity.getString(resId)
+        }
+
         fun updateBackupUi() {
             val enabled = binding.prefs.backupAsrEnabled
             groupBackupAsr.visibility = if (enabled) View.VISIBLE else View.GONE
             updateVendorSummary()
+            updateTimeoutSensitivitySummary()
         }
 
         switchBackupAsrEnabled.isChecked = binding.prefs.backupAsrEnabled
@@ -63,6 +74,24 @@ internal class BackupAsrSection : AsrSettingsSection {
                 val vendor = vendorOrder.getOrNull(selectedIdx) ?: AsrVendor.SiliconFlow
                 binding.prefs.backupAsrVendor = vendor
                 updateVendorSummary()
+            }
+        }
+
+        tvBackupAsrTimeoutSensitivity.setOnClickListener { v ->
+            binding.hapticTapIfEnabled(v)
+            val items = arrayOf(
+                binding.activity.getString(R.string.option_backup_asr_timeout_sensitivity_relaxed),
+                binding.activity.getString(R.string.option_backup_asr_timeout_sensitivity_balanced),
+                binding.activity.getString(R.string.option_backup_asr_timeout_sensitivity_sensitive)
+            )
+            val curIdx = binding.prefs.backupAsrTimeoutSensitivity.coerceIn(0, 2)
+            binding.showSingleChoiceDialog(
+                titleResId = R.string.label_backup_asr_timeout_sensitivity,
+                items = items,
+                currentIndex = curIdx
+            ) { selectedIdx ->
+                binding.prefs.backupAsrTimeoutSensitivity = selectedIdx.coerceIn(0, 2)
+                updateTimeoutSensitivitySummary()
             }
         }
     }

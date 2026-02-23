@@ -27,10 +27,13 @@ internal object PrefsInitTasks {
 
     private val globalToggleListener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
         try {
-            val v = prefs.all[key]
-            if (v is Boolean) {
-                DebugLogManager.log("prefs", "toggle", mapOf("key" to key, "value" to v))
+            if (!prefs.contains(key)) return@OnSharedPreferenceChangeListener
+            val v = try {
+                prefs.getBoolean(key, false)
+            } catch (_: ClassCastException) {
+                return@OnSharedPreferenceChangeListener
             }
+            DebugLogManager.log("prefs", "toggle", mapOf("key" to key, "value" to v))
         } catch (t: Throwable) {
             Log.w(TAG, "Failed to log pref toggle", t)
         }
@@ -39,9 +42,58 @@ internal object PrefsInitTasks {
     fun run(appContext: Context, sp: SharedPreferences) {
         registerGlobalToggleListenerIfNeeded(sp)
         migrateOnboardingGuideStateIfNeeded(sp)
+        normalizeBackupAsrTimeoutSensitivityIfNeeded(sp)
         migrateFunAsrFromSenseVoiceIfNeeded(sp)
         normalizeFunAsrVariantIfNeeded(sp)
         cleanupLegacyFunAsrModelsIfNeeded(appContext, sp)
+    }
+
+    private fun normalizeBackupAsrTimeoutSensitivityIfNeeded(sp: SharedPreferences) {
+        try {
+            if (!sp.contains(KEY_BACKUP_ASR_TIMEOUT_SENSITIVITY)) return
+
+            val currentInt = try {
+                sp.getInt(KEY_BACKUP_ASR_TIMEOUT_SENSITIVITY, 0)
+            } catch (_: ClassCastException) {
+                null
+            }
+
+            if (currentInt != null) {
+                val clamped = currentInt.coerceIn(0, 2)
+                if (clamped != currentInt) {
+                    sp.edit { putInt(KEY_BACKUP_ASR_TIMEOUT_SENSITIVITY, clamped) }
+                }
+                return
+            }
+
+            val currentLong = try {
+                sp.getLong(KEY_BACKUP_ASR_TIMEOUT_SENSITIVITY, 0L)
+            } catch (_: ClassCastException) {
+                null
+            }
+            val fromLong: Int? =
+                currentLong?.takeIf { it in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong() }?.toInt()
+
+            val fromString = if (fromLong == null) {
+                val s = try {
+                    sp.getString(KEY_BACKUP_ASR_TIMEOUT_SENSITIVITY, null)
+                } catch (_: ClassCastException) {
+                    null
+                }
+                s?.trim()?.toIntOrNull()
+            } else {
+                null
+            }
+
+            val normalized = (fromLong ?: fromString)?.coerceIn(0, 2)
+            if (normalized == null) {
+                sp.edit { remove(KEY_BACKUP_ASR_TIMEOUT_SENSITIVITY) }
+                return
+            }
+            sp.edit { putInt(KEY_BACKUP_ASR_TIMEOUT_SENSITIVITY, normalized) }
+        } catch (t: Throwable) {
+            Log.w(TAG, "Failed to normalize backup ASR timeout sensitivity", t)
+        }
     }
 
     private fun migrateOnboardingGuideStateIfNeeded(sp: SharedPreferences) {

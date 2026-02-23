@@ -40,9 +40,12 @@ class ParallelAsrEngine(
     private const val SAMPLE_RATE = 16000
     private const val CHANNELS = 1
     private const val CHUNK_MS = 200
-    private const val PRIMARY_SWITCH_RATIO = 0.5
+    private const val PRIMARY_SWITCH_RATIO_BALANCED = 0.75
+    private const val PRIMARY_SWITCH_RATIO_SENSITIVE = 0.5
     private const val PRIMARY_SWITCH_MIN_MS = 6_000L
     private const val PRIMARY_SWITCH_MAX_MS = 15_000L
+    private const val PRIMARY_SWITCH_NONSTREAM_SOFT_MAX_BALANCED_MS = 25_000L
+    private const val PRIMARY_SWITCH_NONSTREAM_SOFT_MAX_SENSITIVE_MS = 18_000L
   }
 
   private enum class Source { PRIMARY, BACKUP }
@@ -318,12 +321,8 @@ class ParallelAsrEngine(
     }
 
     val baseTimeoutMs = AsrTimeoutCalculator.calculateTimeoutMs(audioMs)
-    val switchTimeoutMs = if (isPrimaryStreamingForSwitch()) {
-      ((baseTimeoutMs * PRIMARY_SWITCH_RATIO).toLong())
-        .coerceIn(PRIMARY_SWITCH_MIN_MS, PRIMARY_SWITCH_MAX_MS)
-    } else {
-      baseTimeoutMs
-    }
+    val sensitivityTier = try { prefs.backupAsrTimeoutSensitivity } catch (_: Throwable) { 1 }
+    val switchTimeoutMs = calculatePrimarySwitchTimeoutMs(baseTimeoutMs, isPrimaryStreamingForSwitch(), sensitivityTier)
 
     try {
       primaryTimeoutJob?.cancel()
@@ -345,6 +344,34 @@ class ParallelAsrEngine(
       TAG,
       "Primary timeout scheduled: audioMs=$audioMs, baseTimeoutMs=$baseTimeoutMs, switchTimeoutMs=$switchTimeoutMs"
     )
+  }
+
+  private fun calculatePrimarySwitchTimeoutMs(baseTimeoutMs: Long, primaryStreaming: Boolean, sensitivityTier: Int): Long {
+    val ratio = when (sensitivityTier.coerceIn(0, 2)) {
+      0 -> 1.0
+      2 -> PRIMARY_SWITCH_RATIO_SENSITIVE
+      else -> PRIMARY_SWITCH_RATIO_BALANCED
+    }
+
+    var timeoutMs = (baseTimeoutMs.toDouble() * ratio).toLong().coerceAtLeast(0L)
+
+    if (primaryStreaming) {
+      timeoutMs = timeoutMs.coerceIn(PRIMARY_SWITCH_MIN_MS, PRIMARY_SWITCH_MAX_MS)
+    } else {
+      val minMs = when (sensitivityTier.coerceIn(0, 2)) {
+        2 -> 5_000L
+        1 -> 6_000L
+        else -> 0L
+      }
+      val softMaxMs = when (sensitivityTier.coerceIn(0, 2)) {
+        2 -> PRIMARY_SWITCH_NONSTREAM_SOFT_MAX_SENSITIVE_MS
+        1 -> PRIMARY_SWITCH_NONSTREAM_SOFT_MAX_BALANCED_MS
+        else -> Long.MAX_VALUE
+      }
+      timeoutMs = timeoutMs.coerceAtLeast(minMs).coerceAtMost(softMaxMs)
+    }
+
+    return timeoutMs
   }
 
   private fun audioMsFromBytes(bytes: Long): Long {

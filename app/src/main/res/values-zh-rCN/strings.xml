@@ -69,7 +69,12 @@
   <string name="label_backup_asr_engine">备用语音识别引擎</string>
   <string name="label_backup_asr_enabled">启用备用引擎</string>
   <string name="label_backup_asr_vendor">备用服务商</string>
+  <string name="label_backup_asr_timeout_sensitivity">超时阈值敏感度</string>
   <string name="hint_backup_asr_uses_existing_config">直接使用本页已有的服务商配置，无需额外设置</string>
+  <string name="hint_backup_asr_timeout_sensitivity">敏感度越高，主引擎越容易被判定超时并更快切换到备用结果</string>
+  <string name="option_backup_asr_timeout_sensitivity_relaxed">宽松</string>
+  <string name="option_backup_asr_timeout_sensitivity_balanced">均衡（推荐）</string>
+  <string name="option_backup_asr_timeout_sensitivity_sensitive">敏感</string>
 
   <!-- ============================================== -->
   <!-- 自定义标点 -->
