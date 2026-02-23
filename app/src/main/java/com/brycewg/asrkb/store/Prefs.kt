@@ -967,9 +967,30 @@ class Prefs(context: Context) {
     internal val vendorFields: Map<AsrVendor, List<VendorField>> = PrefsAsrVendorFields.vendorFields
 
     fun hasVendorKeys(v: AsrVendor): Boolean {
+        if (v == AsrVendor.OpenAI) {
+            return hasOpenAiAsrConfigured()
+        }
         val fields = vendorFields[v] ?: return false
         return fields.filter { it.required }.all { f ->
             getPrefString(f.key, f.default).isNotBlank()
+        }
+    }
+
+    /**
+     * OpenAI ASR 配置判定：
+     * - 默认官方 endpoint 需要 API Key
+     * - 自定义（OpenAI 兼容）endpoint 允许空 API Key
+     */
+    private fun hasOpenAiAsrConfigured(): Boolean {
+        val endpoint = oaAsrEndpoint.ifBlank { DEFAULT_OA_ASR_ENDPOINT }.trim()
+        val model = oaAsrModel.ifBlank { DEFAULT_OA_ASR_MODEL }.trim()
+        if (endpoint.isBlank() || model.isBlank()) return false
+        val endpointNormalized = endpoint.trimEnd('/')
+        val defaultEndpointNormalized = DEFAULT_OA_ASR_ENDPOINT.trimEnd('/')
+        return if (endpointNormalized.equals(defaultEndpointNormalized, ignoreCase = true)) {
+            oaAsrApiKey.isNotBlank()
+        } else {
+            true
         }
     }
 
