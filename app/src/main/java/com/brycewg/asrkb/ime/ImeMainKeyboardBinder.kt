@@ -3,6 +3,7 @@ package com.brycewg.asrkb.ime
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
+import androidx.annotation.StringRes
 import com.brycewg.asrkb.R
 import com.brycewg.asrkb.store.Prefs
 
@@ -18,6 +19,8 @@ internal class ImeMainKeyboardBinder(
     private val hasRecordAudioPermission: () -> Boolean,
     private val refreshPermissionUi: () -> Unit,
     private val clearStatusTextStyle: () -> Unit,
+    private val showStatusMessage: (String) -> Unit,
+    private val renderCurrentState: () -> Unit,
     private val showAiEditPanel: () -> Unit,
     private val showNumpadPanel: (returnToAiPanel: Boolean) -> Unit,
     private val showClipboardPanel: () -> Unit,
@@ -28,11 +31,14 @@ internal class ImeMainKeyboardBinder(
     private val inputConnectionProvider: () -> android.view.inputmethod.InputConnection?,
     private val editorInfoProvider: () -> android.view.inputmethod.EditorInfo?,
 ) {
+    private var keyHintResetRunnable: Runnable? = null
+
     fun bind() {
         bindTopRow()
         bindBackspace()
         bindMainRow()
         bindPunctuation()
+        bindFixedButtonLongPressHints()
     }
 
     fun applyPunctuationLabels() {
@@ -174,6 +180,36 @@ internal class ImeMainKeyboardBinder(
             performKeyHaptic(v)
             showVendorPicker(v)
         }
+    }
+
+    private fun bindFixedButtonLongPressHints() {
+        // 仅支持主键盘固定功能按钮，不处理扩展按钮，也不处理回车/退格
+        registerLongPressHint(views.btnPromptPicker, R.string.cd_ai_edit)
+        registerLongPressHint(views.btnPostproc, R.string.cd_postproc_toggle)
+        registerLongPressHint(views.btnHide, R.string.ext_btn_clipboard)
+        registerLongPressHint(views.btnSettings, R.string.cd_settings)
+        registerLongPressHint(views.btnImeSwitcher, R.string.cd_prompt_picker)
+        registerLongPressHint(views.btnAiEdit, R.string.cd_switch_ime)
+        registerLongPressHint(views.btnPunct1, R.string.cd_numpad)
+        registerLongPressHint(views.btnPunct4, R.string.cd_vendor_picker)
+    }
+
+    private fun registerLongPressHint(view: View?, @StringRes hintRes: Int) {
+        view?.setOnLongClickListener { v ->
+            performKeyHaptic(v)
+            showFunctionHint(hintRes)
+            true
+        }
+    }
+
+    private fun showFunctionHint(@StringRes hintRes: Int) {
+        val statusView = views.txtStatusText ?: return
+        clearStatusTextStyle()
+        showStatusMessage(context.getString(hintRes))
+        keyHintResetRunnable?.let(statusView::removeCallbacks)
+        val restoreRunnable = Runnable { renderCurrentState() }
+        keyHintResetRunnable = restoreRunnable
+        statusView.postDelayed(restoreRunnable, 1500L)
     }
 
     /**

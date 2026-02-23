@@ -490,6 +490,8 @@ class AsrKeyboardService : InputMethodService(), KeyboardActionHandler.UiListene
             hasRecordAudioPermission = ::hasRecordAudioPermission,
             refreshPermissionUi = ::refreshPermissionUi,
             clearStatusTextStyle = { uiRenderer?.clearStatusTextStyle() ?: Unit },
+            showStatusMessage = { message -> uiRenderer?.showStatusMessage(message) ?: Unit },
+            renderCurrentState = { uiRenderer?.render(actionHandler.getCurrentState()) ?: Unit },
             showAiEditPanel = ::showAiEditPanel,
             showNumpadPanel = { returnToAiPanel -> showNumpadPanel(returnToAiPanel) },
             showClipboardPanel = ::showClipboardPanel,
