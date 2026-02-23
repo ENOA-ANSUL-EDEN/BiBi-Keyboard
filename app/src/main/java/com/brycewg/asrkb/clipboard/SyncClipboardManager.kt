@@ -3,7 +3,7 @@ package com.brycewg.asrkb.clipboard
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.text.TextUtils
+import android.net.Uri
 import android.util.Base64
 import android.util.Log
 import com.brycewg.asrkb.store.Prefs
@@ -13,6 +13,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -23,13 +24,27 @@ import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 
 /**
- * 剪贴板同步数据载荷
+ * 写入 SyncClipboard 的文本数据载荷
  */
 @Serializable
-private data class ClipboardPayload(
-  val File: String = "",
-  val Clipboard: String,
-  val Type: String = "Text"
+private data class UploadClipboardPayload(
+  val hasData: Boolean = false,
+  val text: String,
+  val type: String = "Text"
+)
+
+/**
+ * 从 SyncClipboard 读取的数据载荷
+ */
+@Serializable
+private data class PullClipboardPayload(
+  val text: String? = null,
+  val type: String? = null,
+  val hasData: Boolean? = null,
+  val dataName: String? = null,
+  @SerialName("Clipboard") val legacyClipboard: String? = null,
+  @SerialName("Type") val legacyType: String? = null,
+  @SerialName("File") val legacyFile: String? = null
 )
 
 /**
@@ -37,7 +52,7 @@ private data class ClipboardPayload(
  * - 监听剪贴板变动并上传（文本类型）
  * - 按设定周期从服务器拉取文本并写入系统剪贴板
  *
- * 注意：服务端认证按文档要求使用 Header: `Authorization: Basic 用户名:密码`（非 Base64）。
+ * 注意：服务端认证使用标准 HTTP Basic（`Authorization: Basic <base64(username:password)>`）。
  */
 class SyncClipboardManager(
   private val context: Context,
@@ -214,7 +229,7 @@ class SyncClipboardManager(
 
   private fun uploadText(url: String, auth: String, text: String): Boolean {
     return try {
-      val payload = ClipboardPayload(Clipboard = text)
+      val payload = UploadClipboardPayload(text = text)
       val bodyJson = json.encodeToString(payload)
       val req = Request.Builder()
         .url(url)
@@ -275,8 +290,7 @@ class SyncClipboardManager(
   }
 
   /**
-   * 执行带认证回退的请求
-   * 先尝试明文认证，失败则回退到 Base64 认证
+   * 执行带认证的请求（HTTP Basic）。
    */
   private fun <T> executeRequestWithAuth(
     requestBuilder: (auth: String) -> Request,
@@ -318,32 +332,45 @@ class SyncClipboardManager(
           }
 
           val payload = try {
-            json.decodeFromString<ClipboardPayload>(body)
+            json.decodeFromString<PullClipboardPayload>(body)
           } catch (e: Throwable) {
             Log.e(TAG, "Failed to parse clipboard payload", e)
             return@executeRequestWithAuth null
           }
 
-          // 根据类型处理不同的 payload
-          when (payload.Type) {
-            "Text" -> {
-              val text = payload.Clipboard
-              if (text.isBlank()) {
+          val payloadType = resolvePayloadType(payload)
+          when (payloadType.lowercase()) {
+            "text" -> {
+              val textDataName = if (payload.hasData == true) {
+                payload.dataName?.takeIf { it.isNotEmpty() }
+                  ?: payload.legacyFile?.takeIf { it.isNotEmpty() }
+              } else {
+                null
+              }
+              val text = if (!textDataName.isNullOrBlank()) {
+                downloadTextData(textDataName)
+              } else {
+                resolvePayloadText(payload)
+              }
+              val nonBlankText = text?.takeIf { it.isNotBlank() }
+              if (nonBlankText == null) {
                 Log.w(TAG, "Clipboard text is blank")
                 return@executeRequestWithAuth null
               }
-              return@executeRequestWithAuth handleTextPayload(text, updateClipboard)
+              return@executeRequestWithAuth handleTextPayload(nonBlankText, updateClipboard)
             }
-            "Image", "File" -> {
-              val fileName = payload.File
-              if (fileName.isBlank()) {
-                Log.w(TAG, "File name is blank for type: ${payload.Type}")
+            "image", "file" -> {
+              val fileName = resolvePayloadFileName(payload)
+              val nonBlankFileName = fileName?.takeIf { it.isNotBlank() }
+              if (nonBlankFileName == null) {
+                Log.w(TAG, "File name is blank for type: $payloadType")
                 return@executeRequestWithAuth null
               }
-              return@executeRequestWithAuth handleFilePayload(payload.Type, fileName)
+              val normalizedType = if (payloadType.equals("image", ignoreCase = true)) "Image" else "File"
+              return@executeRequestWithAuth handleFilePayload(normalizedType, nonBlankFileName)
             }
             else -> {
-              Log.w(TAG, "Unsupported payload type: ${payload.Type}")
+              Log.w(TAG, "Unsupported payload type: $payloadType")
               return@executeRequestWithAuth null
             }
           }
@@ -359,6 +386,64 @@ class SyncClipboardManager(
     } else {
       false to null
     }
+  }
+
+  /**
+   * 统一解析 payload 类型，优先新字段，兼容旧字段。
+   */
+  private fun resolvePayloadType(payload: PullClipboardPayload): String {
+    val explicitType = payload.type?.trim().takeUnless { it.isNullOrBlank() }
+      ?: payload.legacyType?.trim().takeUnless { it.isNullOrBlank() }
+    if (explicitType != null) return explicitType
+    if (payload.hasData == true && (!payload.dataName.isNullOrBlank() || !payload.legacyFile.isNullOrBlank())) {
+      return "File"
+    }
+    return "Text"
+  }
+
+  /**
+   * 统一解析 payload 文本内容，优先新字段，兼容旧字段。
+   */
+  private fun resolvePayloadText(payload: PullClipboardPayload): String? {
+    return payload.text?.takeIf { it.isNotEmpty() }
+      ?: payload.legacyClipboard?.takeIf { it.isNotEmpty() }
+  }
+
+  /**
+   * 统一解析 payload 文件名，优先新字段，兼容旧字段。
+   */
+  private fun resolvePayloadFileName(payload: PullClipboardPayload): String? {
+    return payload.dataName?.takeIf { it.isNotEmpty() }
+      ?: payload.legacyFile?.takeIf { it.isNotEmpty() }
+      ?: payload.text?.takeIf { payload.hasData == true && it.isNotEmpty() }
+      ?: payload.legacyClipboard?.takeIf { payload.hasData == true && it.isNotEmpty() }
+  }
+
+  /**
+   * 拉取文本内容：当 `Text + hasData=true` 时，正文存放在 `/file/{dataName}`。
+   */
+  private fun downloadTextData(dataName: String): String? {
+    val fileUrl = buildFileUrl(dataName) ?: run {
+      Log.w(TAG, "Failed to build text data url for: $dataName")
+      return null
+    }
+    return executeRequestWithAuth(
+      requestBuilder = { auth ->
+        Request.Builder()
+          .url(fileUrl)
+          .header("Authorization", auth)
+          .get()
+          .build()
+      },
+      responseHandler = { resp ->
+        val text = resp.body?.string()
+        if (text.isNullOrEmpty()) {
+          Log.w(TAG, "Downloaded text data is empty: $dataName")
+          return@executeRequestWithAuth null
+        }
+        text
+      }
+    )
   }
 
   /**
@@ -425,9 +510,9 @@ class SyncClipboardManager(
         return fileName
       }
 
-      val entryType = when (type) {
-        "Image" -> EntryType.IMAGE
-        "File" -> EntryType.FILE
+      val entryType = when (type.lowercase()) {
+        "image" -> EntryType.IMAGE
+        "file" -> EntryType.FILE
         else -> EntryType.FILE
       }
 
@@ -614,7 +699,8 @@ class SyncClipboardManager(
     if (raw.isBlank()) return null
     val base = raw.trimEnd('/')
     // 文件在服务器的 /file/ 目录下
-    return "$base/file/$fileName"
+    val encodedFileName = Uri.encode(fileName)
+    return "$base/file/$encodedFileName"
   }
 
   /**
