@@ -25,6 +25,7 @@ import androidx.lifecycle.lifecycleScope
 import com.brycewg.asrkb.R
 import com.brycewg.asrkb.asr.LlmPostProcessor
 import com.brycewg.asrkb.asr.LlmVendor
+import com.brycewg.asrkb.asr.partitionLlmVendorsByConfigured
 import com.brycewg.asrkb.ime.AsrKeyboardService
 import com.brycewg.asrkb.store.Prefs
 import com.brycewg.asrkb.store.PromptPreset
@@ -806,19 +807,51 @@ class AiPostSettingsActivity : BaseActivity() {
 
     private fun showVendorSelectionDialog() {
         val vendors = LlmVendor.allVendors()
-        val titles = vendors.map { getString(it.displayNameResId) }.toTypedArray()
         val currentVendor = viewModel.selectedVendor.value
         val selectedIndex = vendors.indexOf(currentVendor).coerceAtLeast(0)
 
-        showSingleChoiceBottomSheet(
+        val vendorItems = vendors.map { vendor ->
+            SettingsOptionSheet.TaggedItem(
+                title = getString(vendor.displayNameResId),
+                tags = emptyList()
+            )
+        }
+        val indexByVendor = vendors.withIndex().associate { it.value to it.index }
+        val partition = partitionLlmVendorsByConfigured(prefs, vendors)
+        val configuredItems = partition.configured.mapNotNull { vendor ->
+            indexByVendor[vendor]?.let { idx ->
+                SettingsOptionSheet.TaggedIndexedItem(
+                    originalIndex = idx,
+                    item = vendorItems[idx]
+                )
+            }
+        }
+        val unconfiguredItems = partition.unconfigured.mapNotNull { vendor ->
+            indexByVendor[vendor]?.let { idx ->
+                SettingsOptionSheet.TaggedIndexedItem(
+                    originalIndex = idx,
+                    item = vendorItems[idx]
+                )
+            }
+        }
+
+        SettingsOptionSheet.showSingleChoiceTaggedGrouped(
+            context = this,
             titleResId = R.string.label_llm_vendor,
-            items = titles.toList(),
+            groups = listOf(
+                SettingsOptionSheet.TaggedGroup(
+                    label = getString(R.string.llm_vendor_group_configured),
+                    items = configuredItems
+                ),
+                SettingsOptionSheet.TaggedGroup(
+                    label = getString(R.string.llm_vendor_group_unconfigured),
+                    items = unconfiguredItems
+                )
+            ),
             selectedIndex = selectedIndex
         ) { which ->
-            val selected = vendors.getOrNull(which)
-            if (selected != null) {
-                viewModel.selectVendor(prefs, selected)
-            }
+            val selected = vendors.getOrNull(which) ?: return@showSingleChoiceTaggedGrouped
+            viewModel.selectVendor(prefs, selected)
         }
     }
 

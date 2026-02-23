@@ -66,6 +66,8 @@
 
     <!-- LLM vendor selection -->
     <string name="label_llm_vendor">LLM Provider</string>
+    <string name="llm_vendor_group_configured">Configured</string>
+    <string name="llm_vendor_group_unconfigured">↓Not configured↓</string>
     <string name="label_llm_model_select">Select Model</string>
     <string name="btn_llm_register">Register Account</string>
     <string name="btn_llm_guide">Configuration Guide</string>

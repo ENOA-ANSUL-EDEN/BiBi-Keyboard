@@ -417,11 +417,14 @@ object SettingsOptionSheet {
     }
 
     private fun buildRows(groups: List<TaggedGroup>): List<GroupedTaggedRow> {
+      val showFirstDivider = groups.size > 1
       return buildList {
         groups.forEachIndexed { groupIndex, group ->
           if (group.items.isEmpty()) return@forEachIndexed
-          if (groupIndex > 0) {
-            add(GroupedTaggedRow.Divider(group.label))
+          if ((groupIndex == 0 && showFirstDivider) || groupIndex > 0) {
+            if (group.label.isNotBlank()) {
+              add(GroupedTaggedRow.Divider(group.label))
+            }
           }
           group.items.forEach { item ->
             add(GroupedTaggedRow.Option(item.originalIndex, item.item))
