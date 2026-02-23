@@ -26,7 +26,7 @@ internal class SenseVoiceSettingsSection : AsrSettingsSection {
 
         binding.view<MaterialButton>(R.id.btnSvGuide).setOnClickListener { v ->
             binding.hapticTapIfEnabled(v)
-            binding.openUrlSafely(binding.activity.getString(R.string.model_guide_config_doc_url))
+            binding.openUrlSafely(binding.activity.getString(R.string.local_model_guide_config_doc_url))
         }
     }
 

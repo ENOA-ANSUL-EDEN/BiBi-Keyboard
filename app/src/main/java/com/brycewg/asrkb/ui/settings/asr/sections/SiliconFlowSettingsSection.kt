@@ -68,7 +68,7 @@ internal class SiliconFlowSettingsSection : AsrSettingsSection {
 
         binding.view<MaterialButton>(R.id.btnSfFreeGuide).setOnClickListener { v ->
             binding.hapticTapIfEnabled(v)
-            binding.openUrlSafely("https://brycewg.notion.site/bibi-keyboard-providers-guide")
+            binding.openUrlSafely("https://bibidocs.brycewg.com/getting-started/asr-providers.html#%E7%A1%85%E5%9F%BA%E6%B5%81%E5%8A%A8-siliconflow")
         }
 
         binding.view<EditText>(R.id.etSfApiKey).apply {
@@ -122,7 +122,7 @@ internal class SiliconFlowSettingsSection : AsrSettingsSection {
 
         binding.view<MaterialButton>(R.id.btnSfGetKey).setOnClickListener { v ->
             binding.hapticTapIfEnabled(v)
-            binding.openUrlSafely("https://brycewg.notion.site/bibi-keyboard-providers-guide")
+            binding.openUrlSafely("https://bibidocs.brycewg.com/getting-started/asr-providers.html#%E7%A1%85%E5%9F%BA%E6%B5%81%E5%8A%A8-siliconflow")
         }
     }
 }

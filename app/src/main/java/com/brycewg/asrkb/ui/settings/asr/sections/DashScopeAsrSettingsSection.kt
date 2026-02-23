@@ -43,7 +43,7 @@ internal class DashScopeAsrSettingsSection : AsrSettingsSection {
 
         binding.view<MaterialButton>(R.id.btnDashGetKey).setOnClickListener { v ->
             binding.hapticTapIfEnabled(v)
-            binding.openUrlSafely("https://brycewg.notion.site/bibi-keyboard-providers-guide")
+            binding.openUrlSafely("https://bibidocs.brycewg.com/getting-started/asr-providers.html#%E9%98%BF%E9%87%8C%E4%BA%91%E7%99%BE%E7%82%BC-dashscope-qwen")
         }
     }
 

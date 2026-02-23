@@ -109,7 +109,7 @@ internal class VolcengineSettingsSection : AsrSettingsSection {
 
         binding.view<MaterialButton>(R.id.btnVolcGetKey).setOnClickListener { v ->
             binding.hapticTapIfEnabled(v)
-            binding.openUrlSafely("https://brycewg.notion.site/bibi-keyboard-providers-guide")
+            binding.openUrlSafely("https://bibidocs.brycewg.com/getting-started/asr-providers.html#%E7%81%AB%E5%B1%B1%E5%BC%95%E6%93%8E-volcengine")
         }
     }
 
